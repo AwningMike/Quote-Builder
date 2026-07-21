@@ -1,0 +1,17 @@
+{
+  "name": "APMG Canopy & Awning Quote Calculator",
+  "short_name": "APMG Quotes",
+  "description": "Canopy & awning quote calculator for Awning Partners Manufacturing Group",
+  "start_url": "./canopy_quote_calculator.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#c8102e",
+  "icons": [
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}
