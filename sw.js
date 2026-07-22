@@ -1,42 +1,37 @@
-// Minimal service worker: caches the app shell so it works offline and
-// qualifies as an installable PWA. Bump CACHE_NAME when you deploy an
-// update so old cached copies get replaced instead of lingering.
-const CACHE_NAME = 'apmg-quote-calc-v1';
-const FILES_TO_CACHE = [
+// APMG Quote Calculator service worker
+// Bump CACHE version whenever you deploy a new build so clients refresh cleanly.
+const CACHE = 'apmg-quote-calc-v2';
+const ASSETS = [
   './canopy_quote_calculator.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
 ];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(FILES_TO_CACHE))
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    caches.match(e.request).then((cached) => {
+      const network = fetch(e.request).then((res) => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() => cached);
       return cached || network;
     })
   );

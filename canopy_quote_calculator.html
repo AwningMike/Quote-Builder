@@ -144,6 +144,19 @@
   .line-item .li-sub{ font-size:11px; color:var(--text-faint); margin-top:2px; }
   .line-item .li-remove{ font-size:11px; color:var(--text-faint); cursor:pointer; background:none; border:none; padding:0; margin-top:4px; text-decoration:underline; }
   .line-item .li-remove:hover{ color:var(--danger); }
+  .li-drawing{ font-size:11px; color:var(--amber-bright); cursor:pointer; background:none; border:none; padding:0; margin-top:4px; margin-right:12px; text-decoration:underline; }
+  .li-drawing:hover{ opacity:0.8; }
+
+  .drawing-modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .drawing-modal{ background:#fff; color:#1a1a1a; border-radius:6px; max-width:900px; width:100%; max-height:92vh; overflow-y:auto; padding:24px; }
+  .drawing-modal h3{ margin:0 0 4px; font-size:16px; }
+  .drawing-modal .dm-sub{ font-size:12px; color:#666; margin-bottom:16px; }
+  .drawing-modal svg{ width:100%; height:auto; border:1px solid #ddd; border-radius:4px; background:#fafafa; }
+  .drawing-modal .dm-actions{ display:flex; gap:10px; margin-top:16px; }
+  .drawing-modal .dm-actions button{ flex:1; padding:10px; border-radius:4px; border:none; cursor:pointer; font-size:13px; font-weight:600; }
+  .drawing-modal .dm-download{ background:#c8102e; color:#fff; }
+  .drawing-modal .dm-close{ background:#eee; color:#333; }
+  .drawing-modal .dm-note{ font-size:10.5px; color:#888; margin-top:12px; line-height:1.5; }
 
   .empty-quote{ font-size:12px; color:var(--text-faint); text-align:center; padding:30px 10px; border:1px dashed var(--line); border-radius:2px; }
 
@@ -246,6 +259,7 @@
               <div class="field"><label>Project No.</label><input type="text" id="hdr-projno" placeholder="e.g. 4299"></div>
               <div class="field"><label>Project Name - Location <span style="text-transform:none;font-weight:400;">(auto-fills from Ship To Name)</span></label><input type="text" id="hdr-projname" placeholder="e.g. Speedway"></div>
             </div>
+            <div class="field"><label>Designed Especially For (GC) <span style="text-transform:none;font-weight:400;">— for drawing title block</span></label><input type="text" id="hdr-gc" placeholder="e.g. PW Campbell"></div>
             <div class="grid2">
               <div class="field"><label>Terms</label><input type="text" id="hdr-terms" value="30% Down, Balance per Contract"></div>
               <div class="field"><label>Sales Rep Name</label>
@@ -305,6 +319,10 @@
             <label for="extra-scupper">Scupper(s) included (canopy)</label>
           </div>
           <div class="checkline">
+            <input type="checkbox" id="extra-individual-items">
+            <label for="extra-individual-items">List each canopy as its own line item (don't combine into one)</label>
+          </div>
+          <div class="checkline">
             <input type="checkbox" id="extra-shopdrawings" checked>
             <label for="extra-shopdrawings">Shop drawings to be approved by customer (standing seam)</label>
           </div>
@@ -335,6 +353,7 @@
         </div>
         <button class="btn copy-summary" id="copy-airtable-btn" onclick="copyForAirtable()">Copy for Airtable Log</button>
         <button class="btn secondary" onclick="printFormalQuote()">Print / Export Quote (Estimate PDF)</button>
+        <button class="btn secondary" onclick="showAllDrawingsModal()">📐 Full Drawing Set (all canopies)</button>
       </div>
     </div>
   </div>
@@ -362,19 +381,19 @@ let RATES = {
   canopy8: {
     laborPerFt: 65,
     tiers: [
-      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:12, outrigger:30, miter:500 },
-      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:12, outrigger:30, miter:500 },
-      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:12, outrigger:30, miter:2500 },
+      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500 },
+      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500 },
+      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500 },
       { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500 },
     ]
   },
   canopy12: {
     laborPerFt: 65,
     tiers: [
-      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:115, lights:400, downspout:650, cchannel:12, outrigger:30,  miter:500 },
-      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:115, lights:275, downspout:650, cchannel:12, outrigger:30,  miter:500 },
-      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:115, lights:275, downspout:650, cchannel:12, outrigger:45,  miter:500 },
-      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:115, lights:275, downspout:650, cchannel:12, outrigger:150, miter:500 },
+      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:105, lights:400, downspout:650, cchannel:30, outrigger:30,  miter:500 },
+      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:30,  miter:500 },
+      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:45,  miter:500 },
+      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:150, miter:500 },
     ]
   },
   standingSeam: { mfgPerFt:195, endsRate:150, valancePerFt:15, laborPerFt:45 },
@@ -525,16 +544,35 @@ function pickTier(tiers, widthFt, projFt){
 }
 
 /* ---------------- CANOPY CALC (shared 8"/12") ---------------- */
+function decFeetLabel(feetDecimal){
+  const totalIn = Math.round(feetDecimal*12);
+  const ft = Math.floor(totalIn/12);
+  const inch = totalIn % 12;
+  if(ft===0 && inch>0) return `${inch}"`;
+  if(inch>0) return `${ft}'-${inch}"`;
+  return `${ft}'`;
+}
 function renderCanopySection(sectionKey, faceLabel){
   const cfg = RATES[sectionKey];
-  const faceInches = sectionKey==='canopy8' ? '8' : '12';
+  const faceInches = sectionKey==='canopy8' ? 8 : 12;
   const area = document.getElementById('calc-area');
   area.innerHTML = `
     <div class="card inputs">
       <h2>${faceLabel} Canopy</h2>
       <div class="sub">Enter width and projection — tier and MFG rate auto-select. Delivery mileage is entered once for the whole job in the Quote panel, not per item.</div>
-      <div class="grid2">
+      <div class="checkline">
+        <input type="checkbox" id="c-mitered-toggle">
+        <label for="c-mitered-toggle">Mitered — wraps a corner (enter 3 width segments)</label>
+      </div>
+      <div id="c-width-single-wrap" class="grid2">
         ${ftInField('c-width','Width')}
+      </div>
+      <div id="c-width-mitered-wrap" class="grid3" style="display:none;">
+        ${ftInField('c-width1','Width 1')}
+        ${ftInField('c-width2','Width 2 (corner)')}
+        ${ftInField('c-width3','Width 3')}
+      </div>
+      <div class="grid2">
         ${ftInField('c-proj','Projection')}
       </div>
       <div class="field"><label>Quantity (identical units)</label><input type="number" id="c-qty" value="1" min="1" step="1"></div>
@@ -542,13 +580,27 @@ function renderCanopySection(sectionKey, faceLabel){
       <div class="grid3">
         <div class="field"><label>Lights (qty)</label><input type="number" id="c-lights" value="0" min="0"></div>
         <div class="field"><label>Downspouts (qty)</label><input type="number" id="c-downspout" value="0" min="0"></div>
-        <div class="field"><label>C-Channel (qty)</label><input type="number" id="c-cchannel" value="0" min="0"></div>
+        <div class="field"><label>C-Channel (lin ft)</label><input type="number" id="c-cchannel" value="0" min="0"></div>
+      </div>
+      <div class="checkline" style="margin-top:-4px;">
+        <input type="checkbox" id="c-cchannel-perimeter">
+        <label for="c-cchannel-perimeter">C-Channel auto — 2 × Projection (both sides)</label>
       </div>
       <div class="grid2">
         <div class="field"><label>Outriggers (qty)</label><input type="number" id="c-outrigger" value="0" min="0"></div>
         <div class="field"><label>Miter (qty)</label><input type="number" id="c-miter" value="0" min="0"></div>
       </div>
       <div class="field"><label>Added Fascia ($ — your call)</label><input type="number" id="c-fascia" value="0" min="0" step="1"></div>
+      <div class="grid2">
+        <div class="field"><label>Attachment <span style="text-transform:none;font-weight:400;">(for drawing)</span></label>
+          <select id="c-attach">
+            <option value="tierod">Tie-Rod (hung)</option>
+            <option value="cchannel">C-Channel (low attach)</option>
+            <option value="topsupport">Top Support (flat)</option>
+          </select>
+        </div>
+        <div class="field"><label>Finish / Paint <span style="text-transform:none;font-weight:400;">(blank = mill)</span></label><input type="text" id="c-paint" placeholder="e.g. Regal Red MP15394"></div>
+      </div>
       <div class="field"><label>Job / item label</label><input type="text" id="c-name" placeholder="e.g. Front entry canopy"></div>
       <div class="field"><label>Quote Group</label><input type="text" id="c-group" value="Metal-Tech Canopy - Fully welded construction"></div>
       <div class="breakdown" id="c-breakdown"></div>
@@ -558,28 +610,51 @@ function renderCanopySection(sectionKey, faceLabel){
   `;
   bindFtIn('c-width', ()=>computeCanopy(sectionKey));
   bindFtIn('c-proj', ()=>computeCanopy(sectionKey));
+  bindFtIn('c-width1', ()=>computeCanopy(sectionKey));
+  bindFtIn('c-width2', ()=>computeCanopy(sectionKey));
+  bindFtIn('c-width3', ()=>computeCanopy(sectionKey));
+  document.getElementById('c-mitered-toggle').addEventListener('change', (e)=>{
+    document.getElementById('c-width-single-wrap').style.display = e.target.checked ? 'none' : '';
+    document.getElementById('c-width-mitered-wrap').style.display = e.target.checked ? '' : 'none';
+    computeCanopy(sectionKey);
+  });
   document.getElementById('c-add-btn').addEventListener('click', ()=>addCanopyToQuote(sectionKey, faceLabel, faceInches));
   ['c-qty','c-lights','c-downspout','c-cchannel','c-outrigger','c-miter','c-fascia'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>computeCanopy(sectionKey));
   });
+  document.getElementById('c-cchannel-perimeter').addEventListener('change', (e)=>{
+    // when auto-perimeter is on, the manual lin-ft box is driven by W+P, so disable it
+    document.getElementById('c-cchannel').disabled = e.target.checked;
+    computeCanopy(sectionKey);
+  });
+  // sensible default attachment by face height (user can change)
+  document.getElementById('c-attach').value = faceInches >= 12 ? 'tierod' : 'topsupport';
   computeCanopy(sectionKey);
 }
 
 function computeCanopy(sectionKey){
   const cfg = RATES[sectionKey];
-  const widthIn = getFtInInches('c-width');
+  const mtEl = document.getElementById('c-mitered-toggle');
+  const mitered = mtEl ? mtEl.checked : false;
+  const widthIn = mitered
+    ? getFtInInches('c-width1') + getFtInInches('c-width2') + getFtInInches('c-width3')
+    : getFtInInches('c-width');
   const projIn = getFtInInches('c-proj');
   const qty = Math.max(1, parseFloat(document.getElementById('c-qty').value)||1);
   const lights = parseFloat(document.getElementById('c-lights').value)||0;
   const downspout = parseFloat(document.getElementById('c-downspout').value)||0;
-  const cchannel = parseFloat(document.getElementById('c-cchannel').value)||0;
   const outrigger = parseFloat(document.getElementById('c-outrigger').value)||0;
   const miter = parseFloat(document.getElementById('c-miter').value)||0;
   const fascia = parseFloat(document.getElementById('c-fascia').value)||0;
 
   const widthFt = widthIn/12, projFt = projIn/12;
+  // C-Channel: manual lin-ft, or auto full perimeter = 2 × (W + P)
+  const ccPerimEl = document.getElementById('c-cchannel-perimeter');
+  const cchannelPerim = ccPerimEl ? ccPerimEl.checked : false;
+  const cchannel = cchannelPerim ? 2*projFt : (parseFloat(document.getElementById('c-cchannel').value)||0);
+  if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
   const tier = pickTier(cfg.tiers, widthFt, projFt);
-  document.getElementById('tier-out').innerHTML = `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}`;
+  document.getElementById('tier-out').innerHTML = `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`;
 
   const sqft = widthFt*projFt;
   const mfgBase = sqft*tier.mfg*qty;
@@ -597,7 +672,7 @@ function computeCanopy(sectionKey){
   document.getElementById('c-breakdown').innerHTML = `
     <div class="row"><span>SQ FT per unit (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
     <div class="row"><span>MFG base (sqft × $${tier.mfg} × ${qty})</span>${fmtCopy(mfgBase)}</div>
-    <div class="row"><span>C-Channel</span>${fmtCopy(cchannelCost)}</div>
+    <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?' · auto 2×Projection':''})</span>${fmtCopy(cchannelCost)}</div>
     <div class="row"><span>Outriggers</span>${fmtCopy(outriggerCost)}</div>
     <div class="row"><span>Miter</span>${fmtCopy(miterCost)}</div>
     <div class="row"><span>Added Fascia (× ${qty})</span>${fmtCopy(fasciaCost)}</div>
@@ -606,11 +681,12 @@ function computeCanopy(sectionKey){
     <div class="row"><span>Downspouts (× ${qty}) — separate line item</span>${fmtCopy(downspoutCost)}</div>
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty };
+  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered };
 }
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   const r = computeCanopy(sectionKey);
+  const widthStr = r.mitered ? decFeetLabel(r.widthFt) : ftInLabel('c-width');
   const name = document.getElementById('c-name').value || `${faceLabel} Canopy`;
   const group = document.getElementById('c-group').value || 'Metal-Tech Canopy - Fully welded construction';
   quoteItems.push({
@@ -627,15 +703,614 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
     type: 'canopy',
     spec: {
       qty: r.qty,
-      widthStr: ftInLabel('c-width'),
+      widthStr: widthStr,
       projStr: ftInLabel('c-proj'),
+      widthFt: r.widthFt,
+      projFt: r.projFt,
       face: faceInches,
+      mitered: r.mitered,
+      widthSegments: r.mitered ? [ftInLabel('c-width1'), ftInLabel('c-width2'), ftInLabel('c-width3')] : null,
+      widthSegIn: r.mitered ? [getFtInInches('c-width1'), getFtInInches('c-width2'), getFtInInches('c-width3')] : null,
       downspoutPerUnit: r.downspoutPerUnit,
       lightsPerUnit: r.lightsPerUnit,
-      cchannelPerUnit: r.cchannelPerUnit
+      cchannelPerUnit: r.cchannelPerUnit,
+      attach: (document.getElementById('c-attach')||{}).value || 'tierod',
+      paint: ((document.getElementById('c-paint')||{}).value || '').trim()
     }
   });
   renderQuote();
+}
+
+/* ---------------- AUTO-DRAWING (canopy) ---------------- */
+/* APMG fabrication-sheet style. Views are schematic (fascia height exaggerated for
+   readability, exactly as on the real shop sheets) but every dimension label shows
+   the exact real value in the APMG dual format: feet-inches with fraction on top,
+   total inches in [brackets] below. Joist layout is drawn generically from the
+   accessory counts entered in the calculator. */
+
+/* ---- dimension formatting helpers ---- */
+function _reduceFrac(num, den){ while(num > 0 && num % 2 === 0){ num /= 2; den /= 2; } return [num, den]; }
+const _VULGAR = {'1/2':'½','1/4':'¼','3/4':'¾','1/8':'⅛','3/8':'⅜','5/8':'⅝','7/8':'⅞'};
+function _fracGlyph(num, den){ if(!num) return ''; const k = num + '/' + den; return _VULGAR[k] || (num + '/' + den); }
+// e.g. 43.5 -> 3'-7½"   ·   24 -> 2'   ·   6 -> 6"
+function ftInStr(totalIn){
+  const sx = Math.round(totalIn * 16);
+  const ft = Math.floor(sx / 192);
+  let rem = sx - ft * 192;
+  const inch = Math.floor(rem / 16);
+  const [n, d] = _reduceFrac(rem - inch * 16, 16);
+  const f = _fracGlyph(n, d);
+  if(ft > 0 && inch === 0 && !f) return ft + "'";
+  if(ft > 0) return ft + "'-" + inch + f + '"';
+  return inch + f + '"';
+}
+// e.g. 43.5 -> [43½]
+function bracketStr(totalIn){
+  const sx = Math.round(totalIn * 16);
+  const whole = Math.floor(sx / 16);
+  const [n, d] = _reduceFrac(sx - whole * 16, 16);
+  return '[' + whole + _fracGlyph(n, d) + ']';
+}
+// horizontal dimension line with arrowheads + dual label. side: 'above' | 'below'
+function hDim(x1, x2, y, totalIn, opts){
+  opts = opts || {};
+  const c = opts.color || '#141414';
+  const ah = 4.5, cx = (x1 + x2) / 2;
+  let s = '';
+  if(opts.extFrom != null){
+    s += `<line x1="${x1}" y1="${opts.extFrom}" x2="${x1}" y2="${y}" stroke="#8a8a8a" stroke-width="0.6"/>`;
+    s += `<line x1="${x2}" y1="${opts.extFrom}" x2="${x2}" y2="${y}" stroke="#8a8a8a" stroke-width="0.6"/>`;
+  }
+  s += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="${c}" stroke-width="1"/>`;
+  s += `<path d="M${x1},${y} l${ah*1.7},-${ah*0.75} l0,${ah*1.5} z" fill="${c}"/>`;
+  s += `<path d="M${x2},${y} l-${ah*1.7},-${ah*0.75} l0,${ah*1.5} z" fill="${c}"/>`;
+  const ln = ftInStr(totalIn), br = bracketStr(totalIn);
+  if(opts.side === 'below'){
+    s += `<text x="${cx}" y="${y+14}" font-size="12" text-anchor="middle" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${ln}</text>`;
+    s += `<text x="${cx}" y="${y+27}" font-size="12" text-anchor="middle" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${br}</text>`;
+  } else {
+    s += `<text x="${cx}" y="${y-15}" font-size="12" text-anchor="middle" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${ln}</text>`;
+    s += `<text x="${cx}" y="${y-3}" font-size="12" text-anchor="middle" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${br}</text>`;
+  }
+  return s;
+}
+// vertical dimension line (used for heights) with dual label to the left
+function vDim(x, y1, y2, totalIn, opts){
+  opts = opts || {};
+  const c = opts.color || '#141414';
+  const ah = 4.5, cy = (y1 + y2) / 2;
+  let s = '';
+  if(opts.extTo != null){
+    s += `<line x1="${x}" y1="${y1}" x2="${opts.extTo}" y2="${y1}" stroke="#8a8a8a" stroke-width="0.6"/>`;
+    s += `<line x1="${x}" y1="${y2}" x2="${opts.extTo}" y2="${y2}" stroke="#8a8a8a" stroke-width="0.6"/>`;
+  }
+  s += `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${c}" stroke-width="1"/>`;
+  s += `<path d="M${x},${y1} l-${ah*0.75},${ah*1.7} l${ah*1.5},0 z" fill="${c}"/>`;
+  s += `<path d="M${x},${y2} l-${ah*0.75},-${ah*1.7} l${ah*1.5},0 z" fill="${c}"/>`;
+  s += `<text x="${x-7}" y="${cy-1}" font-size="12" text-anchor="end" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${ftInStr(totalIn)}</text>`;
+  s += `<text x="${x-7}" y="${cy+12}" font-size="12" text-anchor="end" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${bracketStr(totalIn)}</text>`;
+  return s;
+}
+function _esc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// leader callout: text at (tx,ty), thin leader line to point (px,py)
+function leader(tx, ty, px, py, text, anchor){
+  return `<line x1="${tx}" y1="${ty+3}" x2="${px}" y2="${py}" stroke="#555" stroke-width="0.6"/>`
+    + `<circle cx="${px}" cy="${py}" r="1.4" fill="#555"/>`
+    + `<text x="${tx}" y="${ty}" font-size="10" fill="#222" text-anchor="${anchor||'start'}" font-family="Arial,'Inter',sans-serif">${_esc(text)}</text>`;
+}
+// APMG logo (vector approximation) anchored at top-left (lx,ly), width ~150
+function apmgLogo(lx, ly){
+  let bars = '';
+  const cols = ['#c8102e','#c8102e','#1b3e8c','#1b3e8c','#c8102e','#c8102e','#1b3e8c'];
+  for(let i=0;i<7;i++){
+    const bx = lx + i*10;
+    bars += `<path d="M${bx},${ly+20} l8,-15 l5,0 l-8,15 z" fill="${cols[i]}"/>`;
+  }
+  return `<g>${bars}`
+    + `<text x="${lx+78}" y="${ly+19}" font-size="20" font-weight="800" fill="#1b3e8c" text-anchor="start" font-family="Arial,'Inter',sans-serif">APMG</text>`
+    + `<text x="${lx}" y="${ly+32}" font-size="7.5" fill="#333" text-anchor="start" font-family="Arial,'Inter',sans-serif">Awning Partners Manufacturing Group</text>`
+    + `<text x="${lx}" y="${ly+41}" font-size="7" fill="#c8102e" text-anchor="start" font-family="Arial,'Inter',sans-serif">AwningPartnersManufacturingGroup.com</text>`
+    + `</g>`;
+}
+
+// shared paint/finish resolver
+function paintFillFor(paint){
+  if(!paint) return {fill:'url(#mill)', painted:false};
+  const p = paint.toLowerCase(); let c = '#3b4046';
+  if(/red|ferrari|regal|cardinal/.test(p)) c = '#8f1a17';
+  else if(/green|sullivan|forest|hunter/.test(p)) c = '#1f5c3a';
+  else if(/navy|blue/.test(p)) c = '#233b57';
+  else if(/black|mica|charcoal|onyx|graphite|dark bronze/.test(p)) c = '#2a2d31';
+  else if(/white/.test(p)) c = '#e6e6e6';
+  else if(/bronze|tan|clay|sand|almond|bone|beige/.test(p)) c = '#5a4a37';
+  else if(/silver|aluminum|gray|grey|dove/.test(p)) c = '#98a1a7';
+  return {fill:c, painted:true};
+}
+// shared <defs> for canopy sheets
+function _canopyDefs(){
+  return `<defs>`
+    + `<linearGradient id="mill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2f4f6"/><stop offset="0.5" stop-color="#c9d2d8"/><stop offset="1" stop-color="#eef1f3"/></linearGradient>`
+    + `<pattern id="pans" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#333" stroke-width="0.8"/></pattern>`
+    + `<pattern id="struct" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#c8102e" stroke-width="0.9"/></pattern>`
+    + `</defs>`;
+}
+// header strip + logo for a sheet of width W
+function _canopyHeader(W, dwgDate, pageLabel){
+  const bx = 8, by = 8;
+  const hs = ['DWG: ' + (dwgDate || '—'), 'REV: 00.00.00', 'BY: APMG', 'PAGE: ' + (pageLabel || '1.1')];
+  const hsW = [150, 118, 78, 78];
+  let hx = bx, s = '';
+  hs.forEach((t, i) => {
+    s += `<rect x="${hx}" y="${by}" width="${hsW[i]}" height="20" fill="none" stroke="#111" stroke-width="1"/>`;
+    s += `<text x="${hx+6}" y="${by+14}" font-size="10.5" font-weight="700" fill="#111">${_esc(t)}</text>`;
+    hx += hsW[i];
+  });
+  s += apmgLogo(W - 190, by + 6);
+  return s;
+}
+
+/* One canopy drawn as a self-contained figure (Front Elevation + End View + Plan)
+   positioned at vertical offset baseY. Returns the SVG plus its derived notes and
+   caption so a wrapper can build the title block. No border/header/title here. */
+function canopyFigure(item, baseY){
+  const s = item.spec;
+  const widthIn = (s.widthFt || 0) * 12;
+  const projIn  = (s.projFt  || 0) * 12;
+  const faceIn  = s.face || 0;
+  const qty = s.qty || 1;
+  const dsN = s.downspoutPerUnit || 0;
+  const ltN = s.lightsPerUnit || 0;
+
+  const mSegs = s.widthSegIn && s.widthSegIn.length === 3 ? s.widthSegIn : null;
+  const mitered = !!(s.mitered && mSegs && mSegs.some(v => v > 0));
+  let mBounds = [];
+  if(mitered){ const tot = mSegs[0]+mSegs[1]+mSegs[2] || 1; let acc = 0; mBounds = [0]; mSegs.forEach(v => { acc += v; mBounds.push(acc/tot); }); }
+
+  const pf = paintFillFor(s.paint);
+  const attach = s.attach || 'tierod';
+
+  const elevX0 = 120, elevW = 560, evX0 = 770, evW = 150;
+  const faceBand = Math.max(20, Math.min(34, faceIn * 2.2));
+  const feY = baseY + 82, plY0 = feY + 116, plH = 118;
+
+  let svg = '';
+  // hanger positions (tie-rod) & downspout positions
+  const hgN = attach === 'tierod' ? Math.max(2, Math.round(widthIn / 72)) : 0;
+  const hgFrac = i => (hgN === 1 ? 0.5 : (0.5 + i) / hgN);
+  const dsPos = [];
+  if(dsN > 0){ const sp = 1 / dsN; for(let i=0;i<dsN;i++) dsPos.push(sp*0.5 + i*sp); }
+
+  // ================= FRONT ELEVATION =================
+  svg += `<text x="${elevX0}" y="${feY-70}" font-size="11" font-weight="700" fill="#333">FRONT ELEVATION</text>`;
+  // width dim on top
+  svg += hDim(elevX0, elevX0+elevW, feY-56, widthIn, {side:'above'});
+  // tie-rod hangers rising to wall plates
+  if(attach === 'tierod'){
+    for(let i=0;i<hgN;i++){
+      const rx = elevX0 + elevW*hgFrac(i);
+      svg += `<line x1="${rx}" y1="${feY}" x2="${rx}" y2="${feY-30}" stroke="#2a2d31" stroke-width="2"/>`;
+      svg += `<rect x="${rx-5}" y="${feY-38}" width="10" height="9" fill="#dfe3e6" stroke="#333" stroke-width="1"/>`;
+    }
+  }
+  // fascia band (painted or mill)
+  svg += `<rect x="${elevX0}" y="${feY}" width="${elevW}" height="${faceBand}" fill="${pf.fill}" stroke="#333" stroke-width="1.3"/>`;
+  // mitered corner joints (dashed red) on the fascia band
+  if(mitered){
+    [mBounds[1], mBounds[2]].forEach(f=>{
+      const jx = elevX0 + elevW*f;
+      svg += `<line x1="${jx}" y1="${feY-2}" x2="${jx}" y2="${feY+faceBand+2}" stroke="#c8102e" stroke-width="1.2" stroke-dasharray="5,3"/>`;
+    });
+  }
+  // drainage scupper notch front-right
+  svg += `<rect x="${elevX0+elevW-11}" y="${feY+faceBand}" width="11" height="4" fill="#333"/>`;
+  // face height dim on left
+  svg += vDim(elevX0-16, feY, feY+faceBand, faceIn, {extTo: elevX0});
+  // callouts
+  if(pf.painted){
+    svg += leader(elevX0+elevW*0.30, feY+faceBand+18, elevX0+elevW*0.42, feY+faceBand, `Painted ${_esc(s.paint)} — all parts`, 'start');
+  } else {
+    svg += leader(elevX0+elevW*0.40, feY+faceBand+18, elevX0+elevW*0.52, feY+faceBand, `${faceIn}" Smooth Gutter Fascia — mill`, 'start');
+  }
+  svg += leader(elevX0+elevW-64, feY+faceBand+30, elevX0+elevW-4, feY+faceBand+4, 'Drainage Scupper', 'start');
+
+  // ================= END VIEW (SECTION) =================
+  const evY = feY, evBand = faceBand;
+  svg += `<text x="${evX0}" y="${evY-70}" font-size="11" font-weight="700" fill="#333">END VIEW (SECTION)</text>`;
+  // mating-pans hatched band + front fascia cap
+  svg += `<rect x="${evX0}" y="${evY}" width="${evW}" height="${evBand}" fill="url(#pans)" stroke="#333" stroke-width="1.2"/>`;
+  svg += `<rect x="${evX0+evW}" y="${evY-2}" width="7" height="${evBand+8}" fill="${pf.fill}" stroke="#333" stroke-width="1.1"/>`;
+  // attachment-specific detail
+  if(attach === 'tierod'){
+    // wall plate upper-left + angled tie-rod down to front-top of fascia
+    svg += `<rect x="${evX0-16}" y="${evY-52}" width="7" height="18" fill="#dfe3e6" stroke="#333" stroke-width="1.1"/>`;
+    svg += `<line x1="${evX0-9}" y1="${evY-46}" x2="${evX0+evW-2}" y2="${evY}" stroke="#2a2d31" stroke-width="2.4"/>`;
+    svg += `<rect x="${evX0-2}" y="${evY-1}" width="6" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1"/>`;
+    svg += leader(evX0+evW*0.30, evY-40, evX0+evW*0.55, evY-16, 'Sch 40 Tie-Rod', 'start');
+    svg += leader(evX0-40, evY-54, evX0-12, evY-46, '6"x6" Wall Plate', 'start');
+    svg += leader(evX0-30, evY-14, evX0, evY+2, 'Rear Support', 'start');
+  } else if(attach === 'cchannel'){
+    svg += `<rect x="${evX0-9}" y="${evY-1}" width="9" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1.1"/>`;
+    svg += `<rect x="${evX0-9}" y="${evY-7}" width="26" height="6" fill="#eee" stroke="#333" stroke-width="1"/>`;
+    svg += leader(evX0-30, evY+evBand+26, evX0-5, evY+evBand-2, '1¼" C-Channel Low Attach', 'start');
+    svg += leader(evX0+8, evY-16, evX0+2, evY-4, 'Outrigger Sleeve', 'start');
+  } else { // topsupport
+    svg += `<rect x="${evX0+evW*0.3}" y="${evY-8}" width="${evW*0.4}" height="7" fill="#eee" stroke="#333" stroke-width="1"/>`;
+    svg += `<rect x="${evX0+evW-2}" y="${evY-1}" width="6" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1"/>`;
+    svg += leader(evX0+4, evY-16, evX0+evW*0.45, evY-7, '2"x3" Top Support', 'start');
+    svg += leader(evX0+evW-4, evY-30, evX0+evW+2, evY-2, '1"x4" Alum Tube', 'end');
+  }
+  // downspout stub (rear)
+  if(dsN > 0) svg += `<rect x="${evX0-5}" y="${evY+evBand+2}" width="5" height="22" fill="#eee" stroke="#333" stroke-width="1"/>`;
+  // dims + common callouts
+  svg += hDim(evX0, evX0+evW, evY+evBand+40, projIn, {extFrom: evY+evBand, side:'below'});
+  svg += vDim(evX0-24, evY, evY+evBand, faceIn, {});
+  svg += leader(evX0+evW*0.5, evY+evBand+16, evX0+evW*0.5, evY+evBand-3, 'Self-Mating Pans', 'middle');
+  svg += leader(evX0+evW-54, evY+evBand+28, evX0+evW+3, evY+evBand/2, `${faceIn}" Gutter Fascia`, 'start');
+
+  // ================= PLAN VIEW =================
+  svg += `<text x="${elevX0}" y="${plY0-46}" font-size="11" font-weight="700" fill="#333">PLAN VIEW (TOP)</text>`;
+  svg += `<rect x="${elevX0}" y="${plY0}" width="${elevW}" height="${plH}" fill="#ffffff" stroke="#333" stroke-width="1.3"/>`;
+  // dense pan seams
+  const seamStep = 10;
+  for(let x = elevX0 + seamStep; x < elevX0 + elevW - 1; x += seamStep){
+    svg += `<line x1="${x}" y1="${plY0+2}" x2="${x}" y2="${plY0+plH-12}" stroke="#c3c8cc" stroke-width="0.5"/>`;
+  }
+  // rear mating-pan strip
+  svg += `<rect x="${elevX0}" y="${plY0+plH-11}" width="${elevW}" height="11" fill="url(#pans)" stroke="#333" stroke-width="0.8"/>`;
+  // structural joists (equal bays) hatched red, bottom black spacing string
+  const bays = Math.max(3, Math.round(widthIn / 36));
+  const bayPx = elevW / bays, segIn = widthIn / bays;
+  for(let i=1;i<bays;i++){
+    const jx = elevX0 + i*bayPx;
+    svg += `<rect x="${jx-3}" y="${plY0+2}" width="6" height="${plH-13}" fill="url(#struct)" stroke="#c8102e" stroke-width="0.8"/>`;
+  }
+  // lights
+  for(let i=0;i<ltN && i<10;i++){
+    const lx = elevX0 + elevW*(i+0.5)/Math.max(ltN,1);
+    svg += `<circle cx="${lx}" cy="${plY0+plH/2}" r="3" fill="none" stroke="#d9900f" stroke-width="0.9" stroke-dasharray="2,1.5"/>`;
+  }
+  // downspouts: magenta boxes + red routing to nearest end
+  dsPos.forEach(fr=>{
+    const dx = elevX0 + elevW*fr;
+    svg += `<rect x="${dx-4}" y="${plY0+plH-15}" width="8" height="8" fill="#e2a6e6" stroke="#a02fa8" stroke-width="1"/>`;
+    svg += `<line x1="${dx}" y1="${plY0+plH-15}" x2="${dx}" y2="${plY0+9}" stroke="#c8102e" stroke-width="0.9"/>`;
+    svg += `<line x1="${dx}" y1="${plY0+9}" x2="${elevX0 + (fr<0.5?4:elevW-4)}" y2="${plY0+9}" stroke="#c8102e" stroke-width="0.9"/>`;
+  });
+  // mitered corner joints (dashed red) through the plan
+  if(mitered){
+    [mBounds[1], mBounds[2]].forEach(f=>{
+      const jx = elevX0 + elevW*f;
+      svg += `<line x1="${jx}" y1="${plY0-2}" x2="${jx}" y2="${plY0+plH+2}" stroke="#c8102e" stroke-width="1.2" stroke-dasharray="5,3"/>`;
+    });
+  }
+  // TOP string: mitered segments (red) → downspout-center segments (red) → overall width
+  if(mitered){
+    for(let i=0;i<3;i++){
+      const xa = elevX0 + elevW*mBounds[i], xb = elevX0 + elevW*mBounds[i+1];
+      svg += hDim(xa, xb, plY0-14, mSegs[i], {color:'#c8102e', side:'above'});
+    }
+    svg += `<text x="${elevX0 + elevW*(mBounds[1]+mBounds[2])/2}" y="${plY0-42}" font-size="9" fill="#c8102e" text-anchor="middle">(corner)</text>`;
+  } else if(dsN > 0){
+    const bnd = [0, ...dsPos, 1];
+    for(let i=0;i<bnd.length-1;i++){
+      const xa = elevX0 + elevW*bnd[i], xb = elevX0 + elevW*bnd[i+1];
+      svg += hDim(xa, xb, plY0-14, (bnd[i+1]-bnd[i])*widthIn, {color:'#c8102e', side:'above'});
+    }
+  } else {
+    svg += hDim(elevX0, elevX0+elevW, plY0-14, widthIn, {extFrom: plY0, side:'above'});
+  }
+  // depth dim on left
+  svg += vDim(elevX0-16, plY0, plY0+plH, projIn, {extTo: elevX0});
+  // BOTTOM string: black joist spacing
+  const strY = plY0 + plH + 30;
+  for(let i=0;i<bays;i++){
+    const xa = elevX0 + i*bayPx, xb = elevX0 + (i+1)*bayPx;
+    svg += hDim(xa, xb, strY, segIn, {extFrom:(i===0? plY0+plH : null), side:'below'});
+    svg += `<line x1="${xb}" y1="${plY0+plH}" x2="${xb}" y2="${strY}" stroke="#8a8a8a" stroke-width="0.5"/>`;
+  }
+  svg += `<line x1="${elevX0}" y1="${plY0+plH}" x2="${elevX0}" y2="${strY}" stroke="#8a8a8a" stroke-width="0.5"/>`;
+  const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'Top-Support Flat');
+  const label = `${item.title} · ${faceIn}" FACE · ${attachLabel}${mitered?' · MITER':''} · QTY: ${qty}`;
+  svg += `<text x="${elevX0+elevW/2}" y="${strY+50}" font-size="13" font-weight="700" fill="#111" text-anchor="middle">${_esc(label)}</text>`;
+
+  const notes = [
+    `Manufacture ${qty} Metal-Tech Aluminum ${attach==='tierod'?'Hanging ':''}Canop${qty>1?'ies':'y'}`,
+    `${faceIn}" ${faceIn<=8?'Low ':'Flat '}Gutter Fascia  ·  6" Self-Mating Pans`,
+    attach==='tierod' ? `6"x6"x.125" Wall Plates w/ Sch 40 Tie-Rods` : (attach==='cchannel' ? `1¼"x1¼" C-Channel Low Attachment` : `2"x3" Top Welded Support`),
+    dsN>0 ? `${dsN} Downspout${dsN>1?'s':''} per unit for drainage` : `Scuppers for drainage`,
+    ltN>0 ? `${ltN} Recessed LED per unit` : null,
+    mitered && s.widthSegments ? `Miter — wraps corner: ${s.widthSegments.join(' + ')}` : null,
+    pf.painted ? `Canopy & all parts painted ${s.paint}` : `Mill finish — no paint`
+  ].filter(Boolean);
+
+  return { svg, label, notes };
+}
+
+// shared bottom title block for a sheet of size W×H
+function _canopyTitleBlock(W, H, info, centerLines){
+  const bx = 8, by = 8, bw = W - 16, bh = H - 16;
+  const tbY = H - 112, c1 = bx + 232, c2 = bx + bw - 210;
+  let s = '';
+  s += `<line x1="${bx}" y1="${tbY}" x2="${bx+bw}" y2="${tbY}" stroke="#111" stroke-width="1.2"/>`;
+  s += `<line x1="${c1}" y1="${tbY}" x2="${c1}" y2="${by+bh}" stroke="#111" stroke-width="1"/>`;
+  s += `<line x1="${c2}" y1="${tbY}" x2="${c2}" y2="${by+bh}" stroke="#111" stroke-width="1"/>`;
+  s += `<text x="${bx+10}" y="${tbY+17}" font-size="10.5" font-weight="700" fill="#111">JOB#: ${_esc(info.jobNo || '—')}</text>`;
+  s += `<text x="${bx+10}" y="${tbY+33}" font-size="11" font-weight="700" fill="#111">${_esc(info.client || '—')}</text>`;
+  s += `<text x="${bx+10}" y="${tbY+47}" font-size="9.5" fill="#333">${_esc(info.cityst || '')}</text>`;
+  s += `<text x="${bx+10}" y="${tbY+72}" font-size="9" font-weight="700" fill="#111">DESIGNED ESPECIALLY FOR:</text>`;
+  s += `<text x="${bx+10}" y="${tbY+85}" font-size="10" fill="#333">${_esc(info.gc || '—')}</text>`;
+  s += `<text x="${(c1+c2)/2}" y="${tbY+20}" font-size="14" font-weight="800" fill="#111" text-anchor="middle" text-decoration="underline">${_esc(info.centerTitle || 'FABRICATION DETAILS')}</text>`;
+  (centerLines||[]).slice(0,7).forEach((n,i)=>{ s += `<text x="${c1+12}" y="${tbY+34+i*11}" font-size="8.5" fill="#222">• ${_esc(n)}</text>`; });
+  s += `<text x="${c2+12}" y="${tbY+17}" font-size="9" fill="#111">Awning Label  <tspan font-size="11">■</tspan>(Yes) □(No)</text>`;
+  s += `<text x="${c2+12}" y="${tbY+44}" font-size="9.5" font-weight="700" fill="#111">Approval Signature:</text>`;
+  s += `<line x1="${c2+12}" y1="${tbY+62}" x2="${bx+bw-12}" y2="${tbY+62}" stroke="#333" stroke-width="0.8"/>`;
+  s += `<text x="${c2+12}" y="${tbY+82}" font-size="9.5" font-weight="700" fill="#111">Date:</text>`;
+  s += `<line x1="${c2+50}" y1="${tbY+82}" x2="${bx+bw-12}" y2="${tbY+82}" stroke="#333" stroke-width="0.8"/>`;
+  return s;
+}
+
+function _headerInfo(){
+  const gv = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  return { jobNo: gv('hdr-projno'), client: gv('hdr-projname') || gv('hdr-shipname'), cityst: gv('hdr-address2'), dwgDate: gv('hdr-date'), gc: gv('hdr-gc') };
+}
+
+// single-canopy sheet
+function canopySVG(item){
+  const info = _headerInfo();
+  const W = 1000, H = 660, bx = 8, by = 8, bw = W-16, bh = H-16;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
+  svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
+  svg += _canopyHeader(W, info.dwgDate, '1.1');
+  const fig = canopyFigure(item, 70);
+  svg += fig.svg;
+  svg += _canopyTitleBlock(W, H, info, fig.notes);
+  svg += `</svg>`;
+  return svg;
+}
+
+// combined sheet: every canopy on the quote, each as its own figure
+function allCanopiesSVG(items){
+  const cans = (items || []).filter(i => i.type === 'canopy');
+  const info = _headerInfo();
+  const W = 1000, topY = 70, figH = 412, tbH = 112;
+  const H = topY + Math.max(1, cans.length)*figH + 24 + tbH;
+  const bx = 8, by = 8, bw = W-16, bh = H-16;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
+  svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
+  svg += _canopyHeader(W, info.dwgDate, `SET (${cans.length})`);
+  const labels = [];
+  cans.forEach((it, idx) => {
+    const y = topY + idx*figH;
+    if(idx > 0) svg += `<line x1="${bx+16}" y1="${y-4}" x2="${bx+bw-16}" y2="${y-4}" stroke="#c9ced2" stroke-width="0.8" stroke-dasharray="3,3"/>`;
+    svg += `<text x="${bx+16}" y="${y+20}" font-size="11" font-weight="800" fill="#c8102e">SHEET ${idx+1}</text>`;
+    const fig = canopyFigure(it, y);
+    svg += fig.svg;
+    const at = it.spec.attach==='tierod'?'Tie-Rod':(it.spec.attach==='cchannel'?'C-Channel':'Top-Support');
+    labels.push(`${idx+1}. ${it.title} — ${it.spec.face}" ${at}${it.spec.mitered?' · MITER':''} · QTY ${it.spec.qty||1}`);
+  });
+  if(!cans.length) svg += `<text x="${W/2}" y="${topY+80}" font-size="14" fill="#888" text-anchor="middle">No canopies on the quote yet.</text>`;
+  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'FABRICATION DETAILS — DRAWING SET'}), labels);
+  svg += `</svg>`;
+  return svg;
+}
+
+// True-to-scale DXF (inches, Y-up) — opens directly in AutoCAD. Three views
+// (Front Elevation, Plan, End/Section) with the APMG dual dimension labels
+// (feet-inches + [total inches]), border and title block. LINE + TEXT entities
+// only (no dim-style objects): accurate starting geometry for a drafter.
+const _DXF_ASCII = {'½':' 1/2','¼':' 1/4','¾':' 3/4','⅛':' 1/8','⅜':' 3/8','⅝':' 5/8','⅞':' 7/8'};
+function _toAscii(str){ return str.replace(/[½¼¾⅛⅜⅝⅞]/g, m => _DXF_ASCII[m]); }
+function canopyDXFParts(item){
+  const s = item.spec;
+  const widthIn = (s.widthFt||0)*12;
+  const projIn  = (s.projFt||0)*12;
+  const faceIn  = s.face||0;
+  const qty = s.qty||1;
+  const dsN = s.downspoutPerUnit||0;
+  const gv = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const jobNo = gv('hdr-projno');
+  const client = gv('hdr-projname') || gv('hdr-shipname');
+  const gc = gv('hdr-gc');
+  const attach = s.attach || 'tierod';
+  const paint = s.paint || '';
+  const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'Top-Support Flat');
+  const mSegs = s.widthSegIn && s.widthSegIn.length===3 ? s.widthSegIn : null;
+  const mitered = !!(s.mitered && mSegs && mSegs.some(v=>v>0));
+  let mB=[]; if(mitered){ const tot=mSegs[0]+mSegs[1]+mSegs[2]||1; let acc=0; mB=[0]; mSegs.forEach(v=>{acc+=v; mB.push(acc/tot);}); }
+
+  const L = [], T = [];
+  const line = (x1,y1,x2,y2,c) => L.push({x1,y1,x2,y2,c:c||7});
+  const rect = (x,y,w,h,c) => { line(x,y,x+w,y,c); line(x+w,y,x+w,y+h,c); line(x+w,y+h,x,y+h,c); line(x,y+h,x,y,c); };
+  const text = (x,y,h,str,c) => T.push({x,y,h,str,c:c||7});
+  // dual-label dimension helpers (Y-up). textBelow places labels toward -Y.
+  const hdim = (x1,x2,y,val,below) => {
+    line(x1,y,x2,y,7);
+    line(x1,y-2.5,x1,y+2.5,7); line(x2,y-2.5,x2,y+2.5,7);
+    const cx=(x1+x2)/2, ln=_toAscii(ftInStr(val)), br=_toAscii(bracketStr(val));
+    if(below){ text(cx-widthIn*0.02-6,y-6,4,ln,7); text(cx-widthIn*0.02-6,y-13,4,br,7); }
+    else { text(cx-widthIn*0.02-6,y+7,4,ln,7); text(cx-widthIn*0.02-6,y+1,4,br,7); }
+  };
+  const vdim = (x,y1,y2,val) => {
+    line(x,y1,x,y2,7);
+    line(x-2.5,y1,x+2.5,y1,7); line(x-2.5,y2,x+2.5,y2,7);
+    const cy=(y1+y2)/2, ln=_toAscii(ftInStr(val)), br=_toAscii(bracketStr(val));
+    text(x-26,cy+1,4,ln,7); text(x-26,cy-6,4,br,7);
+  };
+
+  // ---- PLAN VIEW (bottom): width x projection ----
+  rect(0,0,widthIn,projIn,7);
+  const bays = Math.max(3, Math.round(widthIn/36));
+  // pan seams (light) + structural joists (red) at bay boundaries
+  for(let x=6;x<widthIn;x+=6){ line(x,2,x,projIn-2,8); }
+  for(let i=1;i<bays;i++){ const jx=widthIn*i/bays; line(jx,0,jx,projIn,1); }
+  // downspouts on rear edge (red), evenly spaced
+  for(let i=0;i<dsN;i++){ const dx=widthIn*(0.5+i)/dsN; rect(dx-1.5,-0.5,3,3,1); }
+  // mitered corner joints (red) through plan
+  if(mitered){ [mB[1],mB[2]].forEach(f=>{ const jx=widthIn*f; line(jx,0,jx,projIn,1); }); }
+  hdim(0,widthIn,-14,widthIn,true);
+  vdim(-14,0,projIn,projIn);
+  // joist spacing string (bottom)
+  for(let i=0;i<bays;i++){ hdim(widthIn*i/bays,widthIn*(i+1)/bays,-30,widthIn/bays,true); }
+
+  // ---- FRONT ELEVATION (above plan): width x face ----
+  const feY = projIn + 26;
+  rect(0,feY,widthIn,faceIn,7);
+  // mitered corner joints (red) on fascia
+  if(mitered){ [mB[1],mB[2]].forEach(f=>{ const jx=widthIn*f; line(jx,feY,jx,feY+faceIn,1); }); }
+  hdim(0,widthIn,feY+faceIn+16,widthIn,false);
+  vdim(-14,feY,feY+faceIn,faceIn);
+  text(0,feY+faceIn+30,5,'FRONT ELEVATION',7);
+
+  // ---- END VIEW / SECTION (right of plan): projection x face ----
+  const evX = widthIn + 40;
+  rect(evX,0,projIn,faceIn,7);
+  // mating-pan hatch (simple diagonal fill lines)
+  for(let x=evX+6;x<evX+projIn;x+=6){ line(x,0,x-Math.min(6,faceIn),Math.min(6,faceIn),8); }
+  // attachment-specific detail (real geometry, Y-up)
+  if(attach==='tierod'){
+    // wall plate above rear + angled tie-rod down to front-top of fascia
+    const wpY = faceIn + Math.max(36, projIn*0.6);
+    rect(evX-3, wpY-6, 3, 12, 1);
+    line(evX, wpY, evX+projIn, faceIn, 1);               // tie-rod
+    text(evX+projIn*0.3, faceIn+Math.max(20,projIn*0.34), 4, 'Sch 40 Tie-Rod', 7);
+    text(evX-3, wpY+10, 3.5, '6"x6" Wall Plate', 7);
+  } else if(attach==='cchannel'){
+    rect(evX-4, 0, 4, faceIn, 7);                         // rear C-channel
+    text(evX-4, faceIn+18, 3.5, '1-1/4" C-Channel Low Attach', 7);
+  } else {
+    rect(evX+projIn*0.3, faceIn, projIn*0.4, 3, 7);       // top support
+    text(evX+projIn*0.2, faceIn+16, 3.5, '2"x3" Top Support', 7);
+  }
+  if(dsN>0) rect(evX-2.5, -14, 2.5, 12, 7);               // rear downspout stub
+  hdim(evX,evX+projIn,-22,projIn,true);
+  vdim(evX-14,0,faceIn,faceIn);
+  text(evX,faceIn+8,5,`END VIEW (SECTION) - ${attachLabel}`,7);
+
+  // ---- border + title block around everything ----
+  const evTop = attach==='tierod' ? faceIn + Math.max(36, projIn*0.6) + 12 : faceIn + 24;
+  const minX=-70, maxX=evX+projIn+30, minY=-104, maxY=Math.max(feY+faceIn+40, evTop);
+  rect(minX,minY,maxX-minX,maxY-minY,7);
+  const tby = minY+56;                 // divider between title block (below) and drawing (above)
+  line(minX,tby,maxX,tby,7);
+  // title-block text sits between minY (bottom) and tby, Y-up
+  text(minX+6,minY+46,5,`JOB#: ${jobNo||'-'}   ${client||'-'}`,7);
+  text(minX+6,minY+37,3.5,`${item.title} - ${faceIn}" FACE - ${attachLabel} - QTY: ${qty}`,7);
+  text(minX+6,minY+29,3.5, paint ? `Painted: ${paint}` : 'Mill finish - no paint',7);
+  text(minX+6,minY+21,3.5, mitered && s.widthSegments ? `Mitered - wraps corner: ${s.widthSegments.join(' + ')}` : (dsN>0 ? `${dsN} Downspout(s)/unit for drainage` : 'Scuppers for drainage'),7);
+  if(gc) text(minX+6,minY+13,3.5,`Designed Especially For: ${gc}`,7);
+  text(minX+6,minY+4,2.6,'Auto-generated APMG reference geometry - verify before fabrication - not a finished shop drawing',7);
+  text((minX+maxX)/2-46,minY+30,6,'FABRICATION DETAILS',7);
+
+  return { L, T, minY, maxY, minX, maxX };
+}
+
+// assemble LINE/TEXT arrays into a DXF, applying an optional (ox,oy) offset
+function _assembleDXF(L, T, ox, oy){
+  ox = ox||0; oy = oy||0;
+  let out = '0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n1\n0\nENDSEC\n';
+  out += '0\nSECTION\n2\nENTITIES\n';
+  L.forEach(l=>{
+    out += `0\nLINE\n8\n0\n62\n${l.c}\n10\n${(l.x1+ox).toFixed(3)}\n20\n${(l.y1+oy).toFixed(3)}\n30\n0.0\n11\n${(l.x2+ox).toFixed(3)}\n21\n${(l.y2+oy).toFixed(3)}\n31\n0.0\n`;
+  });
+  T.forEach(t=>{
+    out += `0\nTEXT\n8\n0\n62\n${t.c}\n10\n${(t.x+ox).toFixed(3)}\n20\n${(t.y+oy).toFixed(3)}\n30\n0.0\n40\n${t.h}\n1\n${t.str}\n`;
+  });
+  out += '0\nENDSEC\n0\nEOF\n';
+  return out;
+}
+
+// single-canopy DXF
+function canopyDXF(item){
+  const p = canopyDXFParts(item);
+  return _assembleDXF(p.L, p.T, 0, 0);
+}
+
+// combined DXF: every canopy stacked vertically in one file
+function allCanopiesDXF(items){
+  const cans = (items || []).filter(i => i.type === 'canopy');
+  let allL = [], allT = [], oy = 0;
+  cans.forEach((it, idx) => {
+    const p = canopyDXFParts(it);
+    const span = (p.maxY - p.minY);
+    // shift so each canopy sits below the previous (Y-up: move down = negative)
+    const off = oy - p.maxY;
+    p.L.forEach(l => allL.push({x1:l.x1, y1:l.y1+off, x2:l.x2, y2:l.y2+off, c:l.c}));
+    p.T.forEach(t => allT.push({x:t.x, y:t.y+off, h:t.h, str:t.str, c:t.c}));
+    oy = oy - span - 40; // 40in gap between sheets
+  });
+  return _assembleDXF(allL, allT, 0, 0);
+}
+
+function downloadCanopyDXF(itemId){
+  const item = quoteItems.find(i=>i.id===itemId);
+  if(!item) return;
+  const dxfText = canopyDXF(item);
+  const blob = new Blob([dxfText], {type:'application/dxf'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${item.title.replace(/[^a-zA-Z0-9]/g,'_')}_drawing.dxf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function showDrawingModal(itemId){
+  const item = quoteItems.find(i=>i.id===itemId);
+  if(!item) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'drawing-modal-backdrop';
+  backdrop.id = 'drawing-modal-backdrop';
+  backdrop.onclick = (e)=>{ if(e.target===backdrop) closeDrawingModal(); };
+  backdrop.innerHTML = `
+    <div class="drawing-modal">
+      <h3>${item.title}</h3>
+      <div class="dm-sub">Auto-generated reference drawing — Qty ${item.spec.qty} · W ${item.spec.widthStr} × P ${item.spec.projStr} × F ${item.spec.face}"</div>
+      ${canopySVG(item)}
+      <div class="dm-actions">
+        <button class="dm-download" onclick="downloadCanopyDXF(${item.id})">Download DXF (opens in AutoCAD)</button>
+        <button class="dm-close" onclick="closeDrawingModal()">Close</button>
+      </div>
+      <div class="dm-note">APMG-format reference drawing — dimensions shown in feet-inches with total inches in [brackets]. Views are schematic (fascia height exaggerated for readability, as on the shop sheets); all labels are exact. Joist layout is generic from the accessory counts. The downloaded DXF is drawn to true scale in inches with all three views, border and title block — a starting point for the drafter, not a finished shop drawing (no hardware, joinery, or mounting detail).</div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+}
+function closeDrawingModal(){
+  const el = document.getElementById('drawing-modal-backdrop');
+  if(el) el.remove();
+}
+
+// combined drawing of every canopy on the quote, one sheet
+function showAllDrawingsModal(){
+  const cans = quoteItems.filter(i=>i.type==='canopy');
+  const backdrop = document.createElement('div');
+  backdrop.className = 'drawing-modal-backdrop';
+  backdrop.id = 'drawing-modal-backdrop';
+  backdrop.onclick = (e)=>{ if(e.target===backdrop) closeDrawingModal(); };
+  const body = cans.length
+    ? `${allCanopiesSVG(quoteItems)}
+       <div class="dm-actions">
+         <button class="dm-download" onclick="downloadAllCanopyDXF()">Download DXF Set (opens in AutoCAD)</button>
+         <button class="dm-close" onclick="closeDrawingModal()">Close</button>
+       </div>
+       <div class="dm-note">All ${cans.length} canop${cans.length>1?'ies':'y'} on this quote, each drawn as its own figure on one sheet. Views are schematic (fascia exaggerated for readability); all labels are exact. The DXF set stacks every canopy true-to-scale in one file — a starting point for the drafter, not a finished shop drawing.</div>`
+    : `<h3>Full Drawing Set</h3><div class="dm-sub">No canopies on the quote yet — add a canopy and it'll appear here.</div>
+       <div class="dm-actions"><button class="dm-close" onclick="closeDrawingModal()">Close</button></div>`;
+  backdrop.innerHTML = `<div class="drawing-modal"><h3>Full Drawing Set — ${cans.length} Canop${cans.length>1?'ies':'y'}</h3>${body}</div>`;
+  document.body.appendChild(backdrop);
+}
+function downloadAllCanopyDXF(){
+  const dxf = allCanopiesDXF(quoteItems);
+  const blob = new Blob([dxf], {type:'application/dxf'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Canopy_Drawing_Set.dxf';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ---------------- STANDING SEAM ---------------- */
@@ -956,7 +1631,7 @@ function renderQuote(){
             ${items.map(i=>`
               <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--text-dim); padding:3px 0;">
                 <span>${i.title} — <span style="color:var(--text-faint)">${i.sub}</span></span>
-                <span style="font-family:'IBM Plex Mono',monospace; white-space:nowrap;">${fmt(i.amount)} <button class="li-remove" style="margin-left:4px;" onclick="removeItem(${i.id})">×</button></span>
+                <span style="font-family:'IBM Plex Mono',monospace; white-space:nowrap;">${i.type==='canopy' ? `<button class="li-drawing" onclick="event.stopPropagation(); showDrawingModal(${i.id})" title="View / download auto-drawing">📐</button>` : ''}${fmt(i.amount)} <button class="li-remove" style="margin-left:4px;" onclick="removeItem(${i.id})">×</button></span>
               </div>
             `).join('')}
           </div>
@@ -968,6 +1643,7 @@ function renderQuote(){
         <div class="line-item">
           <div class="li-top"><span class="li-title">${i.title}</span><span class="li-amt copyable" onclick="copyAmount(${Math.ceil(i.amount)}, this)">${fmt(i.amount)}</span></div>
           <div class="li-sub">${i.sub}</div>
+          ${i.type==='canopy' ? `<button class="li-drawing" onclick="showDrawingModal(${i.id})" title="View / download auto-drawing">📐 Drawing</button>` : ''}
           <button class="li-remove" onclick="removeItem(${i.id})">remove</button>
         </div>
       `;
@@ -1037,10 +1713,17 @@ function buildSpecLines(i, height){
   const lines = [];
   if(i.type==='canopy' && i.spec){
     lines.push(`  Qty: ${i.spec.qty}`);
-    lines.push(`  W: ${i.spec.widthStr}`);
+    if(i.spec.mitered && i.spec.widthSegments){
+      lines.push(`  W1: ${i.spec.widthSegments[0]}`);
+      lines.push(`  W2: ${i.spec.widthSegments[1]} (mitered)`);
+      lines.push(`  W3: ${i.spec.widthSegments[2]}`);
+      lines.push(`  Total W: ${i.spec.widthStr}`);
+    } else {
+      lines.push(`  W: ${i.spec.widthStr}`);
+    }
     lines.push(`  P: ${i.spec.projStr}`);
     lines.push(`  F: ${i.spec.face}"`);
-    if(i.spec.cchannelPerUnit>0) lines.push(`  C Channel: ${i.spec.cchannelPerUnit*i.spec.qty}`);
+    if(i.spec.cchannelPerUnit>0) lines.push(`  C Channel: ${(i.spec.cchannelPerUnit*i.spec.qty).toFixed(1)} lin ft`);
     if(i.spec.downspoutPerUnit>0){
       const total = i.spec.downspoutPerUnit*i.spec.qty;
       lines.push(i.spec.qty>1 ? `  Downspout: ${total} (${i.spec.downspoutPerUnit}ea)` : `  Downspouts: ${total}`);
@@ -1085,11 +1768,26 @@ function copyForAirtable(){
   const height = "5'"; // fallback only — per-item height fields now cover the real values
   const mfgLines = [];
 
+  const individualCanopy = document.getElementById('extra-individual-items').checked;
+
   Object.entries(s.groups.groups).forEach(([gName, items])=>{
-    const totalQty = items.reduce((sum,i)=> sum + (i.spec && i.spec.qty ? i.spec.qty : 1), 0);
-    const groupTotal = items.reduce((sum,i)=>sum+i.amount,0);
     const type = items[0] ? items[0].type : null;
     const labels = airtableLabels(type);
+    const allCanopy = items.every(i=>i.type==='canopy');
+
+    if(individualCanopy && allCanopy){
+      items.forEach(i=>{
+        const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
+        lines.push(`${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}`);
+        lines.push('');
+        if(specLines.length){ lines.push(...specLines); lines.push(''); }
+        mfgLines.push(`MFG ${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}: ${fmtDecimal(i.amount)}`);
+      });
+      return;
+    }
+
+    const totalQty = items.reduce((sum,i)=> sum + (i.spec && i.spec.qty ? i.spec.qty : 1), 0);
+    const groupTotal = items.reduce((sum,i)=>sum+i.amount,0);
     lines.push(`(${totalQty}) ${labels.header}`);
     lines.push('');
     items.forEach(i=>{
@@ -1134,10 +1832,28 @@ function buildActivityRows(s, color, height){
 
   if(s.survey>0) rows.push({ label:'Survey / PM', desc:'', amt: fmtDecimal(s.survey), taxed:false });
 
+  const individualCanopy = document.getElementById('extra-individual-items').checked;
+
   Object.entries(s.groups.groups).forEach(([gName, items])=>{
-    const groupTotal = items.reduce((sum,i)=>sum+i.amount,0);
     const groupHasCanopy = items.some(i=>i.type==='canopy');
     const groupHasSS = items.some(i=>i.type==='standingSeam');
+    const allCanopy = items.every(i=>i.type==='canopy');
+
+    if(individualCanopy && allCanopy){
+      items.forEach((i, idx)=>{
+        const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
+        let desc = specLines.join('\n');
+        if(idx === items.length-1){
+          desc += `\n\nColor: ${color}\n`;
+          if(document.getElementById('extra-scupper').checked) desc += `Scupper(s): included\n`;
+          desc += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
+        }
+        rows.push({ label: `${gName} — ${i.spec.widthStr} × ${i.spec.projStr}`, desc: desc.trim(), amt: fmtDecimal(i.amount), taxed: true });
+      });
+      return;
+    }
+
+    const groupTotal = items.reduce((sum,i)=>sum+i.amount,0);
     let desc = '';
     items.forEach(i=>{
       const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
@@ -1305,7 +2021,7 @@ function renderCanopySettings(sectionKey, label, mountId){
         <div class="field"><label>MFG $/sqft</label><input type="number" data-path="${sectionKey}.tiers.${idx}.mfg" value="${t.mfg}"></div>
         <div class="field"><label>Lights $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.lights" value="${t.lights}"></div>
         <div class="field"><label>Downspout $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.downspout" value="${t.downspout}"></div>
-        <div class="field"><label>C-Channel $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.cchannel" value="${t.cchannel}"></div>
+        <div class="field"><label>C-Channel $/ft</label><input type="number" data-path="${sectionKey}.tiers.${idx}.cchannel" value="${t.cchannel}"></div>
         <div class="field"><label>Outrigger $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.outrigger" value="${t.outrigger}"></div>
         <div class="field"><label>Miter $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.miter" value="${t.miter}"></div>
       </div>
