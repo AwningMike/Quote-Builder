@@ -584,7 +584,7 @@ function renderCanopySection(sectionKey, faceLabel){
       </div>
       <div class="checkline" style="margin-top:-4px;">
         <input type="checkbox" id="c-cchannel-perimeter">
-        <label for="c-cchannel-perimeter">C-Channel auto — 2 × Projection (both sides)</label>
+        <label for="c-cchannel-perimeter">C-Channel auto — 2 × Projection (+ widths if mitered)</label>
       </div>
       <div class="grid2">
         <div class="field"><label>Outriggers (qty)</label><input type="number" id="c-outrigger" value="0" min="0"></div>
@@ -651,7 +651,7 @@ function computeCanopy(sectionKey){
   // C-Channel: manual lin-ft, or auto full perimeter = 2 × (W + P)
   const ccPerimEl = document.getElementById('c-cchannel-perimeter');
   const cchannelPerim = ccPerimEl ? ccPerimEl.checked : false;
-  const cchannel = cchannelPerim ? 2*projFt : (parseFloat(document.getElementById('c-cchannel').value)||0);
+  const cchannel = cchannelPerim ? (2*projFt + (mitered ? widthFt : 0)) : (parseFloat(document.getElementById('c-cchannel').value)||0);
   if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
   const tier = pickTier(cfg.tiers, widthFt, projFt);
   document.getElementById('tier-out').innerHTML = `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`;
@@ -672,7 +672,7 @@ function computeCanopy(sectionKey){
   document.getElementById('c-breakdown').innerHTML = `
     <div class="row"><span>SQ FT per unit (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
     <div class="row"><span>MFG base (sqft × $${tier.mfg} × ${qty})</span>${fmtCopy(mfgBase)}</div>
-    <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?' · auto 2×Projection':''})</span>${fmtCopy(cchannelCost)}</div>
+    <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?(mitered?' · auto 2×Proj + widths':' · auto 2×Projection'):''})</span>${fmtCopy(cchannelCost)}</div>
     <div class="row"><span>Outriggers</span>${fmtCopy(outriggerCost)}</div>
     <div class="row"><span>Miter</span>${fmtCopy(miterCost)}</div>
     <div class="row"><span>Added Fascia (× ${qty})</span>${fmtCopy(fasciaCost)}</div>
@@ -686,7 +686,7 @@ function computeCanopy(sectionKey){
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   const r = computeCanopy(sectionKey);
-  const widthStr = r.mitered ? decFeetLabel(r.widthFt) : ftInLabel('c-width');
+  const widthStr = r.mitered ? [ftInLabel('c-width1'), ftInLabel('c-width2'), ftInLabel('c-width3')].join(' x ') : ftInLabel('c-width');
   const name = document.getElementById('c-name').value || `${faceLabel} Canopy`;
   const group = document.getElementById('c-group').value || 'Metal-Tech Canopy - Fully welded construction';
   quoteItems.push({
@@ -1714,10 +1714,7 @@ function buildSpecLines(i, height){
   if(i.type==='canopy' && i.spec){
     lines.push(`  Qty: ${i.spec.qty}`);
     if(i.spec.mitered && i.spec.widthSegments){
-      lines.push(`  W1: ${i.spec.widthSegments[0]}`);
-      lines.push(`  W2: ${i.spec.widthSegments[1]} (mitered)`);
-      lines.push(`  W3: ${i.spec.widthSegments[2]}`);
-      lines.push(`  Total W: ${i.spec.widthStr}`);
+      lines.push(`  W: ${i.spec.widthSegments.join(' x ')}`);
     } else {
       lines.push(`  W: ${i.spec.widthStr}`);
     }
