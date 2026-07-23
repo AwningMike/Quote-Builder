@@ -890,7 +890,7 @@ function canopyFigure(item, baseY){
   const pf = paintFillFor(s.paint);
   const attach = s.attach || 'tierod';
 
-  const elevX0 = 120, elevW = 560, evX0 = 770, evW = 150;
+  const elevX0 = 120, elevW = 540, evX0 = 700, evW = 128;
   const faceBand = Math.max(20, Math.min(34, faceIn * 2.2));
   const feY = baseY + 82, plY0 = feY + 116, plH = 118;
 
@@ -936,24 +936,46 @@ function canopyFigure(item, baseY){
 
   // ================= END VIEW (SECTION) =================
   const evY = feY, evBand = faceBand;
-  svg += `<text x="${evX0}" y="${evY-70}" font-size="11" font-weight="700" fill="#333">END VIEW (SECTION)</text>`;
-  // mating-pans hatched band + front fascia cap
+  const paneStr = attach==='tierod' ? '6" Self Mating Pans' : `${faceIn>=8?'8':faceIn}" Self Mating Pans`;
+  svg += `<text x="${evX0}" y="${evY-92}" font-size="11" font-weight="700" fill="#333">END VIEW (SECTION)</text>`;
+  // 6" mating-pans hatched band (the deck top) + front flat gutter fascia
   svg += `<rect x="${evX0}" y="${evY}" width="${evW}" height="${evBand}" fill="url(#pans)" stroke="#333" stroke-width="1.2"/>`;
   svg += `<rect x="${evX0+evW}" y="${evY-2}" width="7" height="${evBand+8}" fill="${pf.fill}" stroke="#333" stroke-width="1.1"/>`;
   // attachment-specific detail
   if(attach === 'tierod'){
-    // wall plate upper-left + angled tie-rod down to front-top of fascia
-    svg += `<rect x="${evX0-16}" y="${evY-52}" width="7" height="18" fill="#dfe3e6" stroke="#333" stroke-width="1.1"/>`;
-    svg += `<line x1="${evX0-9}" y1="${evY-46}" x2="${evX0+evW-2}" y2="${evY}" stroke="#2a2d31" stroke-width="2.4"/>`;
-    svg += `<rect x="${evX0-2}" y="${evY-1}" width="6" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1"/>`;
-    svg += leader(evX0+evW*0.30, evY-40, evX0+evW*0.55, evY-16, 'Sch 40 Tie-Rod', 'start');
-    svg += leader(evX0-40, evY-54, evX0-12, evY-46, '6"x6" Wall Plate', 'start');
-    svg += leader(evX0-30, evY-14, evX0, evY+2, 'Rear Support', 'start');
+    // Real tie-rod section: wall plate high up the wall, long SCH.40 1" tierod diagonal
+    // down to the Top Plate Welded To Pans at the front; 8 1/2" rise at the landing.
+    const risePx = Math.max(15, evBand*0.72);      // 8 1/2" rise above pans at landing
+    const wpY = evY-84, tpX = evX0+evW-8;           // wall-plate top, top-plate x (near front)
+    const rcx = evX0+evW+16;                        // right-margin callout column x
+    // 6"x6" wall plate (upper-left, at wall)
+    svg += `<rect x="${evX0-18}" y="${wpY}" width="8" height="20" fill="#dfe3e6" stroke="#333" stroke-width="1.2"/>`;
+    // SCH.40 1" tierod (double line for the pipe)
+    svg += `<line x1="${evX0-10}" y1="${wpY+8}" x2="${tpX}" y2="${evY-risePx}" stroke="#2a2d31" stroke-width="2.6"/>`;
+    svg += `<line x1="${evX0-10}" y1="${wpY+11}" x2="${tpX}" y2="${evY-risePx+2.5}" stroke="#6b7075" stroke-width="1"/>`;
+    // Top Plate Welded To Pans (vertical plate at landing, height = rise)
+    svg += `<rect x="${tpX}" y="${evY-risePx}" width="7" height="${risePx}" fill="#eee" stroke="#333" stroke-width="1.1"/>`;
+    // 2"x2" rear support near the wall
+    svg += `<rect x="${evX0+4}" y="${evY-6}" width="6" height="6" fill="#eee" stroke="#333" stroke-width="1"/>`;
+    // scupper on front (below fascia)
+    svg += `<rect x="${evX0+evW-14}" y="${evY+evBand}" width="10" height="6" fill="#eee" stroke="#333" stroke-width="1"/>`;
+    // 8 1/2" rise dim just left of the top plate
+    svg += vDim(tpX-3, evY-risePx, evY, 8.5, {});
+    // left callout: wall plates
+    svg += leader(evX0-52, wpY+2, evX0-18, wpY+8, '6"x6"x¼"', 'start');
+    svg += `<text x="${evX0-52}" y="${wpY+13}" font-size="10" fill="#222">Wall Plates</text>`;
+    // right-margin stacked callouts (short, leaders point back into the section)
+    svg += leader(rcx, evY-risePx-6, (tpX+evX0)/2, evY-risePx*0.5-24, 'SCH. 40 1" Tierods', 'start');
+    svg += leader(rcx, evY-risePx+4, tpX+7, evY-risePx+3, 'Top Plate Welded To Pans', 'start');
+    svg += leader(rcx, evY+evBand*0.5, evX0+evW, evY+evBand*0.5, `${faceIn}" Flat Gutter Fascia`, 'start');
+    svg += leader(rcx, evY+evBand+10, evX0+evW-9, evY+evBand+4, 'Scuppers On Front', 'start');
+    svg += leader(evX0+10, evY-16, evX0+6, evY-1, paneStr, 'start');
   } else if(attach === 'cchannel'){
     svg += `<rect x="${evX0-9}" y="${evY-1}" width="9" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1.1"/>`;
     svg += `<rect x="${evX0-9}" y="${evY-7}" width="26" height="6" fill="#eee" stroke="#333" stroke-width="1"/>`;
     svg += leader(evX0-30, evY+evBand+26, evX0-5, evY+evBand-2, '1¼" C-Channel Low Attach', 'start');
     svg += leader(evX0+8, evY-16, evX0+2, evY-4, 'Outrigger Sleeve', 'start');
+    svg += leader(evX0+evW-40, evY+evBand+28, evX0+evW-6, evY+evBand+3, 'Scuppers On Front', 'start');
   } else { // topsupport
     svg += `<rect x="${evX0+evW*0.3}" y="${evY-8}" width="${evW*0.4}" height="7" fill="#eee" stroke="#333" stroke-width="1"/>`;
     svg += `<rect x="${evX0+evW-2}" y="${evY-1}" width="6" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1"/>`;
@@ -962,11 +984,10 @@ function canopyFigure(item, baseY){
   }
   // downspout stub (rear)
   if(dsN > 0) svg += `<rect x="${evX0-5}" y="${evY+evBand+2}" width="5" height="22" fill="#eee" stroke="#333" stroke-width="1"/>`;
-  // dims + common callouts
+  // dims + common callouts (fascia label supplied per-branch above)
   svg += hDim(evX0, evX0+evW, evY+evBand+40, projIn, {extFrom: evY+evBand, side:'below'});
   svg += vDim(evX0-24, evY, evY+evBand, faceIn, {});
-  svg += leader(evX0+evW*0.5, evY+evBand+16, evX0+evW*0.5, evY+evBand-3, 'Self-Mating Pans', 'middle');
-  svg += leader(evX0+evW-54, evY+evBand+28, evX0+evW+3, evY+evBand/2, `${faceIn}" Gutter Fascia`, 'start');
+  if(attach !== 'tierod') svg += leader(evX0+evW+8, evY+evBand/2, evX0+evW+3, evY+evBand/2, `${faceIn}" Flat Gutter Fascia`, 'start');
 
   // ================= PLAN VIEW =================
   svg += `<text x="${elevX0}" y="${plY0-46}" font-size="11" font-weight="700" fill="#333">PLAN VIEW (TOP)</text>`;

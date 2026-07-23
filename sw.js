@@ -1,6 +1,6 @@
 // APMG Quote Calculator service worker
 // Bump CACHE version whenever you deploy a new build so clients refresh cleanly.
-const CACHE = 'apmg-quote-calc-v9';
+const CACHE = 'apmg-quote-calc-v10';
 const ASSETS = [
   './canopy_quote_calculator.html',
   './manifest.json',
