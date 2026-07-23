@@ -1119,37 +1119,68 @@ function allCanopiesSVG(items){
 
 /* ---------------- DETAIL SHEETS (downspout + wall attachment) ---------------- */
 // Downspout assembly detail figure at vertical offset baseY.
+// Downspout detail page — matches APMG standard (Morris/Courtyards approval sheets):
+// Downspout Assemblies (front+side w/ 68° kick), Downspout Plate With Nub, 3x3 Angle.
 function downspoutDetailFigure(item, baseY){
   let s = '';
-  const x0 = 220, top = baseY + 92, bot = baseY + 330, w = 26;
-  s += `<text x="120" y="${baseY+40}" font-size="12" font-weight="700" fill="#333">DOWNSPOUT ASSEMBLY — 2"x3"</text>`;
-  // top downspout plate w/ nub (ties to gutter)
-  s += `<rect x="${x0-16}" y="${top-30}" width="${w+32}" height="26" fill="#eef1f3" stroke="#333" stroke-width="1.2"/>`;
-  [[x0-8,top-24],[x0+w+8,top-24],[x0-8,top-8],[x0+w+8,top-8]].forEach(([hx,hy])=>{ s += `<circle cx="${hx}" cy="${hy}" r="2" fill="none" stroke="#333" stroke-width="0.8"/>`; });
-  s += `<rect x="${x0}" y="${top-6}" width="${w}" height="8" fill="url(#mill)" stroke="#333" stroke-width="1"/>`;
-  // vertical downspout run
-  s += `<rect x="${x0}" y="${top}" width="${w}" height="${bot-top-44}" fill="url(#mill)" stroke="#333" stroke-width="1.3"/>`;
-  // sleeve joint
-  const sy = top + (bot-top-44)*0.5;
-  s += `<rect x="${x0-3}" y="${sy}" width="${w+6}" height="10" fill="#eef1f3" stroke="#333" stroke-width="1"/>`;
-  // elbow kicking out at bottom
-  s += `<path d="M${x0},${bot-44} l${w},0 l0,20 l40,0 l0,${w} l-${40+w},0 z" fill="url(#mill)" stroke="#333" stroke-width="1.3"/>`;
-  // callouts
-  s += leader(x0+w+40, top-24, x0+w+14, top-16, 'Downspout Plate w/ Nub — ties to gutter fascia', 'start');
-  s += leader(x0+w+40, sy+5, x0+w+3, sy+5, 'Sleeve — cut to fit', 'start');
-  s += leader(x0+w+70, bot-12, x0+w+42, bot-16, 'Elbow — cut on site', 'start');
-  s += leader(x0-20, top+50, x0-1, top+50, '2"x3"x.125" Downspout', 'end');
-  s += `<text x="${x0-20}" y="${(top+bot)/2-4}" font-size="10" fill="#c8102e" text-anchor="end">Length cut</text>`;
-  s += `<text x="${x0-20}" y="${(top+bot)/2+8}" font-size="10" fill="#c8102e" text-anchor="end">on site (AFF)</text>`;
-  // plate detail (right)
-  const px = 560, py = baseY + 120;
-  s += `<text x="${px}" y="${py-16}" font-size="12" font-weight="700" fill="#333">DOWNSPOUT PLATE w/ NUB</text>`;
-  s += `<rect x="${px}" y="${py}" width="120" height="120" fill="#f4f6f8" stroke="#333" stroke-width="1.3"/>`;
-  s += `<rect x="${px+30}" y="${py+40}" width="60" height="40" fill="url(#pans)" stroke="#333" stroke-width="1.2"/>`;
-  [[px+14,py+14],[px+106,py+14],[px+14,py+106],[px+106,py+106]].forEach(([hx,hy])=>{ s += `<circle cx="${hx}" cy="${hy}" r="3" fill="none" stroke="#333" stroke-width="0.9"/>`; });
-  s += hDim(px, px+120, py+120+22, 4, {extFrom:py+120, side:'below'});
-  s += vDim(px-16, py, py+120, 4, {extTo:px});
-  s += leader(px+124, py+60, px+90, py+60, '2"x3" Nub', 'start');
+  const dsN = (item.spec.downspoutPerUnit||0) * (item.spec.qty||1);
+  // interior divider lines like the real sheet (left = assembly, right split top/bottom)
+  s += `<line x1="500" y1="${baseY+20}" x2="500" y2="${baseY+400}" stroke="#111" stroke-width="1.2"/>`;
+  s += `<line x1="500" y1="${baseY+210}" x2="992" y2="${baseY+210}" stroke="#111" stroke-width="1.2"/>`;
+
+  // ===== LEFT: Downspout Assemblies (front view + side view w/ kick) =====
+  s += `<text x="250" y="${baseY+42}" font-size="14" font-weight="700" fill="#111" text-anchor="middle">Downspout Assemblies</text>`;
+  s += `<text x="250" y="${baseY+58}" font-size="12" font-weight="700" fill="#111" text-anchor="middle">QTY: ${dsN||1}</text>`;
+  // -- front view: straight 2x2 tube with red sleeve band + top plate --
+  const fx = 175, ftop = baseY+80, fbot = baseY+330, fw = 12;
+  s += `<rect x="${fx-8}" y="${ftop-8}" width="${fw+16}" height="8" fill="#eef1f3" stroke="#333" stroke-width="1"/>`; // top plate
+  s += `<rect x="${fx}" y="${ftop}" width="${fw}" height="${fbot-ftop}" fill="url(#mill)" stroke="#333" stroke-width="1.2"/>`;
+  s += `<rect x="${fx-2}" y="${ftop+18}" width="${fw+4}" height="7" fill="#c8102e" stroke="#8f1a17" stroke-width="0.8"/>`; // red sleeve band (top plate w/ sleeve)
+  s += hDim(fx, fx+fw, ftop-20, 4, {side:'above'});
+  s += vDim(fx-26, ftop, fbot, 87, {extTo:fx});
+  s += `<text x="250" y="${fbot+22}" font-size="12" font-weight="700" fill="#111" text-anchor="middle">FRONT VIEW</text>`;
+  // -- side view: tube with 68° kick-out at bottom --
+  const sx = 360, stop = baseY+80, sbot = baseY+310, sw = 10;
+  s += `<rect x="${sx}" y="${stop}" width="${sw}" height="${sbot-stop-30}" fill="url(#mill)" stroke="#333" stroke-width="1.2"/>`;
+  s += `<rect x="${sx-2}" y="${stop+18}" width="${sw+4}" height="7" fill="#c8102e" stroke="#8f1a17" stroke-width="0.8"/>`;
+  // 68° kick: bottom segment angling out
+  s += `<path d="M${sx},${sbot-30} l${sw},0 l14,26 l-${sw},4 z" fill="url(#mill)" stroke="#333" stroke-width="1.2"/>`;
+  s += `<text x="${sx-6}" y="${sbot-2}" font-size="9" fill="#111" text-anchor="end">68°</text>`;
+  s += `<text x="${sx+30}" y="${sbot+6}" font-size="9" fill="#111">5 1/16"</text>`;
+  s += `<text x="${sx+30}" y="${sbot+18}" font-size="9" fill="#111">4 1/4"</text>`;
+  s += `<text x="360" y="${sbot+34}" font-size="12" font-weight="700" fill="#111" text-anchor="middle">SIDE VIEW</text>`;
+  s += leader(190, baseY+160, sx, stop+70, '2"x2"x.093" Downspout', 'start');
+  s += leader(40, baseY+250, fx-1, ftop+120, '2"x2" W/Bottom Sleeve Cut On Site To Match Height', 'start');
+
+  // ===== TOP-RIGHT: Downspout Plate With Nub =====
+  const px = 640, py = baseY+70, pS = 84;
+  s += `<text x="746" y="${baseY+42}" font-size="13" font-weight="700" fill="#111" text-anchor="middle">Downspout Plate With Nub</text>`;
+  s += `<text x="746" y="${baseY+57}" font-size="11" font-weight="700" fill="#111" text-anchor="middle">QTY: ${dsN||1}</text>`;
+  // plan: 4x4 plate w/ 4 holes + center 2x2 outer DS + nub
+  s += `<rect x="${px}" y="${py}" width="${pS}" height="${pS}" fill="#f4f6f8" stroke="#333" stroke-width="1.3"/>`;
+  s += `<rect x="${px+pS/2-16}" y="${py+pS/2-16}" width="32" height="32" fill="none" stroke="#333" stroke-width="1.2"/>`;
+  s += `<rect x="${px+pS/2-12}" y="${py+pS/2-12}" width="24" height="24" fill="url(#pans)" stroke="#8f1a17" stroke-width="1"/>`;
+  [[px+12,py+12],[px+pS-12,py+12],[px+12,py+pS-12],[px+pS-12,py+pS-12]].forEach(([hx,hy])=>{ s += `<circle cx="${hx}" cy="${hy}" r="2.4" fill="none" stroke="#333" stroke-width="0.9"/>`; });
+  s += hDim(px, px+pS, py+pS+18, 4, {extFrom:py+pS, side:'below'});
+  s += leader(px-8, py+pS/2, px+pS/2-16, py+pS/2, '2"x2"x.125" Outer DS', 'end');
+  s += leader(px+pS+8, py+pS-6, px+pS/2, py+pS/2+12, '4" Nub', 'start');
+  // side profile (right of plan)
+  const qx = px+pS+40;
+  s += `<rect x="${qx}" y="${py}" width="46" height="6" fill="#eef1f3" stroke="#333" stroke-width="1.1"/>`; // plate edge (.25)
+  s += `<rect x="${qx+15}" y="${py+6}" width="16" height="60" fill="url(#mill)" stroke="#333" stroke-width="1.1"/>`; // nub down
+  s += hDim(qx, qx+46, py-8, 4, {side:'above'});
+  s += `<text x="${qx+23}" y="${py+80}" font-size="8.5" fill="#111" text-anchor="middle">1 5/8"</text>`;
+
+  // ===== BOTTOM-RIGHT: 3x3x.125 Angle =====
+  const ax = 610, ay = baseY+250;
+  s += `<text x="820" y="${baseY+248}" font-size="12" font-weight="700" fill="#111" text-anchor="middle">3"x3"x.125" Angle 4"L</text>`;
+  s += `<text x="820" y="${baseY+263}" font-size="11" fill="#111" text-anchor="middle">11-63-330   QTY: ${(dsN||1)*3}</text>`;
+  // L-angle: two faces meeting
+  s += `<path d="M${ax},${ay} l40,-14 l0,90 l-40,14 z" fill="#eef1f3" stroke="#333" stroke-width="1.2"/>`;
+  s += `<path d="M${ax},${ay} l40,-14 l60,0 l-40,14 z" fill="#f4f6f8" stroke="#333" stroke-width="1.2"/>`;
+  s += vDim(ax-12, ay, ay+90, 4, {extTo:ax});
+  s += hDim(ax+40, ax+100, ay-24, 3, {side:'above'});
+  s += leader(ax+120, ay+70, ax+70, ay+40, '.125" Holes On Site', 'start');
   return s;
 }
 function downspoutDetailSVG(item){
@@ -1163,105 +1194,198 @@ function downspoutDetailSVG(item){
   svg += downspoutDetailFigure(item, 40);
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'DOWNSPOUT DETAIL'}), [
     `${dsTotal} downspout${dsTotal!==1?'s':''} total for ${_esc(item.title)}`,
-    `2"x3"x.125" downspout · elbow cut on site`,
-    `Downspout plate w/ nub ties to gutter fascia`,
-    `Straight termination — tie-in by other GC`
+    `2"x2"x.093" Downspout · Top Plate With Sleeve`,
+    `2"x2" W/Bottom Sleeve Cut On Site To Match Height`,
+    `Downspout Plate With Nub (4" Nub) · 3"x3"x.125" Angle 4"L`,
+    `Bottom kick 68° · .125" Holes On Site`
   ]);
   svg += `</svg>`;
   return svg;
 }
 
-// Wall attachment / blocking section detail figure at vertical offset baseY.
-function wallDetailFigure(item, baseY){
+// small red X cross-hatch blocking block (double-stacked 2x8 wood blocking)
+function _blkBlock(x, y, w, h){
+  let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fdeaea" stroke="#c8102e" stroke-width="1.1"/>`;
+  s += `<line x1="${x}" y1="${y+h/2}" x2="${x+w}" y2="${y+h/2}" stroke="#c8102e" stroke-width="0.7"/>`; // double-stack divider
+  // X-hatch each half
+  [[y,y+h/2],[y+h/2,y+h]].forEach(([t,b])=>{
+    s += `<line x1="${x}" y1="${t}" x2="${x+w}" y2="${b}" stroke="#c8102e" stroke-width="0.7"/>`;
+    s += `<line x1="${x+w}" y1="${t}" x2="${x}" y2="${b}" stroke="#c8102e" stroke-width="0.7"/>`;
+  });
+  return s;
+}
+// Wall attachment / blocking section — matches APMG "Attachment" sheet (Trinity):
+// wall section, double-stacked 2x8 wood blocking (red X-hatch) top+bottom, tie-rod
+// triangle, Standard 2" EIFs, verbatim blocking note, Bottom of Canopies AFF TBD.
+function wallDetailFigure(item, baseY, label){
   const attach = item.spec.attach || 'tierod';
-  const blocking = item.spec.blocking || 'wood';
+  const s0 = item.spec;
+  const projIn = (s0.projFt||0)*12 || 42;
   let s = '';
-  s += `<text x="120" y="${baseY+40}" font-size="12" font-weight="700" fill="#333">WALL ATTACHMENT — SECTION</text>`;
-  const wallX = 660, wallTop = baseY + 70, wallBot = baseY + 340, wallW = 54;
-  // wall band
-  s += `<rect x="${wallX}" y="${wallTop}" width="${wallW}" height="${wallBot-wallTop}" fill="#f0f0ee" stroke="#333" stroke-width="1.3"/>`;
-  s += `<line x1="${wallX}" y1="${wallTop}" x2="${wallX}" y2="${wallBot}" stroke="#333" stroke-width="1.8"/>`; // exterior face
-  // finish floor
-  s += `<line x1="${wallX-300}" y1="${wallBot}" x2="${wallX+wallW+50}" y2="${wallBot}" stroke="#333" stroke-width="1.2"/>`;
-  s += `<text x="${wallX+wallW+6}" y="${wallBot+12}" font-size="9" fill="#333">FIN. FLOOR</text>`;
-  // canopy section (left), attaching to wall
-  const canLeft = 380, canRight = wallX, canY = wallTop + 120, band = 22;
-  s += `<rect x="${canLeft}" y="${canY}" width="${canRight-canLeft}" height="${band}" fill="url(#pans)" stroke="#333" stroke-width="1.2"/>`;
-  s += `<rect x="${canLeft-7}" y="${canY-2}" width="7" height="${band+8}" fill="url(#mill)" stroke="#333" stroke-width="1.1"/>`;
-  s += leader(canLeft-10, canY-14, canLeft+40, canY+2, 'Canopy — see elevation / plan', 'start');
-  // blocking + framing (substrate-specific). Tie-rod anchors higher up the wall.
-  const blkTop = (attach === 'tierod' ? canY - 95 : canY - 18), blkH = band + 40;
-  let blkNote, floorNote = 'Blocking runs continuous with all canopies';
-  if(blocking === 'masonry'){
-    // solid masonry wall with course lines
-    s += `<rect x="${wallX}" y="${wallTop}" width="${wallW}" height="${wallBot-wallTop}" fill="#e7e4df" stroke="#333" stroke-width="1"/>`;
-    for(let y=wallTop+16;y<wallBot;y+=16){ s += `<line x1="${wallX}" y1="${y}" x2="${wallX+wallW}" y2="${y}" stroke="#b8b2a6" stroke-width="0.7"/>`; }
-    for(let y=wallTop;y<wallBot;y+=32){ s += `<line x1="${wallX+wallW/2}" y1="${y}" x2="${wallX+wallW/2}" y2="${y+16}" stroke="#b8b2a6" stroke-width="0.7"/>`; }
-    blkNote = 'Masonry / Concrete — 3/8" wedge anchors @ 24" O.C.';
-  } else if(blocking === 'metal'){
-    // studs + steel tube at attach height
-    for(let x=wallX+10;x<wallX+wallW;x+=14){ s += `<line x1="${x}" y1="${wallTop}" x2="${x}" y2="${wallBot}" stroke="#c3c8cc" stroke-width="0.6"/>`; }
-    s += `<rect x="${wallX+6}" y="${blkTop}" width="24" height="${blkH}" fill="#cfd6db" stroke="#333" stroke-width="1.2"/>`;
-    s += `<line x1="${wallX+6}" y1="${blkTop+blkH/2}" x2="${wallX+30}" y2="${blkTop+blkH/2}" stroke="#333" stroke-width="1"/>`;
-    blkNote = 'Steel Beam / Tube — 3/8" All-Thread thru member';
-  } else { // wood
-    for(let x=wallX+10;x<wallX+wallW;x+=14){ s += `<line x1="${x}" y1="${wallTop}" x2="${x}" y2="${wallBot}" stroke="#c3c8cc" stroke-width="0.6"/>`; }
-    s += `<rect x="${wallX+6}" y="${blkTop}" width="22" height="${blkH}" fill="#e8dcc0" stroke="#7a5a2a" stroke-width="1.2"/>`;
-    s += `<line x1="${wallX+6}" y1="${blkTop+blkH/2}" x2="${wallX+28}" y2="${blkTop+blkH/2}" stroke="#7a5a2a" stroke-width="0.9"/>`;
-    blkNote = '(2) 2"x8" Wood Blocking, double-stacked @ 24" O.C.';
-  }
-  // attachment connector
-  if(attach === 'tierod'){
-    s += `<rect x="${wallX-3}" y="${blkTop+6}" width="4" height="16" fill="#dfe3e6" stroke="#333" stroke-width="1"/>`; // wall plate anchor (up wall)
-    s += `<line x1="${wallX-1}" y1="${blkTop+14}" x2="${canLeft+6}" y2="${canY}" stroke="#2a2d31" stroke-width="2.2"/>`; // angled tie-rod
-    s += `<rect x="${wallX-5}" y="${canY-1}" width="5" height="${band+2}" fill="#eee" stroke="#333" stroke-width="1"/>`; // rear low support
-    s += leader(canLeft+96, canY-52, (canLeft+wallX)/2, (blkTop+canY)/2+8, '3/8" All-Thread Tie-Rod into blocking', 'start');
+  // wall: two vertical lines (siding face + interior substrate) = section cut
+  const wsX = 300, wsX2 = 322, wTop = baseY+40, wBot = baseY+430;
+  s += `<line x1="${wsX}" y1="${wTop}" x2="${wsX}" y2="${wBot}" stroke="#111" stroke-width="1.6"/>`;   // exterior siding face
+  s += `<line x1="${wsX2}" y1="${wTop}" x2="${wsX2}" y2="${wBot}" stroke="#111" stroke-width="1.1"/>`; // interior substrate face
+  // deck/canopy at bottom (hatched fascia bar) projecting out to the right
+  const deckY = baseY+360, deckH = 26, deckOut = projIn*3.4;
+  s += `<rect x="${wsX2}" y="${deckY}" width="${deckOut}" height="${deckH}" fill="url(#pans)" stroke="#111" stroke-width="1.3"/>`;
+  s += `<rect x="${wsX2+deckOut-6}" y="${deckY-1}" width="6" height="${deckH+2}" fill="#eee" stroke="#111" stroke-width="1"/>`; // front fascia edge
+  // blocking blocks (red X-hatch) — top behind wall plate, bottom behind lower framing
+  const topBlkY = wTop+10, botBlkY = deckY-2;
+  s += _blkBlock(wsX-10, topBlkY, 12, 34);       // top blocking
+  s += _blkBlock(wsX-10, botBlkY, 12, 20);       // bottom blocking (7")
+  // tie-rod triangle: wall plate (top) -> top plate at canopy end
+  if(attach !== 'topsupport'){
+    // wall plate at top blocking
+    s += `<rect x="${wsX2-1}" y="${topBlkY+8}" width="6" height="14" fill="#dfe3e6" stroke="#111" stroke-width="1"/>`;
+    // diagonal tie-rod down to canopy front-top
+    s += `<line x1="${wsX2+5}" y1="${topBlkY+15}" x2="${wsX2+deckOut-10}" y2="${deckY}" stroke="#2a2d31" stroke-width="2.4"/>`;
+    // lower connection: wall plate at bottom blocking to rear of deck
+    s += `<rect x="${wsX2-1}" y="${botBlkY+4}" width="8" height="6" fill="#2a2d31"/>`;
+    s += `<line x1="${wsX2+7}" y1="${botBlkY+7}" x2="${wsX2+18}" y2="${deckY+4}" stroke="#2a2d31" stroke-width="1.6"/>`;
   } else {
-    s += `<rect x="${wallX-5}" y="${canY-2}" width="5" height="${band+4}" fill="#eee" stroke="#333" stroke-width="1"/>`; // bracket/channel
-    s += `<line x1="${wallX-2}" y1="${canY+6}" x2="${wallX+24}" y2="${canY+6}" stroke="#2a2d31" stroke-width="1.6"/>`; // all-thread into blocking
-    s += leader(canRight-120, canY+40, wallX-2, canY+8, '3/8" All-Thread into blocking (low attach)', 'start');
+    s += `<rect x="${wsX2-1}" y="${deckY-6}" width="8" height="10" fill="#2a2d31"/>`;
   }
-  // blocking callouts
-  s += leader(wallX+wallW+8, blkTop-6, wallX+wallW-2, blkTop+blkH/2, blkNote, 'start');
-  s += `<text x="${wallX+wallW+8}" y="${blkTop-6+13}" font-size="9" fill="#c8102e">By Other GC — Required for Install</text>`;
-  // AFF dimension (value per site)
-  const affX = wallX - 320;
-  s += `<line x1="${affX}" y1="${canY+band}" x2="${affX}" y2="${wallBot}" stroke="#141414" stroke-width="1"/>`;
-  s += `<path d="M${affX},${canY+band} l-3.5,7 l7,0 z" fill="#141414"/>`;
-  s += `<path d="M${affX},${wallBot} l-3.5,-7 l7,0 z" fill="#141414"/>`;
-  s += `<text x="${affX-6}" y="${(canY+band+wallBot)/2-1}" font-size="11" text-anchor="end" font-weight="600" fill="#141414">±____</text>`;
-  s += `<text x="${affX-6}" y="${(canY+band+wallBot)/2+12}" font-size="11" text-anchor="end" font-weight="600" fill="#141414">AFF</text>`;
-  s += `<text x="${affX+8}" y="${wallBot-6}" font-size="9" fill="#666">mounting height per site</text>`;
+  // ===== labels =====
+  s += `<text x="560" y="${baseY+70}" font-size="18" font-weight="700" fill="#111" text-anchor="middle">Attachment ${label||'A'}</text>`;
+  s += `<line x1="470" y1="${baseY+76}" x2="650" y2="${baseY+76}" stroke="#111" stroke-width="1"/>`;
+  // verbatim blocking note (the APMG standard note)
+  const noteX = 470, noteY = baseY+110;
+  ['3/8" Lags Into Double Stacked 2" x 8" Wood',
+   'Blocking, 1 Every 24" Bottom Framing. Blocking',
+   'Added Behind Siding In Between Studs.',
+   'Blocking Runs Continuous With All Canopies.'
+  ].forEach((ln,i)=>{ s += `<text x="${noteX}" y="${noteY+i*15}" font-size="11" fill="#111">${_esc(ln)}</text>`; });
+  // leader lines from note to the two blocking blocks
+  s += `<line x1="${noteX}" y1="${noteY-4}" x2="${wsX+2}" y2="${topBlkY+16}" stroke="#111" stroke-width="0.6"/>`;
+  s += `<line x1="${noteX}" y1="${noteY+40}" x2="${wsX2+deckOut-10}" y2="${deckY}" stroke="#111" stroke-width="0.6"/>`;
+  // Standard 2" EIFs callout
+  s += leader(430, baseY+250, wsX-2, baseY+250, 'Standard 2" EIFs', 'start');
+  // dims: wall-attach span (vertical) + 7" bottom blocking
+  s += vDim(wsX-40, topBlkY, deckY, projIn>50?98:65, {extTo:wsX-10});
+  s += vDim(wsX-14, botBlkY, deckY, 7, {extTo:wsX2});
+  // Bottom of Canopies AFF TBD
+  s += `<text x="${wsX2+deckOut/2}" y="${deckY+deckH+26}" font-size="13" font-weight="600" fill="#111" text-anchor="middle">Bottom of Canopies</text>`;
+  s += `<text x="${wsX2+deckOut/2}" y="${deckY+deckH+42}" font-size="13" font-weight="600" fill="#111" text-anchor="middle">AFF TBD</text>`;
+  s += `<path d="M${wsX2+deckOut/2},${deckY+deckH+10} l-4,10 l8,0 z" fill="#111"/>`;
   return s;
 }
 function wallDetailSVG(item){
   const info = _headerInfo();
-  const W = 1000, H = 560, bx = 8, by = 8, bw = W-16, bh = H-16;
-  const blocking = item.spec.blocking || 'wood';
-  const blkLabel = blocking==='masonry' ? 'Masonry / Concrete substrate' : (blocking==='metal' ? 'Metal / Steel substrate' : 'Wood blocking substrate');
+  const W = 1000, H = 620, bx = 8, by = 8, bw = W-16, bh = H-16;
   const attach = item.spec.attach || 'tierod';
-  const attLabel = attach==='tierod' ? 'Tie-rod hung into blocking' : (attach==='cchannel' ? 'C-channel low attach' : 'Top-support flat');
+  const attLabel = attach==='tierod' ? 'Tie-rod hung — into wood blocking' : (attach==='cchannel' ? 'C-channel low attach' : 'Top-support flat');
   let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
   svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
   svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
-  svg += _canopyHeader(W, info.dwgDate, 'DET-WALL');
-  svg += wallDetailFigure(item, 40);
-  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'WALL ATTACHMENT / BLOCKING DETAIL'}), [
+  svg += _canopyHeader(W, info.dwgDate, 'DET-ATT');
+  svg += wallDetailFigure(item, 40, (item.title||'A').toString().replace(/[^A-Za-z0-9]/g,'').slice(-1).toUpperCase() || 'A');
+  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'ATTACHMENT / BLOCKING DETAIL'}), [
     `${_esc(item.title)} — ${attLabel}`,
-    blkLabel,
-    `3/8" All-Thread @ 24" O.C. — by other GC`,
-    `Blocking / substrate & install by others — required for install`,
-    `Mounting height (AFF) per site conditions`
+    `3/8" Lags into double-stacked 2"x8" wood blocking, 1 every 24"`,
+    `Blocking added behind siding between studs — runs continuous`,
+    `Standard 2" EIFs spacer · Bottom of Canopies AFF TBD`,
+    `Blocking & install by others — required for install`
   ]);
   svg += `</svg>`;
   return svg;
 }
 
 // All sheets for one canopy: main + downspout detail (if any) + wall attachment detail.
+// Hardware / BOM page — matches APMG standard (Trinity p9 / Morris p3):
+// Adjustable Tierod (SCH 40 1.25" pipe + 12" sleeve) + block library w/ QTYs.
+function _hwPart(x, y, w, h, holes, slot){
+  let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f4f6f8" stroke="#111" stroke-width="1.2"/>`;
+  (holes||[]).forEach(([hx,hy])=>{ s += `<circle cx="${x+hx}" cy="${y+hy}" r="2.6" fill="none" stroke="#111" stroke-width="0.9"/>`; });
+  if(slot){ s += `<rect x="${x+w/2-2.5}" y="${y+h/2-9}" width="5" height="18" fill="#dfe3e6" stroke="#111" stroke-width="0.9"/>`; }
+  return s;
+}
+function hardwareDetailFigure(item, baseY){
+  const s0 = item.spec;
+  const widthIn = (s0.widthFt||0)*12;
+  const qty = s0.qty||1;
+  const attach = s0.attach || 'tierod';
+  const hgN = attach==='tierod' ? Math.max(2, Math.round(widthIn/72)) : Math.max(2, Math.round(widthIn/72));
+  const rods = hgN*qty, wallPlates = hgN*qty, topPlates = hgN*qty, tabs = 2*hgN*qty, soSmall = hgN*qty, soNorm = hgN*qty;
+  let s = '';
+  // divider (top = tierod, bottom = block library)
+  s += `<line x1="12" y1="${baseY+185}" x2="988" y2="${baseY+185}" stroke="#111" stroke-width="1.2"/>`;
+  // ===== Adjustable Tierod =====
+  s += `<text x="150" y="${baseY+70}" font-size="20" font-weight="700" fill="#111">Adjustable Tierod</text>`;
+  const ty = baseY+95, tx0 = 90, tx1 = 860;
+  // pipe as two clevis ends + rod + sleeve overlap in middle
+  s += `<rect x="${tx0}" y="${ty-6}" width="${tx1-tx0}" height="12" fill="url(#mill)" stroke="#111" stroke-width="1.2"/>`;
+  s += `<circle cx="${tx0+8}" cy="${ty}" r="4" fill="#fff" stroke="#111" stroke-width="1"/>`;
+  s += `<circle cx="${tx1-8}" cy="${ty}" r="4" fill="#fff" stroke="#111" stroke-width="1"/>`;
+  // 12" sleeve pipe (overlap), right of center
+  const slx = (tx0+tx1)/2+60;
+  s += `<rect x="${slx}" y="${ty-8}" width="120" height="16" fill="#eef1f3" stroke="#111" stroke-width="1.1"/>`;
+  s += hDim(slx, slx+120, ty-26, 12, {side:'above'});
+  s += leader(560, baseY+40, (tx0+tx1)/2+30, ty-6, 'SCH. 40 1.25" Round Aluminum Pipe', 'start');
+  s += `<text x="${slx+150}" y="${ty+40}" font-size="18" font-weight="700" fill="#111">Sleeve Pipe</text>`;
+  s += `<line x1="${slx+145}" y1="${ty+34}" x2="${slx+60}" y2="${ty+8}" stroke="#111" stroke-width="0.7"/>`;
+  s += `<text x="${tx0+70}" y="${ty+40}" font-size="12" font-weight="700" fill="#111">Adjustable Tierod  QTY: ${rods}  (cut to length per canopy)</text>`;
+  // ===== Block library =====
+  const by0 = baseY+215;
+  // .25 Alum Wall Plates (6x6) + side profile
+  s += _hwPart(120, by0, 64, 64, [[14,14],[50,14],[14,50],[50,50]], true);
+  s += `<rect x="98" y="${by0}" width="6" height="64" fill="#eef1f3" stroke="#111" stroke-width="1"/>`; // side profile
+  s += `<text x="152" y="${by0+82}" font-size="10" fill="#111" text-anchor="middle">.25" Alum.</text>`;
+  s += `<text x="152" y="${by0+94}" font-size="10" fill="#111" text-anchor="middle">Wall Plates</text>`;
+  s += `<text x="152" y="${by0+106}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${wallPlates}</text>`;
+  s += hDim(120, 184, by0-8, 6, {side:'above'});
+  // Canopy Top Plates (6x5)
+  s += _hwPart(260, by0, 64, 54, [], true);
+  s += `<text x="292" y="${by0+72}" font-size="10" fill="#111" text-anchor="middle">Canopy</text>`;
+  s += `<text x="292" y="${by0+84}" font-size="10" fill="#111" text-anchor="middle">Top Plates</text>`;
+  s += `<text x="292" y="${by0+96}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${topPlates}</text>`;
+  // Stand Off's Small (clevis)
+  const cl = (x,y)=>`<path d="M${x},${y} l26,0 l0,24 l-8,0 l0,-14 l-10,0 l0,14 l-8,0 z" fill="#f4f6f8" stroke="#111" stroke-width="1.1"/><circle cx="${x+13}" cy="${y+30}" r="3" fill="none" stroke="#111" stroke-width="0.9"/><rect x="${x+8}" y="${y+27}" width="10" height="10" fill="#f4f6f8" stroke="#111" stroke-width="1"/>`;
+  s += cl(420, by0+8);
+  s += `<text x="433" y="${by0+72}" font-size="10" fill="#111" text-anchor="middle">Stand Off's</text>`;
+  s += `<text x="433" y="${by0+84}" font-size="10" fill="#111" text-anchor="middle">Small</text>`;
+  s += `<text x="433" y="${by0+96}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${soSmall}</text>`;
+  // Stand Off's Normal
+  s += cl(540, by0+8);
+  s += `<text x="553" y="${by0+72}" font-size="10" fill="#111" text-anchor="middle">Stand Off's</text>`;
+  s += `<text x="553" y="${by0+84}" font-size="10" fill="#111" text-anchor="middle">Normal</text>`;
+  s += `<text x="553" y="${by0+96}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${soNorm}</text>`;
+  // TABS (round-end tab)
+  s += `<path d="M660,${by0+8} l26,0 a13,13 0 0 1 0,26 l-26,0 z" fill="#f4f6f8" stroke="#111" stroke-width="1.1"/><circle cx="678" cy="${by0+21}" r="3" fill="none" stroke="#111" stroke-width="0.9"/>`;
+  s += `<text x="678" y="${by0+58}" font-size="10" fill="#111" text-anchor="middle">TABS</text>`;
+  s += `<text x="678" y="${by0+70}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${tabs}</text>`;
+  // Canopy Top Plate large (QTY 1)
+  s += _hwPart(760, by0, 96, 48, [[12,12],[84,12],[12,36],[84,36]], true);
+  s += `<text x="808" y="${by0+66}" font-size="10" fill="#111" text-anchor="middle">Canopy Top Plate</text>`;
+  s += `<text x="808" y="${by0+78}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${qty}</text>`;
+  return s;
+}
+function hardwareDetailSVG(item){
+  const info = _headerInfo();
+  const W = 1000, H = 560, bx = 8, by = 8, bw = W-16, bh = H-16;
+  const attach = item.spec.attach || 'tierod';
+  if(attach !== 'tierod') return ''; // hardware page is the tie-rod package
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
+  svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
+  svg += _canopyHeader(W, info.dwgDate, 'HW');
+  svg += hardwareDetailFigure(item, 40);
+  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'STANDARD HARDWARE'}), [
+    `${_esc(item.title)} — Tie-Rod hardware package`,
+    `Adjustable Tierod: SCH. 40 1.25" Round Aluminum Pipe + 12" Sleeve Pipe`,
+    `.25" Alum. Wall Plates 6"x6" · Canopy Top Plates 6"x5"`,
+    `Stand Off's Small/Normal · TABS 2½"`
+  ]);
+  svg += `</svg>`;
+  return svg;
+}
+
 function canopyPages(item){
   const pages = [canopySVG(item)];
   if((item.spec.downspoutPerUnit||0) > 0) pages.push(downspoutDetailSVG(item));
   pages.push(wallDetailSVG(item));
+  const hw = hardwareDetailSVG(item);
+  if(hw) pages.push(hw);
   return pages;
 }
 
