@@ -1557,6 +1557,180 @@ function allCanopiesDXF(items){
   return _assembleDXF(allL, allT, 0, 0);
 }
 
+/* ============ FINISHED DRAWING SET (DXF) ============
+   Every canopy gets its full sheet set — main views + downspout detail (if any)
+   + attachment/blocking detail + hardware page (tie-rod) — each a framed sheet
+   with title block, tiled in one DXF. Client-side Route A (LINE+TEXT). */
+function _dxfKit(){
+  const L=[], T=[];
+  const line=(x1,y1,x2,y2,c)=>L.push({x1,y1,x2,y2,c:c||7});
+  const rect=(x,y,w,h,c)=>{line(x,y,x+w,y,c);line(x+w,y,x+w,y+h,c);line(x+w,y+h,x,y+h,c);line(x,y+h,x,y,c);};
+  const text=(x,y,h,str,c)=>T.push({x,y,h,str,c:c||7});
+  const hdim=(x1,x2,y,val,c)=>{line(x1,y,x2,y,7);line(x1,y-2,x1,y+2,7);line(x2,y-2,x2,y+2,7);
+    const cx=(x1+x2)/2;text(cx-8,y+3,3,_toAscii(ftInStr(val)),c||7);text(cx-8,y-4,3,_toAscii(bracketStr(val)),c||7);};
+  const vdim=(x,y1,y2,val,c)=>{line(x,y1,x,y2,7);line(x-2,y1,x+2,y1,7);line(x-2,y2,x+2,y2,7);
+    const cy=(y1+y2)/2;text(x-20,cy+1,3,_toAscii(ftInStr(val)),c||7);text(x-20,cy-5,3,_toAscii(bracketStr(val)),c||7);};
+  return {L,T,line,rect,text,hdim,vdim};
+}
+function _dxfHdr(){ const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  return {jobNo:gv('hdr-projno'), client:gv('hdr-projname')||gv('hdr-shipname'), city:gv('hdr-address2'), gc:gv('hdr-gc'), dwg:gv('hdr-date')}; }
+// draw border + header strip + 3-panel title block on a W x H sheet (origin 0,0)
+function _dxfSheet(k, W, H, page, center, spec, bom){
+  const h=_dxfHdr();
+  k.rect(0,0,W,H,7);
+  const hh=8;
+  k.line(0,H-hh,W,H-hh,7);
+  [['DWG: '+(h.dwg||'-'),0],['REV: 00.00.00',W*0.22],['BY: APMG',W*0.40],['PAGE: '+page,W*0.52]].forEach(([t,x])=>{ k.line(x,H-hh,x,H,7); k.text(x+2,H-hh+2.5,3.4,t,7); });
+  k.text(W*0.84,H-hh+2,4.2,'APMG',7);
+  const tbh=H*0.15;
+  k.line(0,tbh,W,tbh,7); k.line(W*0.24,0,W*0.24,tbh,7); k.line(W*0.60,0,W*0.60,tbh,7); k.line(W*0.80,0,W*0.80,tbh,7);
+  k.text(2,tbh*0.80,3.3,'JOB#: '+(h.jobNo||'-'),7);
+  k.text(2,tbh*0.62,3,h.client||'-',7);
+  k.text(2,tbh*0.46,3,h.city||'',7);
+  k.text(2,tbh*0.26,2.8,'DESIGNED ESPECIALLY FOR:',7);
+  k.text(2,tbh*0.12,3,h.gc||'-',7);
+  k.text(W*0.27,tbh*0.86,3.6,center,7);
+  (spec||[]).slice(0,4).forEach((ln,i)=>k.text(W*0.245,tbh*(0.56-i*0.13),2.4,ln,7));
+  (bom||[]).slice(0,5).forEach((ln,i)=>k.text(W*0.61,tbh*(0.82-i*0.15),2.5,ln,7));
+  k.text(W*0.81,tbh*0.78,2.8,'Awning Label (Y)(N)',7);
+  k.text(W*0.81,tbh*0.50,3,'Approval Signature:',7);
+  k.line(W*0.81,tbh*0.40,W-2,tbh*0.40,7);
+  k.text(W*0.81,tbh*0.24,3,'Date',7); k.line(W*0.87,tbh*0.18,W-2,tbh*0.18,7);
+}
+function _specBom(item){
+  const s=item.spec, dsN=s.downspoutPerUnit||0, attach=s.attach||'tierod';
+  const spec=[`Manufacture ${s.qty||1} Metal Tech Aluminum Hanging Canop${(s.qty||1)>1?'ies':'y'}`,
+    `${s.face||0}" Gutter Fascia · ${s.face>=8?'8':'6'}" Mating Pans`,
+    attach==='tierod'?'6"x6"x.125" Wall Plates w/ 1" Sch 40 Tie-Rods':(attach==='cchannel'?'1-1/4" C-Channel Low Attach':'Top-Support Flat'),
+    dsN>0?`${dsN} Downspout(s) per unit for drainage`:'Scuppers for drainage',
+    s.paint?`Painted ${s.paint}`:'Mill finish'];
+  const bom = attach==='tierod'?['Tie Rod Assemblies','Sleeve Nuts/Bolts','Tab Nuts/Bolts','Wall Plates','Canopy Top Plates']:['Standard Hardware Package'];
+  return {spec,bom};
+}
+// ---- DOWNSPOUT detail sheet ----
+function downspoutDXFParts(item){
+  const k=_dxfKit(), W=220, H=165, sb=_specBom(item);
+  _dxfSheet(k,W,H,'DET-DS','DOWNSPOUT DETAIL',sb.spec,sb.bom);
+  const dsN=(item.spec.downspoutPerUnit||0)*(item.spec.qty||1);
+  k.text(W*0.16,H*0.80,4,'Downspout Assemblies  QTY: '+(dsN||1),7);
+  // front view (2x2 tube) with sleeve band + height dim
+  const ax=W*0.16, atop=H*0.74, abot=H*0.28;
+  k.rect(ax,abot,3,atop-abot,7);
+  k.rect(ax-0.6,atop-4,4.2,1.6,1); // red sleeve band
+  k.vdim(ax-6,abot,atop,87,7);
+  k.text(ax-2,abot-5,3,'FRONT VIEW',7);
+  k.text(ax-14,(atop+abot)/2,2.6,'2"x2"x.093" Downspout',7);
+  // side view w/ 68 kick
+  const sx=W*0.30;
+  k.rect(sx,abot+6,3,atop-abot-6,7);
+  k.line(sx,abot+6,sx+7,abot,7); k.line(sx+3,abot+6,sx+9,abot-1,7);
+  k.text(sx-4,abot+1,2.6,'68 deg',7); k.text(sx-2,abot-6,3,'SIDE VIEW',7);
+  // plate with nub
+  const px=W*0.60, py=H*0.55;
+  k.rect(px,py,16,16,7); k.rect(px+5,py+5,6,6,1);
+  [[3,3],[13,3],[3,13],[13,13]].forEach(([hx,hy])=>k.rect(px+hx-0.4,py+hy-0.4,0.8,0.8,7));
+  k.hdim(px,px+16,py-4,4,7);
+  k.text(px,py+20,3,'Downspout Plate With Nub  QTY: '+(dsN||1),7);
+  k.text(px+18,py+7,2.6,'4" Nub',7);
+  // 3x3 angle
+  const gx=W*0.60, gy=H*0.22;
+  k.line(gx,gy,gx+8,gy-3,7); k.line(gx+8,gy-3,gx+8,gy+14,7); k.line(gx+8,gy+14,gx,gy+17,7); k.line(gx,gy+17,gx,gy,7);
+  k.line(gx,gy,gx+18,gy,7);
+  k.text(gx+20,gy+12,2.8,'3"x3"x.125" Angle 4"L',7);
+  k.text(gx+20,gy+7,2.6,'11-63-330  QTY: '+((dsN||1)*3),7);
+  k.text(gx+20,gy+2,2.6,'.125" Holes On Site',7);
+  return {L:k.L,T:k.T,minX:0,minY:0,maxX:W,maxY:H};
+}
+// ---- ATTACHMENT / BLOCKING detail sheet ----
+function attachmentDXFParts(item){
+  const k=_dxfKit(), W=220, H=175, sb=_specBom(item);
+  _dxfSheet(k,W,H,'DET-ATT','ATTACHMENT / BLOCKING',sb.spec,sb.bom);
+  const projIn=(item.spec.projFt||0)*12||36, attach=item.spec.attach||'tierod';
+  const lbl=(item.title||'A').replace(/[^A-Za-z0-9]/g,'').slice(-1).toUpperCase()||'A';
+  // wall section (two vertical lines)
+  const wx=W*0.30, wTop=H*0.85, wBot=H*0.20;
+  k.line(wx,wBot,wx,wTop,7); k.line(wx+2.5,wBot,wx+2.5,wTop,7);
+  // deck at bottom projecting right
+  const deckY=wBot+8, deckOut=Math.min(W*0.40, projIn*1.2);
+  k.rect(wx+2.5,deckY,deckOut,3,7);
+  // red X-hatch blocking blocks top + bottom
+  const blk=(x,y,w,h)=>{k.rect(x,y,w,h,1);k.line(x,y+h/2,x+w,y+h/2,1);k.line(x,y,x+w,y+h,1);k.line(x+w,y,x,y+h,1);};
+  blk(wx-1.5,wTop-14,2,10); blk(wx-1.5,deckY-1,2,4);
+  // tierod triangle
+  if(attach!=='topsupport'){
+    k.rect(wx+2,wTop-13,1.6,4,7);
+    k.line(wx+3.6,wTop-11,wx+2.5+deckOut-2,deckY+3,1);
+    k.line(wx+3.6,deckY+1,wx+2.5+12,deckY+3,7);
+  }
+  k.text(W*0.50,H*0.82,5,'Attachment '+lbl,7);
+  ['3/8" Lags Into Double Stacked 2" x 8" Wood','Blocking, 1 Every 24" Bottom Framing. Blocking',
+   'Added Behind Siding In Between Studs.','Blocking Runs Continuous With All Canopies.'
+  ].forEach((ln,i)=>k.text(W*0.44,H*0.74-i*4.2,2.6,ln,7));
+  k.text(W*0.16,H*0.45,2.8,'Standard 2" EIFs',7); k.line(W*0.28,H*0.45,wx,H*0.45,7);
+  k.vdim(wx-9,deckY,wTop-4,projIn>50?98:65,7);
+  k.text(W*0.50,deckY-8,3.4,'Bottom of Canopies AFF TBD',7);
+  return {L:k.L,T:k.T,minX:0,minY:0,maxX:W,maxY:H};
+}
+// ---- HARDWARE page ----
+function hardwareDXFParts(item){
+  const k=_dxfKit(), W=230, H=160, sb=_specBom(item);
+  _dxfSheet(k,W,H,'HW','STANDARD HARDWARE',sb.spec,sb.bom);
+  const s=item.spec, widthIn=(s.widthFt||0)*12, qty=s.qty||1;
+  const hg=Math.max(2,Math.round(widthIn/72)), rods=hg*qty;
+  // adjustable tierod
+  const ty=H*0.66, x0=W*0.10, x1=W*0.86;
+  k.rect(x0,ty-1,x1-x0,2,7);
+  const slx=(x0+x1)/2+8; k.rect(slx,ty-2,20,4,7);
+  k.hdim(slx,slx+20,ty+5,12,7);
+  k.text(W*0.18,ty+10,4.5,'Adjustable Tierod',7);
+  k.text(slx+24,ty-4,3.4,'Sleeve Pipe',7);
+  k.text(W*0.30,ty+18,2.8,'SCH. 40 1.25" Round Aluminum Pipe',7);
+  k.text(x0+18,ty-8,2.8,'Adjustable Tierod  QTY: '+rods+'  (cut to length per canopy)',7);
+  // block library
+  const by=H*0.16, bx=W*0.10;
+  const part=(x,w,h,label,q)=>{k.rect(x,by,w,h,7);[[w*0.2,h*0.2],[w*0.8,h*0.2],[w*0.2,h*0.8],[w*0.8,h*0.8]].forEach(([hx,hy])=>k.rect(x+hx-0.4,by+hy-0.4,0.8,0.8,7));k.text(x,by-4,2.5,label,7);k.text(x,by-8,2.5,'QTY: '+q,7);};
+  part(bx,12,12,'.25" Wall Plates',rods);
+  part(bx+34,12,10,'Canopy Top Plates',rods);
+  k.rect(bx+70,by+2,7,7,7); k.text(bx+70,by-4,2.5,"Stand Off's Sm",7); k.text(bx+70,by-8,2.5,'QTY: '+rods,7);
+  k.rect(bx+96,by+2,7,7,7); k.text(bx+96,by-4,2.5,"Stand Off's Nm",7); k.text(bx+96,by-8,2.5,'QTY: '+rods,7);
+  k.rect(bx+122,by+2,7,7,7); k.text(bx+122,by-4,2.5,'TABS',7); k.text(bx+122,by-8,2.5,'QTY: '+(2*rods),7);
+  return {L:k.L,T:k.T,minX:0,minY:0,maxX:W,maxY:H};
+}
+// assemble every sheet for every canopy into one tiled DXF
+function finishedSetDXF(items){
+  const cans=(items||[]).filter(i=>i.type==='canopy');
+  let allL=[], allT=[], rowY=0;
+  cans.forEach(it=>{
+    // build this canopy's sheet list
+    const sheets=[canopyDXFParts(it)];
+    if((it.spec.downspoutPerUnit||0)>0) sheets.push(downspoutDXFParts(it));
+    sheets.push(attachmentDXFParts(it));
+    if((it.spec.attach||'tierod')==='tierod') sheets.push(hardwareDXFParts(it));
+    // row height = tallest sheet
+    const rowH=Math.max(...sheets.map(p=>p.maxY-p.minY));
+    let colX=0;
+    sheets.forEach(p=>{
+      const dx=colX - p.minX, dy=rowY - p.maxY;   // top-align row (Y-up)
+      p.L.forEach(l=>allL.push({x1:l.x1+dx,y1:l.y1+dy,x2:l.x2+dx,y2:l.y2+dy,c:l.c}));
+      p.T.forEach(t=>allT.push({x:t.x+dx,y:t.y+dy,h:t.h,str:t.str,c:t.c}));
+      colX += (p.maxX-p.minX) + 30;               // gap between sheets in a row
+    });
+    rowY -= rowH + 45;                            // next canopy below
+  });
+  return _assembleDXF(allL, allT, 0, 0);
+}
+function downloadFinishedSetDXF(){
+  const cans=(quoteItems||[]).filter(i=>i.type==='canopy');
+  if(!cans.length){ alert('Add a canopy to the quote first.'); return; }
+  const dxfText=finishedSetDXF(quoteItems);
+  const blob=new Blob([dxfText],{type:'application/dxf'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='APMG_Finished_Drawing_Set.dxf';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function downloadCanopyDXF(itemId){
   const item = quoteItems.find(i=>i.id===itemId);
   if(!item) return;
@@ -1611,9 +1785,10 @@ function showAllDrawingsModal(){
        <div class="dm-actions">
          <button class="dm-pdf" onclick="exportAllCanopyPDF()">Export PDF Set</button>
          <button class="dm-download" onclick="downloadAllCanopyDXF()">Download DXF Set (AutoCAD)</button>
+         <button class="dm-download" onclick="downloadFinishedSetDXF()" title="Full finished set: main views + downspout, blocking & hardware detail sheets, each with title block">⭐ Generate Finished Drawing Set (DXF)</button>
          <button class="dm-close" onclick="closeDrawingModal()">Close</button>
        </div>
-       <div class="dm-note">All ${cans.length} canop${cans.length>1?'ies':'y'} on this quote, each drawn as its own figure on one sheet. Views are schematic (fascia exaggerated for readability); all labels are exact. The DXF set stacks every canopy true-to-scale in one file — a starting point for the drafter, not a finished shop drawing.</div>`
+       <div class="dm-note">All ${cans.length} canop${cans.length>1?'ies':'y'} on this quote, each drawn as its own figure on one sheet. Views are schematic (fascia exaggerated for readability); all labels are exact. <b>Generate Finished Drawing Set</b> exports the complete sheet set for every canopy — main views plus downspout, attachment/blocking, and hardware detail pages, each framed with a title block — tiled true-to-scale in one DXF for AutoCAD.</div>`
     : `<h3>Full Drawing Set</h3><div class="dm-sub">No canopies on the quote yet — add a canopy and it'll appear here.</div>
        <div class="dm-actions"><button class="dm-close" onclick="closeDrawingModal()">Close</button></div>`;
   backdrop.innerHTML = `<div class="drawing-modal"><h3>Full Drawing Set — ${cans.length} Canop${cans.length>1?'ies':'y'}</h3>${body}</div>`;
