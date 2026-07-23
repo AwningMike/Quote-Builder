@@ -155,6 +155,7 @@
   .drawing-modal .dm-actions{ display:flex; gap:10px; margin-top:16px; }
   .drawing-modal .dm-actions button{ flex:1; padding:10px; border-radius:4px; border:none; cursor:pointer; font-size:13px; font-weight:600; }
   .drawing-modal .dm-download{ background:#c8102e; color:#fff; }
+  .drawing-modal .dm-pdf{ background:#1b3e8c; color:#fff; }
   .drawing-modal .dm-close{ background:#eee; color:#333; }
   .drawing-modal .dm-note{ font-size:10.5px; color:#888; margin-top:12px; line-height:1.5; }
 
@@ -292,9 +293,13 @@
         <div id="quote-list"><div class="empty-quote">No line items yet. Build a section on the left and hit "Add to Quote."</div></div>
 
         <div class="extras">
-          <div class="field" style="margin-top:16px;">
-            <label>Survey / PM ($500–$1,500 typical)</label>
-            <input type="number" id="extra-survey" value="500" step="25" oninput="renderQuote()">
+          <div class="checkline" style="margin-top:16px;">
+            <input type="checkbox" id="extra-survey-on" onchange="renderQuote()">
+            <label for="extra-survey-on">Add Survey / PM</label>
+          </div>
+          <div class="field" id="extra-survey-wrap" style="display:none;">
+            <label>Survey / PM $ ($500–$1,500 typical)</label>
+            <input type="number" id="extra-survey" value="500.00" step="25" oninput="renderQuote()">
           </div>
           <div class="field">
             <label>Delivery Mileage (round trip, once per job)</label>
@@ -344,8 +349,9 @@
           <div class="row"><span>Canopy / Materials</span><span class="num" id="q-subtotal">$0</span></div>
           <div class="row" id="q-downspouts-row" style="display:none;"><span>Downspouts</span><span class="num" id="q-downspouts">$0</span></div>
           <div class="row" id="q-lights-row" style="display:none;"><span>Lights</span><span class="num" id="q-lights">$0</span></div>
+          <div class="row" id="q-posts-row" style="display:none;"><span>Posts</span><span class="num" id="q-posts">$0</span></div>
           <div class="row"><span>Installation</span><span class="num" id="q-labor-delivery">$0</span></div>
-          <div class="row"><span>Survey / PM</span><span class="num" id="q-survey">$0</span></div>
+          <div class="row" id="q-survey-row" style="display:none;"><span>Survey / PM</span><span class="num" id="q-survey">$0</span></div>
           <div class="row" id="q-lift-row" style="display:none;"><span>Lift Rental</span><span class="num" id="q-lift">$0</span></div>
           <div class="row" id="q-stamped-row" style="display:none;"><span>Stamped Engineering</span><span class="num" id="q-stamped">$0</span></div>
           <div class="row" id="q-tax-row" style="display:none;"><span id="q-tax-label">Sales Tax (7%)</span><span class="num" id="q-tax">$0</span></div>
@@ -381,19 +387,19 @@ let RATES = {
   canopy8: {
     laborPerFt: 65,
     tiers: [
-      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500 },
-      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500 },
-      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500 },
-      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500 },
+      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500, post:650 },
+      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500, post:650 },
+      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500, post:650 },
+      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500, post:650 },
     ]
   },
   canopy12: {
     laborPerFt: 65,
     tiers: [
-      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:105, lights:400, downspout:650, cchannel:30, outrigger:30,  miter:500 },
-      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:30,  miter:500 },
-      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:45,  miter:500 },
-      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:150, miter:500 },
+      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:105, lights:400, downspout:650, cchannel:30, outrigger:30,  miter:500, post:650 },
+      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:30,  miter:500, post:650 },
+      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:45,  miter:500, post:650 },
+      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:150, miter:500, post:650 },
     ]
   },
   standingSeam: { mfgPerFt:195, endsRate:150, valancePerFt:15, laborPerFt:45 },
@@ -580,15 +586,16 @@ function renderCanopySection(sectionKey, faceLabel){
       <div class="grid3">
         <div class="field"><label>Lights (qty)</label><input type="number" id="c-lights" value="0" min="0"></div>
         <div class="field"><label>Downspouts (qty)</label><input type="number" id="c-downspout" value="0" min="0"></div>
+        <div class="field"><label>Posts (qty · $650 ea)</label><input type="number" id="c-posts" value="0" min="0"></div>
+      </div>
+      <div class="grid3">
         <div class="field"><label>C-Channel (lin ft)</label><input type="number" id="c-cchannel" value="0" min="0"></div>
+        <div class="field"><label>Outriggers (qty)</label><input type="number" id="c-outrigger" value="0" min="0"></div>
+        <div class="field"><label>Miter (qty)</label><input type="number" id="c-miter" value="0" min="0"></div>
       </div>
       <div class="checkline" style="margin-top:-4px;">
         <input type="checkbox" id="c-cchannel-perimeter">
         <label for="c-cchannel-perimeter">C-Channel auto — full perimeter (Width + 2 × Projection)</label>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Outriggers (qty)</label><input type="number" id="c-outrigger" value="0" min="0"></div>
-        <div class="field"><label>Miter (qty)</label><input type="number" id="c-miter" value="0" min="0"></div>
       </div>
       <div class="field"><label>Added Fascia ($ — your call)</label><input type="number" id="c-fascia" value="0" min="0" step="1"></div>
       <div class="grid2">
@@ -600,6 +607,13 @@ function renderCanopySection(sectionKey, faceLabel){
           </select>
         </div>
         <div class="field"><label>Finish / Paint <span style="text-transform:none;font-weight:400;">(blank = mill)</span></label><input type="text" id="c-paint" placeholder="e.g. Regal Red MP15394"></div>
+      </div>
+      <div class="field"><label>Wall / Blocking <span style="text-transform:none;font-weight:400;">(for attachment detail)</span></label>
+        <select id="c-blocking">
+          <option value="wood">Wood Blocking — (2) 2&quot;x8&quot; @ 24&quot; O.C.</option>
+          <option value="masonry">Masonry / Concrete</option>
+          <option value="metal">Metal / Steel</option>
+        </select>
       </div>
       <div class="field"><label>Job / item label</label><input type="text" id="c-name" placeholder="e.g. Front entry canopy"></div>
       <div class="field"><label>Quote Group</label><input type="text" id="c-group" value="Metal-Tech Canopy - Fully welded construction"></div>
@@ -619,7 +633,7 @@ function renderCanopySection(sectionKey, faceLabel){
     computeCanopy(sectionKey);
   });
   document.getElementById('c-add-btn').addEventListener('click', ()=>addCanopyToQuote(sectionKey, faceLabel, faceInches));
-  ['c-qty','c-lights','c-downspout','c-cchannel','c-outrigger','c-miter','c-fascia'].forEach(id=>{
+  ['c-qty','c-lights','c-downspout','c-posts','c-cchannel','c-outrigger','c-miter','c-fascia'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>computeCanopy(sectionKey));
   });
   document.getElementById('c-cchannel-perimeter').addEventListener('change', (e)=>{
@@ -643,6 +657,7 @@ function computeCanopy(sectionKey){
   const qty = Math.max(1, parseFloat(document.getElementById('c-qty').value)||1);
   const lights = parseFloat(document.getElementById('c-lights').value)||0;
   const downspout = parseFloat(document.getElementById('c-downspout').value)||0;
+  const posts = parseFloat(document.getElementById('c-posts').value)||0;
   const outrigger = parseFloat(document.getElementById('c-outrigger').value)||0;
   const miter = parseFloat(document.getElementById('c-miter').value)||0;
   const fascia = parseFloat(document.getElementById('c-fascia').value)||0;
@@ -660,6 +675,7 @@ function computeCanopy(sectionKey){
   const mfgBase = sqft*tier.mfg*qty;
   const lightsCost = lights*tier.lights*qty;
   const downspoutCost = downspout*tier.downspout*qty;
+  const postsCost = posts*(tier.post||650)*qty;
   const cchannelCost = cchannel*tier.cchannel*qty;
   const outriggerCost = outrigger*tier.outrigger*qty;
   const miterCost = miter*tier.miter*qty;
@@ -679,9 +695,10 @@ function computeCanopy(sectionKey){
     <div class="row total"><span>Canopy Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row" style="margin-top:8px;"><span>Lights (× ${qty}) — separate line item</span>${fmtCopy(lightsCost)}</div>
     <div class="row"><span>Downspouts (× ${qty}) — separate line item</span>${fmtCopy(downspoutCost)}</div>
+    <div class="row"><span>Posts (${posts*qty} × $${tier.post||650}) — separate line item</span>${fmtCopy(postsCost)}</div>
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered };
+  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered };
 }
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
@@ -699,6 +716,8 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
     downspoutQty: r.downspoutQty,
     lightsCost: Math.ceil(r.lightsCost),
     lightsQty: r.lightsQty,
+    postsCost: Math.ceil(r.postsCost),
+    postsQty: r.postsQty,
     group: group,
     type: 'canopy',
     spec: {
@@ -713,9 +732,11 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
       widthSegIn: r.mitered ? [getFtInInches('c-width1'), getFtInInches('c-width2'), getFtInInches('c-width3')] : null,
       downspoutPerUnit: r.downspoutPerUnit,
       lightsPerUnit: r.lightsPerUnit,
+      postsPerUnit: r.postsPerUnit,
       cchannelPerUnit: r.cchannelPerUnit,
       attach: (document.getElementById('c-attach')||{}).value || 'tierod',
-      paint: ((document.getElementById('c-paint')||{}).value || '').trim()
+      paint: ((document.getElementById('c-paint')||{}).value || '').trim(),
+      blocking: (document.getElementById('c-blocking')||{}).value || 'wood'
     }
   });
   renderQuote();
@@ -1096,6 +1117,154 @@ function allCanopiesSVG(items){
   return svg;
 }
 
+/* ---------------- DETAIL SHEETS (downspout + wall attachment) ---------------- */
+// Downspout assembly detail figure at vertical offset baseY.
+function downspoutDetailFigure(item, baseY){
+  let s = '';
+  const x0 = 220, top = baseY + 92, bot = baseY + 330, w = 26;
+  s += `<text x="120" y="${baseY+40}" font-size="12" font-weight="700" fill="#333">DOWNSPOUT ASSEMBLY — 2"x3"</text>`;
+  // top downspout plate w/ nub (ties to gutter)
+  s += `<rect x="${x0-16}" y="${top-30}" width="${w+32}" height="26" fill="#eef1f3" stroke="#333" stroke-width="1.2"/>`;
+  [[x0-8,top-24],[x0+w+8,top-24],[x0-8,top-8],[x0+w+8,top-8]].forEach(([hx,hy])=>{ s += `<circle cx="${hx}" cy="${hy}" r="2" fill="none" stroke="#333" stroke-width="0.8"/>`; });
+  s += `<rect x="${x0}" y="${top-6}" width="${w}" height="8" fill="url(#mill)" stroke="#333" stroke-width="1"/>`;
+  // vertical downspout run
+  s += `<rect x="${x0}" y="${top}" width="${w}" height="${bot-top-44}" fill="url(#mill)" stroke="#333" stroke-width="1.3"/>`;
+  // sleeve joint
+  const sy = top + (bot-top-44)*0.5;
+  s += `<rect x="${x0-3}" y="${sy}" width="${w+6}" height="10" fill="#eef1f3" stroke="#333" stroke-width="1"/>`;
+  // elbow kicking out at bottom
+  s += `<path d="M${x0},${bot-44} l${w},0 l0,20 l40,0 l0,${w} l-${40+w},0 z" fill="url(#mill)" stroke="#333" stroke-width="1.3"/>`;
+  // callouts
+  s += leader(x0+w+40, top-24, x0+w+14, top-16, 'Downspout Plate w/ Nub — ties to gutter fascia', 'start');
+  s += leader(x0+w+40, sy+5, x0+w+3, sy+5, 'Sleeve — cut to fit', 'start');
+  s += leader(x0+w+70, bot-12, x0+w+42, bot-16, 'Elbow — cut on site', 'start');
+  s += leader(x0-20, top+50, x0-1, top+50, '2"x3"x.125" Downspout', 'end');
+  s += `<text x="${x0-20}" y="${(top+bot)/2-4}" font-size="10" fill="#c8102e" text-anchor="end">Length cut</text>`;
+  s += `<text x="${x0-20}" y="${(top+bot)/2+8}" font-size="10" fill="#c8102e" text-anchor="end">on site (AFF)</text>`;
+  // plate detail (right)
+  const px = 560, py = baseY + 120;
+  s += `<text x="${px}" y="${py-16}" font-size="12" font-weight="700" fill="#333">DOWNSPOUT PLATE w/ NUB</text>`;
+  s += `<rect x="${px}" y="${py}" width="120" height="120" fill="#f4f6f8" stroke="#333" stroke-width="1.3"/>`;
+  s += `<rect x="${px+30}" y="${py+40}" width="60" height="40" fill="url(#pans)" stroke="#333" stroke-width="1.2"/>`;
+  [[px+14,py+14],[px+106,py+14],[px+14,py+106],[px+106,py+106]].forEach(([hx,hy])=>{ s += `<circle cx="${hx}" cy="${hy}" r="3" fill="none" stroke="#333" stroke-width="0.9"/>`; });
+  s += hDim(px, px+120, py+120+22, 4, {extFrom:py+120, side:'below'});
+  s += vDim(px-16, py, py+120, 4, {extTo:px});
+  s += leader(px+124, py+60, px+90, py+60, '2"x3" Nub', 'start');
+  return s;
+}
+function downspoutDetailSVG(item){
+  const info = _headerInfo();
+  const W = 1000, H = 560, bx = 8, by = 8, bw = W-16, bh = H-16;
+  const dsTotal = (item.spec.downspoutPerUnit||0)*(item.spec.qty||1);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
+  svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
+  svg += _canopyHeader(W, info.dwgDate, 'DET-DS');
+  svg += downspoutDetailFigure(item, 40);
+  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'DOWNSPOUT DETAIL'}), [
+    `${dsTotal} downspout${dsTotal!==1?'s':''} total for ${_esc(item.title)}`,
+    `2"x3"x.125" downspout · elbow cut on site`,
+    `Downspout plate w/ nub ties to gutter fascia`,
+    `Straight termination — tie-in by other GC`
+  ]);
+  svg += `</svg>`;
+  return svg;
+}
+
+// Wall attachment / blocking section detail figure at vertical offset baseY.
+function wallDetailFigure(item, baseY){
+  const attach = item.spec.attach || 'tierod';
+  const blocking = item.spec.blocking || 'wood';
+  let s = '';
+  s += `<text x="120" y="${baseY+40}" font-size="12" font-weight="700" fill="#333">WALL ATTACHMENT — SECTION</text>`;
+  const wallX = 660, wallTop = baseY + 70, wallBot = baseY + 340, wallW = 54;
+  // wall band
+  s += `<rect x="${wallX}" y="${wallTop}" width="${wallW}" height="${wallBot-wallTop}" fill="#f0f0ee" stroke="#333" stroke-width="1.3"/>`;
+  s += `<line x1="${wallX}" y1="${wallTop}" x2="${wallX}" y2="${wallBot}" stroke="#333" stroke-width="1.8"/>`; // exterior face
+  // finish floor
+  s += `<line x1="${wallX-300}" y1="${wallBot}" x2="${wallX+wallW+50}" y2="${wallBot}" stroke="#333" stroke-width="1.2"/>`;
+  s += `<text x="${wallX+wallW+6}" y="${wallBot+12}" font-size="9" fill="#333">FIN. FLOOR</text>`;
+  // canopy section (left), attaching to wall
+  const canLeft = 380, canRight = wallX, canY = wallTop + 120, band = 22;
+  s += `<rect x="${canLeft}" y="${canY}" width="${canRight-canLeft}" height="${band}" fill="url(#pans)" stroke="#333" stroke-width="1.2"/>`;
+  s += `<rect x="${canLeft-7}" y="${canY-2}" width="7" height="${band+8}" fill="url(#mill)" stroke="#333" stroke-width="1.1"/>`;
+  s += leader(canLeft-10, canY-14, canLeft+40, canY+2, 'Canopy — see elevation / plan', 'start');
+  // blocking + framing (substrate-specific). Tie-rod anchors higher up the wall.
+  const blkTop = (attach === 'tierod' ? canY - 95 : canY - 18), blkH = band + 40;
+  let blkNote, floorNote = 'Blocking runs continuous with all canopies';
+  if(blocking === 'masonry'){
+    // solid masonry wall with course lines
+    s += `<rect x="${wallX}" y="${wallTop}" width="${wallW}" height="${wallBot-wallTop}" fill="#e7e4df" stroke="#333" stroke-width="1"/>`;
+    for(let y=wallTop+16;y<wallBot;y+=16){ s += `<line x1="${wallX}" y1="${y}" x2="${wallX+wallW}" y2="${y}" stroke="#b8b2a6" stroke-width="0.7"/>`; }
+    for(let y=wallTop;y<wallBot;y+=32){ s += `<line x1="${wallX+wallW/2}" y1="${y}" x2="${wallX+wallW/2}" y2="${y+16}" stroke="#b8b2a6" stroke-width="0.7"/>`; }
+    blkNote = 'Masonry / Concrete — 3/8" wedge anchors @ 24" O.C.';
+  } else if(blocking === 'metal'){
+    // studs + steel tube at attach height
+    for(let x=wallX+10;x<wallX+wallW;x+=14){ s += `<line x1="${x}" y1="${wallTop}" x2="${x}" y2="${wallBot}" stroke="#c3c8cc" stroke-width="0.6"/>`; }
+    s += `<rect x="${wallX+6}" y="${blkTop}" width="24" height="${blkH}" fill="#cfd6db" stroke="#333" stroke-width="1.2"/>`;
+    s += `<line x1="${wallX+6}" y1="${blkTop+blkH/2}" x2="${wallX+30}" y2="${blkTop+blkH/2}" stroke="#333" stroke-width="1"/>`;
+    blkNote = 'Steel Beam / Tube — 3/8" All-Thread thru member';
+  } else { // wood
+    for(let x=wallX+10;x<wallX+wallW;x+=14){ s += `<line x1="${x}" y1="${wallTop}" x2="${x}" y2="${wallBot}" stroke="#c3c8cc" stroke-width="0.6"/>`; }
+    s += `<rect x="${wallX+6}" y="${blkTop}" width="22" height="${blkH}" fill="#e8dcc0" stroke="#7a5a2a" stroke-width="1.2"/>`;
+    s += `<line x1="${wallX+6}" y1="${blkTop+blkH/2}" x2="${wallX+28}" y2="${blkTop+blkH/2}" stroke="#7a5a2a" stroke-width="0.9"/>`;
+    blkNote = '(2) 2"x8" Wood Blocking, double-stacked @ 24" O.C.';
+  }
+  // attachment connector
+  if(attach === 'tierod'){
+    s += `<rect x="${wallX-3}" y="${blkTop+6}" width="4" height="16" fill="#dfe3e6" stroke="#333" stroke-width="1"/>`; // wall plate anchor (up wall)
+    s += `<line x1="${wallX-1}" y1="${blkTop+14}" x2="${canLeft+6}" y2="${canY}" stroke="#2a2d31" stroke-width="2.2"/>`; // angled tie-rod
+    s += `<rect x="${wallX-5}" y="${canY-1}" width="5" height="${band+2}" fill="#eee" stroke="#333" stroke-width="1"/>`; // rear low support
+    s += leader(canLeft+96, canY-52, (canLeft+wallX)/2, (blkTop+canY)/2+8, '3/8" All-Thread Tie-Rod into blocking', 'start');
+  } else {
+    s += `<rect x="${wallX-5}" y="${canY-2}" width="5" height="${band+4}" fill="#eee" stroke="#333" stroke-width="1"/>`; // bracket/channel
+    s += `<line x1="${wallX-2}" y1="${canY+6}" x2="${wallX+24}" y2="${canY+6}" stroke="#2a2d31" stroke-width="1.6"/>`; // all-thread into blocking
+    s += leader(canRight-120, canY+40, wallX-2, canY+8, '3/8" All-Thread into blocking (low attach)', 'start');
+  }
+  // blocking callouts
+  s += leader(wallX+wallW+8, blkTop-6, wallX+wallW-2, blkTop+blkH/2, blkNote, 'start');
+  s += `<text x="${wallX+wallW+8}" y="${blkTop-6+13}" font-size="9" fill="#c8102e">By Other GC — Required for Install</text>`;
+  // AFF dimension (value per site)
+  const affX = wallX - 320;
+  s += `<line x1="${affX}" y1="${canY+band}" x2="${affX}" y2="${wallBot}" stroke="#141414" stroke-width="1"/>`;
+  s += `<path d="M${affX},${canY+band} l-3.5,7 l7,0 z" fill="#141414"/>`;
+  s += `<path d="M${affX},${wallBot} l-3.5,-7 l7,0 z" fill="#141414"/>`;
+  s += `<text x="${affX-6}" y="${(canY+band+wallBot)/2-1}" font-size="11" text-anchor="end" font-weight="600" fill="#141414">±____</text>`;
+  s += `<text x="${affX-6}" y="${(canY+band+wallBot)/2+12}" font-size="11" text-anchor="end" font-weight="600" fill="#141414">AFF</text>`;
+  s += `<text x="${affX+8}" y="${wallBot-6}" font-size="9" fill="#666">mounting height per site</text>`;
+  return s;
+}
+function wallDetailSVG(item){
+  const info = _headerInfo();
+  const W = 1000, H = 560, bx = 8, by = 8, bw = W-16, bh = H-16;
+  const blocking = item.spec.blocking || 'wood';
+  const blkLabel = blocking==='masonry' ? 'Masonry / Concrete substrate' : (blocking==='metal' ? 'Metal / Steel substrate' : 'Wood blocking substrate');
+  const attach = item.spec.attach || 'tierod';
+  const attLabel = attach==='tierod' ? 'Tie-rod hung into blocking' : (attach==='cchannel' ? 'C-channel low attach' : 'Top-support flat');
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
+  svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
+  svg += _canopyHeader(W, info.dwgDate, 'DET-WALL');
+  svg += wallDetailFigure(item, 40);
+  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'WALL ATTACHMENT / BLOCKING DETAIL'}), [
+    `${_esc(item.title)} — ${attLabel}`,
+    blkLabel,
+    `3/8" All-Thread @ 24" O.C. — by other GC`,
+    `Blocking / substrate & install by others — required for install`,
+    `Mounting height (AFF) per site conditions`
+  ]);
+  svg += `</svg>`;
+  return svg;
+}
+
+// All sheets for one canopy: main + downspout detail (if any) + wall attachment detail.
+function canopyPages(item){
+  const pages = [canopySVG(item)];
+  if((item.spec.downspoutPerUnit||0) > 0) pages.push(downspoutDetailSVG(item));
+  pages.push(wallDetailSVG(item));
+  return pages;
+}
+
 // True-to-scale DXF (inches, Y-up) — opens directly in AutoCAD. Three views
 // (Front Elevation, Plan, End/Section) with the APMG dual dimension labels
 // (feet-inches + [total inches]), border and title block. LINE + TEXT entities
@@ -1269,9 +1438,10 @@ function showDrawingModal(itemId){
     <div class="drawing-modal">
       <h3>${item.title}</h3>
       <div class="dm-sub">Auto-generated reference drawing — Qty ${item.spec.qty} · W ${item.spec.widthStr} × P ${item.spec.projStr} × F ${item.spec.face}"</div>
-      ${canopySVG(item)}
+      ${canopyPages(item).join('<div style="height:14px"></div>')}
       <div class="dm-actions">
-        <button class="dm-download" onclick="downloadCanopyDXF(${item.id})">Download DXF (opens in AutoCAD)</button>
+        <button class="dm-pdf" onclick="exportCanopyPDF(${item.id})">Export PDF</button>
+        <button class="dm-download" onclick="downloadCanopyDXF(${item.id})">Download DXF (AutoCAD)</button>
         <button class="dm-close" onclick="closeDrawingModal()">Close</button>
       </div>
       <div class="dm-note">APMG-format reference drawing — dimensions shown in feet-inches with total inches in [brackets]. Views are schematic (fascia height exaggerated for readability, as on the shop sheets); all labels are exact. Joist layout is generic from the accessory counts. The downloaded DXF is drawn to true scale in inches with all three views, border and title block — a starting point for the drafter, not a finished shop drawing (no hardware, joinery, or mounting detail).</div>
@@ -1294,7 +1464,8 @@ function showAllDrawingsModal(){
   const body = cans.length
     ? `${allCanopiesSVG(quoteItems)}
        <div class="dm-actions">
-         <button class="dm-download" onclick="downloadAllCanopyDXF()">Download DXF Set (opens in AutoCAD)</button>
+         <button class="dm-pdf" onclick="exportAllCanopyPDF()">Export PDF Set</button>
+         <button class="dm-download" onclick="downloadAllCanopyDXF()">Download DXF Set (AutoCAD)</button>
          <button class="dm-close" onclick="closeDrawingModal()">Close</button>
        </div>
        <div class="dm-note">All ${cans.length} canop${cans.length>1?'ies':'y'} on this quote, each drawn as its own figure on one sheet. Views are schematic (fascia exaggerated for readability); all labels are exact. The DXF set stacks every canopy true-to-scale in one file — a starting point for the drafter, not a finished shop drawing.</div>`
@@ -1311,6 +1482,45 @@ function downloadAllCanopyDXF(){
   a.href = url; a.download = 'Canopy_Drawing_Set.dxf';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Export drawing sheet(s) to PDF via the browser's print dialog — no external libraries,
+// so it still works in the installed (offline) app. Each SVG prints on its own landscape page.
+function exportSheetsPDF(svgList, docTitle){
+  svgList = (svgList || []).filter(Boolean);
+  if(!svgList.length){ alert('No canopy drawings to export — add a canopy first.'); return; }
+  const w = window.open('', '_blank');
+  if(!w){ alert('Please allow pop-ups for this site, then click Export PDF again.'); return; }
+  const pages = svgList.map(s=>`<div class="pdf-sheet">${s}</div>`).join('');
+  w.document.open();
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + docTitle + '</title>'
+    + '<style>'
+    + '@page{ size:11in 8.5in; margin:0.35in; }'
+    + 'html,body{ margin:0; padding:0; background:#fff; }'
+    + '.pdf-sheet{ width:100%; page-break-after:always; break-after:page; }'
+    + '.pdf-sheet:last-child{ page-break-after:auto; break-after:auto; }'
+    + '.pdf-sheet svg{ width:100%; height:auto; display:block; }'
+    + '.pdf-bar{ position:fixed; top:8px; right:8px; z-index:9; font-family:Arial,sans-serif; }'
+    + '.pdf-bar button{ padding:8px 14px; font-size:13px; font-weight:600; background:#c8102e; color:#fff; border:none; border-radius:4px; cursor:pointer; }'
+    + '.pdf-bar span{ display:block; font-size:10px; color:#666; margin-top:4px; max-width:180px; }'
+    + '@media print{ .pdf-bar{ display:none; } }'
+    + '</style></head><body>'
+    + '<div class="pdf-bar"><button onclick="window.print()">Save as PDF / Print</button>'
+    + '<span>In the print dialog, set Destination to “Save as PDF.”</span></div>'
+    + pages
+    + '<scr' + 'ipt>window.onload=function(){ setTimeout(function(){ try{window.focus();}catch(e){} window.print(); }, 500); };</scr' + 'ipt>'
+    + '</body></html>');
+  w.document.close();
+}
+function exportCanopyPDF(itemId){
+  const item = quoteItems.find(i=>i.id===itemId);
+  if(!item) return;
+  exportSheetsPDF(canopyPages(item), (item.title || 'Canopy') + ' - APMG Drawing');
+}
+function exportAllCanopyPDF(){
+  const cans = quoteItems.filter(i=>i.type==='canopy');
+  const pages = cans.reduce((acc,i)=>acc.concat(canopyPages(i)), []);
+  exportSheetsPDF(pages, 'APMG Canopy Drawing Set');
 }
 
 /* ---------------- STANDING SEAM ---------------- */
@@ -1403,6 +1613,8 @@ function renderFabricAwning(){
         ${ftInField('fb-height','Height (spec only)')}
         <div class="field"><label>Quantity (identical units)</label><input type="number" id="fb-qty" value="1" min="1" step="1"></div>
       </div>
+      <div class="checkline"><input type="checkbox" id="fb-posts-on" onchange="computeFabric()"><label for="fb-posts-on">Add Posts ($650 ea)</label></div>
+      <div class="field" id="fb-posts-wrap" style="display:none;"><label>Posts (qty)</label><input type="number" id="fb-posts" value="0" min="0"></div>
       <div class="field"><label>Job / item label</label><input type="text" id="fb-name" placeholder="e.g. Storefront fabric awning"></div>
       <div class="field"><label>Quote Group</label><input type="text" id="fb-group" value="Fabric Awnings"></div>
       <div class="breakdown" id="fb-breakdown"></div>
@@ -1414,6 +1626,7 @@ function renderFabricAwning(){
   bindFtIn('fb-proj', computeFabric);
   bindFtIn('fb-height', computeFabric);
   document.getElementById('fb-qty').addEventListener('input', computeFabric);
+  document.getElementById('fb-posts').addEventListener('input', computeFabric);
   computeFabric();
 }
 function computeFabric(){
@@ -1421,14 +1634,19 @@ function computeFabric(){
   const widthIn = getFtInInches('fb-width');
   const widthFt = widthIn/12;
   const qty = Math.max(1, parseFloat(document.getElementById('fb-qty').value)||1);
+  const postsOn = document.getElementById('fb-posts-on').checked;
+  document.getElementById('fb-posts-wrap').style.display = postsOn ? 'block' : 'none';
+  const posts = postsOn ? (parseFloat(document.getElementById('fb-posts').value)||0) : 0;
+  const postsCost = posts*650;
   const materialsTotal = widthFt*cfg.mfgPerFt*qty;
   const labor = widthFt*cfg.laborPerFt*qty; // fabric labor $45/ft
   document.getElementById('fb-breakdown').innerHTML = `
     <div class="row"><span>MFG (${widthFt.toFixed(2)}ft × $75 × ${qty})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row total"><span>Materials Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
+    ${posts>0 ? `<div class="row"><span>Posts (${posts} × $650) — separate line item</span>${fmtCopy(postsCost)}</div>` : ''}
     <div class="row" style="margin-top:8px;"><span>Labor (${widthFt.toFixed(2)}ft × $45 × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, widthFt, qty };
+  return { materialsTotal, labor, widthFt, qty, postsCost, postsQty: posts };
 }
 function addFabricToQuote(){
   const r = computeFabric();
@@ -1436,8 +1654,9 @@ function addFabricToQuote(){
   quoteItems.push({
     id:itemSeq++, title:name, sub:`Fabric · ${r.widthFt.toFixed(1)}ft width${r.qty>1 ? ` · qty ${r.qty}` : ''}`,
     amount:Math.ceil(r.materialsTotal), labor:Math.ceil(r.labor), group:document.getElementById('fb-group').value || 'Fabric Awnings',
+    postsCost: Math.ceil(r.postsCost), postsQty: r.postsQty,
     type: 'fabric',
-    spec: { qty: r.qty, widthStr: ftInLabel('fb-width'), projStr: ftInLabel('fb-proj'), heightStr: ftInLabel('fb-height') }
+    spec: { qty: r.qty, widthStr: ftInLabel('fb-width'), projStr: ftInLabel('fb-proj'), heightStr: ftInLabel('fb-height'), postsPerUnit: r.postsQty }
   });
   renderQuote();
 }
@@ -1503,9 +1722,14 @@ function renderRecover(){
   area.innerHTML = `
     <div class="card inputs">
       <h2>Recover</h2>
-      <div class="sub">Yardage = (width × passes + ends×2) / 3. Fabric cost = yardage × $/yd × 2.5 markup.</div>
+      <div class="sub">Yardage = (width × passes + ends×2) / 3. Fabric cost = yardage × $/yd × 2.5 markup. Patio Canopy switches pricing to sqft × $35.</div>
+      <div class="checkline"><input type="checkbox" id="rc-patio" onchange="computeRecover()"><label for="rc-patio">Patio Canopy — price by sqft ($35/sqft)</label></div>
       <div class="grid3">
-        <div class="field"><label>Width</label><input type="number" id="rc-width" value="0"></div>
+        ${ftInField('rc-width','Width')}
+        ${ftInField('rc-height','Height')}
+        ${ftInField('rc-proj','Projection')}
+      </div>
+      <div class="grid2">
         <div class="field"><label>Passes</label><input type="number" id="rc-passes" value="1"></div>
         <div class="field"><label>Ends</label><input type="number" id="rc-ends" value="0"></div>
       </div>
@@ -1530,14 +1754,19 @@ function renderRecover(){
       <button class="btn ghost" type="button" onclick="renderCalc()">Clear Form</button>
     </div>
   `;
-  ['rc-width','rc-passes','rc-ends','rc-fabric','rc-g1','rc-g2','rc-retrofit','rc-skin','rc-takedown','rc-delivery','rc-survey']
+  bindFtIn('rc-width', computeRecover);
+  bindFtIn('rc-height', computeRecover);
+  bindFtIn('rc-proj', computeRecover);
+  ['rc-passes','rc-ends','rc-g1','rc-g2','rc-retrofit','rc-skin','rc-takedown','rc-delivery','rc-survey']
     .forEach(id=>document.getElementById(id).addEventListener('input', computeRecover));
   document.getElementById('rc-fabric').addEventListener('change', computeRecover);
   computeRecover();
 }
 function computeRecover(){
   const cfg = RATES.recover;
-  const width = parseFloat(document.getElementById('rc-width').value)||0;
+  const patio = document.getElementById('rc-patio').checked;
+  const widthFt = getFtInInches('rc-width')/12;
+  const projFt = getFtInInches('rc-proj')/12;
   const passes = parseFloat(document.getElementById('rc-passes').value)||0;
   const ends = parseFloat(document.getElementById('rc-ends').value)||0;
   const fabricKey = document.getElementById('rc-fabric').value;
@@ -1549,11 +1778,13 @@ function computeRecover(){
   const delivery = parseFloat(document.getElementById('rc-delivery').value)||0;
   const survey = parseFloat(document.getElementById('rc-survey').value)||0;
 
-  const yardage = (width*passes + ends*2)/3;
+  const yardage = (widthFt*passes + ends*2)/3;
+  const sqft = widthFt*projFt;
   const fabricRate = cfg.fabrics[fabricKey].yd;
-  const fabricCost = (yardage*fabricRate)*cfg.markup;
   const graphicCost = g1*cfg.graphic1 + g2*cfg.graphic2;
-  const mfgTotal = fabricCost + graphicCost;
+  // Patio Canopy: material = sqft × $35 (flat). Otherwise: yardage-based fabric cost.
+  const materialCost = patio ? (sqft*35) : ((yardage*fabricRate)*cfg.markup);
+  const mfgTotal = materialCost + graphicCost;
 
   const retrofitCost = retrofit*cfg.retrofitRate;
   const skinCost = skin*cfg.skinRate;
@@ -1563,21 +1794,30 @@ function computeRecover(){
 
   const grandTotal = survey + mfgTotal + deliveryCost + installTotal;
 
+  const matRow = patio
+    ? `<div class="row"><span>SQ FT (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
+       <div class="row"><span>Patio Canopy (sqft × $35)</span>${fmtCopy(materialCost)}</div>`
+    : `<div class="row"><span>Yardage</span><span class="num">${yardage.toFixed(2)} yd</span></div>
+       <div class="row"><span>Fabric (${yardage.toFixed(2)}yd × $${fabricRate} × 2.5)</span>${fmtCopy(materialCost)}</div>`;
   document.getElementById('rc-breakdown').innerHTML = `
-    <div class="row"><span>Yardage</span><span class="num">${yardage.toFixed(2)} yd</span></div>
-    <div class="row"><span>Fabric (${yardage.toFixed(2)}yd × $${fabricRate} × 2.5)</span>${fmtCopy(fabricCost)}</div>
+    ${matRow}
     <div class="row"><span>Graphics</span>${fmtCopy(graphicCost)}</div>
     <div class="row"><span>Retrofit / Skin / Takedown</span>${fmtCopy(installTotal)}</div>
     <div class="row"><span>Delivery</span>${fmtCopy(deliveryCost)}</div>
     <div class="row"><span>Survey</span>${fmtCopy(survey)}</div>
     <div class="row total"><span>Item Total</span>${fmtCopy(grandTotal)}</div>
   `;
-  return { grandTotal, yardage };
+  return { grandTotal, yardage, sqft, patio };
 }
 function addRecoverToQuote(){
   const r = computeRecover();
   const name = document.getElementById('rc-name').value || 'Recover';
-  quoteItems.push({ id:itemSeq++, title:name, sub:`Recover · ${r.yardage.toFixed(1)} yd`, amount:Math.ceil(r.grandTotal), group:document.getElementById('rc-group').value });
+  const sub = r.patio ? `Recover · Patio · ${r.sqft.toFixed(1)} sqft` : `Recover · ${r.yardage.toFixed(1)} yd`;
+  quoteItems.push({
+    id:itemSeq++, title:name, sub, amount:Math.ceil(r.grandTotal), group:document.getElementById('rc-group').value,
+    type:'recover',
+    spec:{ qty:1, widthStr:ftInLabel('rc-width'), heightStr:ftInLabel('rc-height'), projStr:ftInLabel('rc-proj'), patio:r.patio }
+  });
   renderQuote();
 }
 
@@ -1655,14 +1895,18 @@ function renderQuote(){
   const downspoutsQty = quoteItems.reduce((s,i)=>s+(i.downspoutQty||0),0);
   const lightsTotal = quoteItems.reduce((s,i)=>s+(i.lightsCost||0),0);
   const lightsQty = quoteItems.reduce((s,i)=>s+(i.lightsQty||0),0);
-  const taxableMaterials = canopyMaterials + downspoutsTotal + lightsTotal;
+  const postsTotal = quoteItems.reduce((s,i)=>s+(i.postsCost||0),0);
+  const postsQty = quoteItems.reduce((s,i)=>s+(i.postsQty||0),0);
+  const taxableMaterials = canopyMaterials + downspoutsTotal + lightsTotal + postsTotal;
 
   const laborSubtotal = quoteItems.reduce((s,i)=>s+(i.labor||0),0);
   const miles = parseFloat(document.getElementById('extra-miles').value)||0;
   const deliveryCost = Math.ceil(miles*RATES.jobLevel.deliveryRate);
   const installation = laborSubtotal + deliveryCost; // labor + mileage combined, one line — not taxed
 
-  const survey = Math.ceil(parseFloat(document.getElementById('extra-survey').value)||0); // not taxed
+  const surveyOn = document.getElementById('extra-survey-on').checked;
+  document.getElementById('extra-survey-wrap').style.display = surveyOn ? 'block' : 'none';
+  const survey = surveyOn ? Math.ceil(parseFloat(document.getElementById('extra-survey').value)||0) : 0; // not taxed
   const lift = Math.ceil(parseFloat(document.getElementById('extra-lift').value)||0); // not taxed
   const stampedOn = document.getElementById('extra-stamped-on').checked;
   document.getElementById('extra-stamped-wrap').style.display = stampedOn ? 'block' : 'none';
@@ -1676,6 +1920,8 @@ function renderQuote(){
 
   document.getElementById('q-downspouts-row').style.display = downspoutsTotal>0 ? 'flex' : 'none';
   document.getElementById('q-lights-row').style.display = lightsTotal>0 ? 'flex' : 'none';
+  document.getElementById('q-posts-row').style.display = postsTotal>0 ? 'flex' : 'none';
+  document.getElementById('q-survey-row').style.display = survey>0 ? 'flex' : 'none';
   document.getElementById('q-lift-row').style.display = lift>0 ? 'flex' : 'none';
   document.getElementById('q-stamped-row').style.display = stamped>0 ? 'flex' : 'none';
   document.getElementById('q-tax-row').style.display = taxOn ? 'flex' : 'none';
@@ -1684,6 +1930,7 @@ function renderQuote(){
   setCopyableTotal('q-subtotal', canopyMaterials);
   setCopyableTotal('q-downspouts', downspoutsTotal);
   setCopyableTotal('q-lights', lightsTotal);
+  setCopyableTotal('q-posts', postsTotal);
   setCopyableTotal('q-labor-delivery', installation);
   setCopyableTotal('q-survey', survey);
   setCopyableTotal('q-lift', lift);
@@ -1702,7 +1949,7 @@ function renderQuote(){
       return { groups, standalone };
     })(),
     hasNonCanopy: quoteItems.some(i=>i.type && i.type!=='canopy'),
-    downspoutsTotal, downspoutsQty, lightsTotal, lightsQty,
+    downspoutsTotal, downspoutsQty, lightsTotal, lightsQty, postsTotal, postsQty,
     laborSubtotal, deliveryCost, installation, survey, lift, stamped, taxOn, taxRatePercent, tax, total
   };
 }
@@ -1728,6 +1975,10 @@ function buildSpecLines(i, height){
     if(i.spec.lightsPerUnit>0){
       const total = i.spec.lightsPerUnit*i.spec.qty;
       lines.push(i.spec.qty>1 ? `  LED Strip Lights: ${total} (${i.spec.lightsPerUnit}ea)` : `  LED Strip Lights: ${total}`);
+    }
+    if(i.spec.postsPerUnit>0){
+      const total = i.spec.postsPerUnit*i.spec.qty;
+      lines.push(i.spec.qty>1 ? `  Posts: ${total} (${i.spec.postsPerUnit}ea)` : `  Posts: ${total}`);
     }
   } else if(i.type==='standingSeam' && i.spec){
     lines.push(`  Qty: ${i.spec.qty}`);
@@ -1807,6 +2058,7 @@ function copyForAirtable(){
   mfgLines.forEach(l=>lines.push(l));
   if(s.downspoutsTotal>0) lines.push(`Downspouts (${s.downspoutsQty}): ${fmtDecimal(s.downspoutsTotal)}`);
   if(s.lightsTotal>0) lines.push(`LED Strip Lights (${s.lightsQty}): ${fmtDecimal(s.lightsTotal)}`);
+  if(s.postsTotal>0) lines.push(`Posts (${s.postsQty}): ${fmtDecimal(s.postsTotal)}`);
   lines.push(`Install: ${fmtDecimal(s.installation)}`);
   if(s.lift>0) lines.push(`Lift: ${fmtDecimal(s.lift)}`);
   if(s.stamped>0) lines.push(`Engineering: ${fmtDecimal(s.stamped)}`);
@@ -1877,6 +2129,9 @@ function buildActivityRows(s, color, height){
   }
   if(s.lightsTotal>0){
     rows.push({ label:`LED Strip Lights - ${s.lightsQty}`, desc:'', amt: fmtDecimal(s.lightsTotal), taxed:true });
+  }
+  if(s.postsTotal>0){
+    rows.push({ label:`Posts - ${s.postsQty}`, desc:'Support post(s) for canopy per plan. Footings/foundation by GC unless noted.', amt: fmtDecimal(s.postsTotal), taxed:true });
   }
 
   if(s.hasNonCanopy){
@@ -2021,6 +2276,7 @@ function renderCanopySettings(sectionKey, label, mountId){
         <div class="field"><label>C-Channel $/ft</label><input type="number" data-path="${sectionKey}.tiers.${idx}.cchannel" value="${t.cchannel}"></div>
         <div class="field"><label>Outrigger $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.outrigger" value="${t.outrigger}"></div>
         <div class="field"><label>Miter $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.miter" value="${t.miter}"></div>
+        <div class="field"><label>Post $/ea</label><input type="number" data-path="${sectionKey}.tiers.${idx}.post" value="${t.post||650}"></div>
       </div>
     `).join('')}
   `;
