@@ -358,6 +358,7 @@
           <div class="row total"><span>Total</span><span class="num" id="q-total">$0</span></div>
         </div>
         <button class="btn copy-summary" id="copy-airtable-btn" onclick="copyForAirtable()">Copy for Airtable Log</button>
+        <button class="btn" style="background:#1a7f37" onclick="pushToCurrentBase()" title="Upload this bid to your current APMG Projects base now">⬆ Upload Bid to Current Base (Projects)</button>
         <button class="btn secondary" onclick="previewAirtablePayload()" title="Validate the new-base mapping now — nothing is sent">🔎 Preview Airtable Payload (new base)</button>
         <button class="btn secondary" onclick="pushToAirtable()" title="Send this quote into the new base (enabled at go-live)">⬆ Send to New Base</button>
         <button class="btn ghost" style="font-size:12px;padding:4px 10px" onclick="openAirtableSettings()">⚙ Airtable connection</button>
@@ -2336,8 +2337,8 @@ function airtableLabels(type){
   return { header: 'Items', short: 'Items' };
 }
 
-function copyForAirtable(){
-  if(!lastQuoteSummary) return;
+function buildAirtableLogText(){
+  if(!lastQuoteSummary) return '';
   const s = lastQuoteSummary;
   const lines = [];
   const height = "5'"; // fallback only — per-item height fields now cover the real values
@@ -2390,8 +2391,12 @@ function copyForAirtable(){
   if(s.lift>0) lines.push(`Lift: ${fmtDecimal(s.lift)}`);
   if(s.stamped>0) lines.push(`Engineering: ${fmtDecimal(s.stamped)}`);
 
-  const text = lines.join('\n').trim();
+  return lines.join('\n').trim();
+}
 
+function copyForAirtable(){
+  const text = buildAirtableLogText();
+  if(!text) return;
   navigator.clipboard.writeText(text).then(()=>{
     const btn = document.getElementById('copy-airtable-btn');
     const original = btn.textContent;
@@ -2399,6 +2404,66 @@ function copyForAirtable(){
     btn.classList.add('copied');
     setTimeout(()=>{ btn.textContent = original; btn.classList.remove('copied'); }, 1400);
   }).catch(()=>{});
+}
+
+/* =========================================================================
+   AIRTABLE — CURRENT BASE (APMG → Projects)  — LIVE NOW
+   Direct one-record-per-bid upload for the bids you're working today.
+   Upserts on the Project name. Writes only safe free-text/currency/checkbox
+   fields (never guesses singleSelect options — set Status manually).
+   Reuses the same token stored via ⚙ Airtable connection.
+   ========================================================================= */
+const CURRENT_BASE_CFG = {
+  baseId: 'appHEn1othbGBQEMc',       // APMG
+  table:  'tbl0xMHhBBN2k64aU',       // Projects
+  fields: {
+    project:   'fldi6oZ93a30ob48U',  // Project (primary) — upsert key
+    qbNo:      'fldbcuV9WH1xzZYwT',   // QB #
+    salePrice: 'fldk1MFcMie7OXiq6',  // Sale Price (currency)
+    address:   'fldV7zHsItjo7gV6g',  // Project Address
+    gc:        'fldlt4xafyX3ZoHGf',  // Site Contact / GC / PM
+    detailsLog:'fldDAeE6w8wEsjX25',  // Project Details and log
+    indiana:   'fldAq1k1UmIzt9LnP',  // Indiana Quote (checkbox)
+  },
+};
+function serializeForCurrentBase(){
+  if(!lastQuoteSummary) renderQuote();
+  const s = lastQuoteSummary || {};
+  const F = CURRENT_BASE_CFG.fields;
+  const projName = _atHdr('hdr-projname') || _atHdr('hdr-shipname') || 'Untitled Bid';
+  const addrParts = [_atHdr('hdr-address1'), _atHdr('hdr-address2')].filter(Boolean).join('\n');
+  const log = buildAirtableLogText();
+  const grand = s.total || 0;
+  const isIndiana = !!(s.taxOn && (!parseFloat((document.getElementById('extra-ohio-county')||{}).value)));
+  const fields = {};
+  fields[F.project]   = projName;
+  fields[F.qbNo]      = _atHdr('hdr-projno');
+  fields[F.salePrice] = grand;
+  fields[F.address]   = addrParts;
+  fields[F.gc]        = _atHdr('hdr-gc');
+  fields[F.detailsLog]= `TOTAL: $${grand.toLocaleString()}\n\n${log}\n\n— uploaded from APMG Quote Builder`;
+  if(isIndiana) fields[F.indiana] = true;
+  return { projName, grand, fields };
+}
+async function pushToCurrentBase(){
+  const token = _atToken();
+  if(!token){ alert('Paste your Airtable token first (⚙ Airtable connection), then upload.'); return; }
+  if(!quoteItems.length){ alert('Add at least one item to the bid first.'); return; }
+  const p = serializeForCurrentBase();
+  const url = `https://api.airtable.com/v0/${CURRENT_BASE_CFG.baseId}/${CURRENT_BASE_CFG.table}`;
+  const H = { 'Authorization':'Bearer '+token, 'Content-Type':'application/json' };
+  if(!confirm(`Upload to CURRENT base (APMG → Projects)?\n\nProject: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\n\nCreates the project if new, updates it if the name already exists.`)) return;
+  try {
+    const resp = await fetch(url, { method:'PATCH', headers:H, body: JSON.stringify({
+      performUpsert:{ fieldsToMergeOn:[CURRENT_BASE_CFG.fields.project] },
+      records:[{ fields: p.fields }], typecast:true }) }).then(r=>r.json());
+    if(resp.error){ alert('Upload failed: '+(resp.error.message||JSON.stringify(resp.error))); return; }
+    const rec = resp.records && resp.records[0];
+    const created = resp.createdRecords && resp.createdRecords.includes(rec && rec.id);
+    alert(`Uploaded to current base ✓\n${p.projName} — $${p.grand.toLocaleString()}\n(${created ? 'new project created' : 'existing project updated'})`);
+  } catch(err){
+    alert('Upload failed: '+err.message+'\n(Check your token has write access to the APMG base.)');
+  }
 }
 
 /* =========================================================================
