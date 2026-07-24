@@ -584,18 +584,22 @@ function renderCanopySection(sectionKey, faceLabel){
       <div class="sub">Enter width and projection — tier and MFG rate auto-select. Delivery mileage is entered once for the whole job in the Quote panel, not per item.</div>
       <div class="checkline">
         <input type="checkbox" id="c-mitered-toggle">
-        <label for="c-mitered-toggle">Mitered — wraps a corner (enter 3 width segments)</label>
+        <label for="c-mitered-toggle">Mitered — wraps corner(s): L / U / multi-leg, each leg its own width + projection</label>
       </div>
       <div id="c-width-single-wrap" class="grid2">
         ${ftInField('c-width','Width')}
-      </div>
-      <div id="c-width-mitered-wrap" class="grid3" style="display:none;">
-        ${ftInField('c-width1','Width 1')}
-        ${ftInField('c-width2','Width 2 (corner)')}
-        ${ftInField('c-width3','Width 3')}
-      </div>
-      <div class="grid2">
         ${ftInField('c-proj','Projection')}
+      </div>
+      <div id="c-width-mitered-wrap" style="display:none;">
+        <div class="field"><label># of legs (elevations)</label>
+          <select id="c-legcount">
+            <option value="2">2 legs — one corner (L)</option>
+            <option value="3">3 legs — two corners (U)</option>
+            <option value="4">4 legs — three corners</option>
+            <option value="5">5 legs — four corners</option>
+          </select>
+        </div>
+        ${[1,2,3,4,5].map(i=>`<div class="leg-row" id="c-legrow${i}"><div style="font-size:12px;font-weight:700;color:#4a5568;margin:6px 0 2px;">Leg ${i}</div><div class="grid2">${ftInField('c-legW'+i,'Width')}${ftInField('c-legP'+i,'Projection')}</div></div>`).join('')}
       </div>
       <div class="field"><label>Quantity (identical units)</label><input type="number" id="c-qty" value="1" min="1" step="1"></div>
       <div class="checkline" style="margin-top:-2px;">
@@ -611,10 +615,9 @@ function renderCanopySection(sectionKey, faceLabel){
         <div class="field"><label>Downspouts (qty)</label><input type="number" id="c-downspout" value="0" min="0"></div>
         <div class="field"><label>Posts (qty · $650 ea)</label><input type="number" id="c-posts" value="0" min="0"></div>
       </div>
-      <div class="grid3">
+      <div class="grid2">
         <div class="field"><label>C-Channel (lin ft)</label><input type="number" id="c-cchannel" value="0" min="0"></div>
         <div class="field"><label>Outriggers (qty)</label><input type="number" id="c-outrigger" value="0" min="0"></div>
-        <div class="field"><label>Miter (qty)</label><input type="number" id="c-miter" value="0" min="0"></div>
       </div>
       <div class="checkline" style="margin-top:-4px;">
         <input type="checkbox" id="c-cchannel-perimeter">
@@ -647,16 +650,21 @@ function renderCanopySection(sectionKey, faceLabel){
   `;
   bindFtIn('c-width', ()=>computeCanopy(sectionKey));
   bindFtIn('c-proj', ()=>computeCanopy(sectionKey));
-  bindFtIn('c-width1', ()=>computeCanopy(sectionKey));
-  bindFtIn('c-width2', ()=>computeCanopy(sectionKey));
-  bindFtIn('c-width3', ()=>computeCanopy(sectionKey));
+  for(let i=1;i<=5;i++){ bindFtIn('c-legW'+i, ()=>computeCanopy(sectionKey)); bindFtIn('c-legP'+i, ()=>computeCanopy(sectionKey)); }
+  function updateLegRows(){
+    const n = parseInt(document.getElementById('c-legcount').value)||2;
+    for(let i=1;i<=5;i++){ const row=document.getElementById('c-legrow'+i); if(row) row.style.display = i<=n ? '' : 'none'; }
+  }
+  document.getElementById('c-legcount').addEventListener('change', ()=>{ updateLegRows(); computeCanopy(sectionKey); });
   document.getElementById('c-mitered-toggle').addEventListener('change', (e)=>{
     document.getElementById('c-width-single-wrap').style.display = e.target.checked ? 'none' : '';
     document.getElementById('c-width-mitered-wrap').style.display = e.target.checked ? '' : 'none';
+    if(e.target.checked) updateLegRows();
     computeCanopy(sectionKey);
   });
+  updateLegRows();
   document.getElementById('c-add-btn').addEventListener('click', ()=>addCanopyToQuote(sectionKey, faceLabel, faceInches));
-  ['c-qty','c-lights','c-downspout','c-posts','c-cchannel','c-outrigger','c-miter','c-fascia'].forEach(id=>{
+  ['c-qty','c-lights','c-downspout','c-posts','c-cchannel','c-outrigger','c-fascia'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>computeCanopy(sectionKey));
   });
   document.getElementById('c-cchannel-perimeter').addEventListener('change', (e)=>{
@@ -678,54 +686,64 @@ function computeCanopy(sectionKey){
   const cfg = RATES[sectionKey];
   const mtEl = document.getElementById('c-mitered-toggle');
   const mitered = mtEl ? mtEl.checked : false;
-  const widthIn = mitered
-    ? getFtInInches('c-width1') + getFtInInches('c-width2') + getFtInInches('c-width3')
-    : getFtInInches('c-width');
-  const projIn = getFtInInches('c-proj');
   const qty = Math.max(1, parseFloat(document.getElementById('c-qty').value)||1);
+
+  // legs: each has its own width + projection (mitered = 2..5 legs; single = 1 leg)
+  const legCount = mitered ? Math.min(5, Math.max(2, parseInt((document.getElementById('c-legcount')||{}).value)||2)) : 1;
+  let legs = [];
+  if(mitered){
+    for(let i=1;i<=legCount;i++){ legs.push({ wFt:getFtInInches('c-legW'+i)/12, pFt:getFtInInches('c-legP'+i)/12 }); }
+  } else {
+    legs = [{ wFt:getFtInInches('c-width')/12, pFt:getFtInInches('c-proj')/12 }];
+  }
+  const widthFt = legs.reduce((a,l)=>a+l.wFt, 0);           // total running width
+  const projFt  = legs.reduce((m,l)=>Math.max(m,l.pFt), 0); // deepest projection (for tier/perimeter)
+  const sqft    = legs.reduce((a,l)=>a + l.wFt*l.pFt, 0);   // Σ each leg's own area
+  const widthIn = widthFt*12, projIn = projFt*12;
+
   const lights = parseFloat(document.getElementById('c-lights').value)||0;
   const downspout = parseFloat(document.getElementById('c-downspout').value)||0;
   const posts = parseFloat(document.getElementById('c-posts').value)||0;
   const outrigger = parseFloat(document.getElementById('c-outrigger').value)||0;
-  const miter = parseFloat(document.getElementById('c-miter').value)||0;
   const fascia = parseFloat(document.getElementById('c-fascia').value)||0;
 
-  const widthFt = widthIn/12, projFt = projIn/12;
-  // C-Channel: manual lin-ft, or auto full perimeter = 2 × (W + P)
+  // open perimeter (fascia / C-Channel run): single = W + 2×P; mitered = ΣW + first + last leg projections
+  const perimFt = mitered ? (widthFt + legs[0].pFt + legs[legs.length-1].pFt) : (widthFt + 2*projFt);
   const ccPerimEl = document.getElementById('c-cchannel-perimeter');
   const cchannelPerim = ccPerimEl ? ccPerimEl.checked : false;
-  const cchannel = cchannelPerim ? (widthFt + 2*projFt) : (parseFloat(document.getElementById('c-cchannel').value)||0);
+  const cchannel = cchannelPerim ? perimFt : (parseFloat(document.getElementById('c-cchannel').value)||0);
   if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
   const tier = pickTier(cfg.tiers, widthFt, projFt);
-  // custom / large fascia — priced like C-Channel: (Width + 2×Projection) × $30/ft
+  // custom / large fascia — priced like C-Channel: perimeter × $30/ft
   const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
-  const customFasciaFt = widthFt + 2*projFt;
+  const customFasciaFt = perimFt;
   const customFasciaCost = (cfOn && cfIn>0) ? customFasciaFt * tier.cchannel * qty : 0;
+  const legDesc = mitered ? legs.map(l=>`${l.wFt.toFixed(1)}×${l.pFt.toFixed(1)}`).join(' + ') : '';
   document.getElementById('tier-out').innerHTML = (cfOn && cfIn>0)
-    ? `<b>${tier.name}</b> — MFG $${tier.mfg}/sqft · Custom fascia <b>${cfIn}″</b>: ${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} = $${Math.round(customFasciaCost)}${qty>1 ? ` · × ${qty}` : ''}`
-    : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`;
+    ? `<b>${tier.name}</b> — MFG $${tier.mfg}/sqft · Custom fascia <b>${cfIn}″</b>: ${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} = $${Math.round(customFasciaCost)}${mitered?` · MITER ${legCount} legs`:''}${qty>1 ? ` · × ${qty}` : ''}`
+    : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${mitered ? ` · MITER ${legCount} legs (${legDesc}) = ${sqft.toFixed(1)} sqft` : ''}${qty>1 ? ` · × ${qty} units` : ''}`;
 
-  const sqft = widthFt*projFt;
   const mfgBase = sqft*tier.mfg*qty;
   const lightsCost = lights*tier.lights*qty;
   const downspoutCost = downspout*tier.downspout*qty;
   const postsCost = posts*(tier.post||650)*qty;
   const cchannelCost = cchannel*tier.cchannel*qty;
   const outriggerCost = outrigger*tier.outrigger*qty;
-  const miterCost = miter*tier.miter*qty;
-  const fasciaCost = fascia*qty + customFasciaCost;   // manual add + custom-fascia (C-Channel formula)
+  const fasciaCost = fascia*qty + customFasciaCost;   // manual add + custom-fascia (perimeter × $30)
   // Canopy body only — downspouts & lights are broken out as their own line items on the quote
-  const materialsTotal = mfgBase + cchannelCost + outriggerCost + miterCost + fasciaCost;
+  const materialsTotal = mfgBase + cchannelCost + outriggerCost + fasciaCost;
 
-  const labor = widthFt*cfg.laborPerFt*qty;
+  const labor = widthFt*cfg.laborPerFt*qty;   // labor on total running width
 
+  const sqftLabel = mitered
+    ? `SQ FT per unit — Σ legs (${legs.map(l=>`${l.wFt.toFixed(1)}×${l.pFt.toFixed(1)}`).join(' + ')})`
+    : `SQ FT per unit (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)`;
   document.getElementById('c-breakdown').innerHTML = `
-    <div class="row"><span>SQ FT per unit (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
+    <div class="row"><span>${sqftLabel}</span><span class="num">${sqft.toFixed(2)}</span></div>
     <div class="row"><span>MFG base (sqft × $${tier.mfg} × ${qty})</span>${fmtCopy(mfgBase)}</div>
-    <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?' · auto W + 2×Proj (perimeter)':''})</span>${fmtCopy(cchannelCost)}</div>
+    <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?(mitered?' · auto perimeter ΣW + end projections':' · auto W + 2×Proj (perimeter)'):''})</span>${fmtCopy(cchannelCost)}</div>
     <div class="row"><span>Outriggers</span>${fmtCopy(outriggerCost)}</div>
-    <div class="row"><span>Miter</span>${fmtCopy(miterCost)}</div>
     ${(cfOn && cfIn>0) ? `<div class="row"><span>Custom Fascia ${cfIn}″ (${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} × ${qty})</span>${fmtCopy(customFasciaCost)}</div>` : ''}
     <div class="row"><span>Added Fascia — manual (× ${qty})</span>${fmtCopy(fascia*qty)}</div>
     <div class="row total"><span>Canopy Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
@@ -734,9 +752,9 @@ function computeCanopy(sectionKey){
     <div class="row"><span>Posts (${posts*qty} × $${tier.post||650}) — separate line item</span>${fmtCopy(postsCost)}</div>
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered,
+  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered, legs, legCount,
     // component breakdown (exact $ per category) for the Airtable line-item push
-    bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost, miterQty: miter*qty, fasciaCost, labor, laborFt: widthFt*qty } };
+    bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost:0, miterQty:0, fasciaCost, labor, laborFt: widthFt*qty } };
 }
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
@@ -745,7 +763,10 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
   if(cfOn && cfIn>0){ faceInches = cfIn; faceLabel = cfIn + '"'; }
-  const widthStr = r.mitered ? [ftInLabel('c-width1'), ftInLabel('c-width2'), ftInLabel('c-width3')].join(' x ') : ftInLabel('c-width');
+  const legWLabels = r.mitered ? r.legs.map((l,i)=>ftInLabel('c-legW'+(i+1))) : [];
+  const legPLabels = r.mitered ? r.legs.map((l,i)=>ftInLabel('c-legP'+(i+1))) : [];
+  const widthStr = r.mitered ? legWLabels.join(' x ') : ftInLabel('c-width');
+  const projStr  = r.mitered ? legPLabels.join(' / ') : ftInLabel('c-proj');
   const name = document.getElementById('c-name').value || `${faceLabel} Canopy`;
   const group = document.getElementById('c-group').value || 'Metal-Tech Canopy - Fully welded construction';
   quoteItems.push({
@@ -767,13 +788,15 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
     spec: {
       qty: r.qty,
       widthStr: widthStr,
-      projStr: ftInLabel('c-proj'),
+      projStr: projStr,
       widthFt: r.widthFt,
       projFt: r.projFt,
       face: faceInches,
       mitered: r.mitered,
-      widthSegments: r.mitered ? [ftInLabel('c-width1'), ftInLabel('c-width2'), ftInLabel('c-width3')] : null,
-      widthSegIn: r.mitered ? [getFtInInches('c-width1'), getFtInInches('c-width2'), getFtInInches('c-width3')] : null,
+      legCount: r.legCount,
+      legs: r.mitered ? r.legs.map((l,i)=>({ wFt:l.wFt, pFt:l.pFt, wIn:l.wFt*12, pIn:l.pFt*12, wLabel:legWLabels[i], pLabel:legPLabels[i] })) : null,
+      widthSegments: r.mitered ? legWLabels : null,
+      widthSegIn: r.mitered ? r.legs.map(l=>l.wFt*12) : null,
       downspoutPerUnit: r.downspoutPerUnit,
       lightsPerUnit: r.lightsPerUnit,
       postsPerUnit: r.postsPerUnit,
@@ -926,10 +949,11 @@ function canopyFigure(item, baseY){
   const dsN = s.downspoutPerUnit || 0;
   const ltN = s.lightsPerUnit || 0;
 
-  const mSegs = s.widthSegIn && s.widthSegIn.length === 3 ? s.widthSegIn : null;
+  const mSegs = s.widthSegIn && s.widthSegIn.length >= 2 ? s.widthSegIn : null;
+  const mLegs = s.legs && s.legs.length >= 2 ? s.legs : null;   // per-leg widths+projections
   const mitered = !!(s.mitered && mSegs && mSegs.some(v => v > 0));
   let mBounds = [];
-  if(mitered){ const tot = mSegs[0]+mSegs[1]+mSegs[2] || 1; let acc = 0; mBounds = [0]; mSegs.forEach(v => { acc += v; mBounds.push(acc/tot); }); }
+  if(mitered){ const tot = mSegs.reduce((a,v)=>a+v,0) || 1; let acc = 0; mBounds = [0]; mSegs.forEach(v => { acc += v; mBounds.push(acc/tot); }); }
 
   const pf = paintFillFor(s.paint);
   const attach = s.attach || 'tierod';
@@ -959,12 +983,12 @@ function canopyFigure(item, baseY){
   }
   // fascia band (painted or mill)
   svg += `<rect x="${elevX0}" y="${feY}" width="${elevW}" height="${faceBand}" fill="${pf.fill}" stroke="#333" stroke-width="1.3"/>`;
-  // mitered corner joints (dashed red) on the fascia band
+  // mitered corner joints (dashed red) on the fascia band — one per corner (legs-1)
   if(mitered){
-    [mBounds[1], mBounds[2]].forEach(f=>{
-      const jx = elevX0 + elevW*f;
+    for(let i=1;i<mBounds.length-1;i++){
+      const jx = elevX0 + elevW*mBounds[i];
       svg += `<line x1="${jx}" y1="${feY-2}" x2="${jx}" y2="${feY+faceBand+2}" stroke="#c8102e" stroke-width="1.2" stroke-dasharray="5,3"/>`;
-    });
+    }
   }
   // drainage scupper notch front-right
   svg += `<rect x="${elevX0+elevW-11}" y="${feY+faceBand}" width="11" height="4" fill="#333"/>`;
@@ -1062,20 +1086,22 @@ function canopyFigure(item, baseY){
     svg += `<line x1="${dx}" y1="${plY0+plH-15}" x2="${dx}" y2="${plY0+9}" stroke="#c8102e" stroke-width="0.9"/>`;
     svg += `<line x1="${dx}" y1="${plY0+9}" x2="${elevX0 + (fr<0.5?4:elevW-4)}" y2="${plY0+9}" stroke="#c8102e" stroke-width="0.9"/>`;
   });
-  // mitered corner joints (dashed red) through the plan
+  // mitered corner joints (dashed red) through the plan — one per corner
   if(mitered){
-    [mBounds[1], mBounds[2]].forEach(f=>{
-      const jx = elevX0 + elevW*f;
+    for(let i=1;i<mBounds.length-1;i++){
+      const jx = elevX0 + elevW*mBounds[i];
       svg += `<line x1="${jx}" y1="${plY0-2}" x2="${jx}" y2="${plY0+plH+2}" stroke="#c8102e" stroke-width="1.2" stroke-dasharray="5,3"/>`;
-    });
+    }
   }
-  // TOP string: mitered segments (red) → downspout-center segments (red) → overall width
+  // TOP string: mitered leg widths (red) + per-leg projection callout; else downspout / overall
   if(mitered){
-    for(let i=0;i<3;i++){
+    for(let i=0;i<mSegs.length;i++){
       const xa = elevX0 + elevW*mBounds[i], xb = elevX0 + elevW*mBounds[i+1];
       svg += hDim(xa, xb, plY0-14, mSegs[i], {color:'#c8102e', side:'above'});
+      // per-leg projection label under each segment (proj varies per leg now)
+      if(mLegs && mLegs[i]) svg += `<text x="${(xa+xb)/2}" y="${plY0+plH-4}" font-size="8.5" fill="#c8102e" text-anchor="middle">P: ${ftInStr(mLegs[i].pIn||0)}</text>`;
     }
-    svg += `<text x="${elevX0 + elevW*(mBounds[1]+mBounds[2])/2}" y="${plY0-42}" font-size="9" fill="#c8102e" text-anchor="middle">(corner)</text>`;
+    svg += `<text x="${elevX0 + elevW*0.5}" y="${plY0-42}" font-size="9" fill="#c8102e" text-anchor="middle">MITER — ${mSegs.length} legs, ${mSegs.length-1} corner${mSegs.length-1>1?'s':''} · plan schematic, projections per leg</text>`;
   } else if(dsN > 0){
     const bnd = [0, ...dsPos, 1];
     for(let i=0;i<bnd.length-1;i++){
@@ -1474,9 +1500,9 @@ function canopyDXFParts(item){
   const attach = s.attach || 'tierod';
   const paint = s.paint || '';
   const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'Top-Support Flat');
-  const mSegs = s.widthSegIn && s.widthSegIn.length===3 ? s.widthSegIn : null;
+  const mSegs = s.widthSegIn && s.widthSegIn.length>=2 ? s.widthSegIn : null;
   const mitered = !!(s.mitered && mSegs && mSegs.some(v=>v>0));
-  let mB=[]; if(mitered){ const tot=mSegs[0]+mSegs[1]+mSegs[2]||1; let acc=0; mB=[0]; mSegs.forEach(v=>{acc+=v; mB.push(acc/tot);}); }
+  let mB=[]; if(mitered){ const tot=mSegs.reduce((a,v)=>a+v,0)||1; let acc=0; mB=[0]; mSegs.forEach(v=>{acc+=v; mB.push(acc/tot);}); }
 
   const L = [], T = [];
   const line = (x1,y1,x2,y2,c) => L.push({x1,y1,x2,y2,c:c||7});
@@ -1506,7 +1532,7 @@ function canopyDXFParts(item){
   // downspouts on rear edge (red), evenly spaced
   for(let i=0;i<dsN;i++){ const dx=widthIn*(0.5+i)/dsN; rect(dx-1.5,-0.5,3,3,1); }
   // mitered corner joints (red) through plan
-  if(mitered){ [mB[1],mB[2]].forEach(f=>{ const jx=widthIn*f; line(jx,0,jx,projIn,1); }); }
+  if(mitered){ for(let i=1;i<mB.length-1;i++){ const jx=widthIn*mB[i]; line(jx,0,jx,projIn,1); } }
   hdim(0,widthIn,-14,widthIn,true);
   vdim(-14,0,projIn,projIn);
   // joist spacing string (bottom)
@@ -1516,7 +1542,7 @@ function canopyDXFParts(item){
   const feY = projIn + 26;
   rect(0,feY,widthIn,faceIn,7);
   // mitered corner joints (red) on fascia
-  if(mitered){ [mB[1],mB[2]].forEach(f=>{ const jx=widthIn*f; line(jx,feY,jx,feY+faceIn,1); }); }
+  if(mitered){ for(let i=1;i<mB.length-1;i++){ const jx=widthIn*mB[i]; line(jx,feY,jx,feY+faceIn,1); } }
   hdim(0,widthIn,feY+faceIn+16,widthIn,false);
   vdim(-14,feY,feY+faceIn,faceIn);
   text(0,feY+faceIn+30,5,'FRONT ELEVATION',7);
