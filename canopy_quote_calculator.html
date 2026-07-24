@@ -261,6 +261,17 @@
               <div class="field"><label>Project Name - Location <span style="text-transform:none;font-weight:400;">(auto-fills from Ship To Name)</span></label><input type="text" id="hdr-projname" placeholder="e.g. Speedway"></div>
             </div>
             <div class="field"><label>Designed Especially For (GC) <span style="text-transform:none;font-weight:400;">— for drawing title block</span></label><input type="text" id="hdr-gc" placeholder="e.g. PW Campbell"></div>
+            <div class="field"><label>Company <span style="text-transform:none;font-weight:400;">— set on Airtable upload</span></label>
+              <select id="hdr-company">
+                <option value="SA">SA</option>
+                <option value="AAS">AAS</option>
+                <option value="AP">AP</option>
+                <option value="CAC">CAC</option>
+                <option value="APA">APA</option>
+                <option value="SAA">SAA</option>
+                <option value="Recover">Recover</option>
+              </select>
+            </div>
             <div class="grid2">
               <div class="field"><label>Terms</label><input type="text" id="hdr-terms" value="30% Down, Balance per Contract"></div>
               <div class="field"><label>Sales Rep Name</label>
@@ -2425,9 +2436,12 @@ const CURRENT_BASE_CFG = {
     detailsLog:'fldDAeE6w8wEsjX25',  // Project Details and log
     indiana:   'fldAq1k1UmIzt9LnP',  // Indiana Quote (checkbox)
     status:    'fld3f4IDK9H63E6QC',  // Status (singleSelect)
+    company:   'fld19JuMc8oKQa1GG',  // Company (singleSelect) — from header picker
+    pm:        'fld0wMezQFX23h0Ik',  // PM (collaborators)
   },
   defaultStatus: 'Scrubbing / Scaling',   // bids upload into this pipeline stage
-  statusOnCreateOnly: true,                // only set status when creating (don't overwrite a moved bid on re-upload)
+  pmUser: 'usrbYftDso64IrJbg',            // Mike Sommer (mike@awningpartners.com)
+  createOnlyFields: true,                  // Status/Company/PM set on CREATE only — never overwrite on re-upload
 };
 function serializeForCurrentBase(){
   if(!lastQuoteSummary) renderQuote();
@@ -2456,7 +2470,7 @@ async function pushToCurrentBase(){
   const base = CURRENT_BASE_CFG.baseId, tbl = CURRENT_BASE_CFG.table, F = CURRENT_BASE_CFG.fields;
   const url = `https://api.airtable.com/v0/${base}/${tbl}`;
   const H = { 'Authorization':'Bearer '+token, 'Content-Type':'application/json' };
-  if(!confirm(`Upload to CURRENT base (APMG → Projects)?\n\nProject: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\nStatus (new bids): ${CURRENT_BASE_CFG.defaultStatus}\n\nCreates the project if new, updates it if the name already exists.`)) return;
+  if(!confirm(`Upload to CURRENT base (APMG → Projects)?\n\nProject: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\n\nOn a NEW project it also sets:\n• Status: ${CURRENT_BASE_CFG.defaultStatus}\n• Company: ${_atHdr('hdr-company')||'SA'}\n• PM: Mike Sommer\n\nCreates the project if new, updates it if the name already exists.`)) return;
   try {
     // find an existing Projects record with this exact name (upsert by Project)
     let existingId = null, existingStatus = '';
@@ -2467,8 +2481,13 @@ async function pushToCurrentBase(){
       if(ex){ existingId = ex.id; existingStatus = (ex.fields && ex.fields['Status']) || ''; }
     } catch(e){}
     const fields = Object.assign({}, p.fields);
-    // set Status to the bid stage only when CREATING — never overwrite a bid you've already moved
-    if(!(existingId && CURRENT_BASE_CFG.statusOnCreateOnly)) fields[F.status] = CURRENT_BASE_CFG.defaultStatus;
+    // Status / Company / PM are set only when CREATING — never overwrite a bid you've already moved/edited
+    if(!existingId){
+      fields[F.status]  = CURRENT_BASE_CFG.defaultStatus;
+      const company = _atHdr('hdr-company') || 'SA';
+      if(company) fields[F.company] = company;
+      if(CURRENT_BASE_CFG.pmUser) fields[F.pm] = [{ id: CURRENT_BASE_CFG.pmUser }];
+    }
     let resp;
     if(existingId){
       resp = await fetch(url, { method:'PATCH', headers:H, body: JSON.stringify({ records:[{ id:existingId, fields }], typecast:true }) }).then(r=>r.json());
