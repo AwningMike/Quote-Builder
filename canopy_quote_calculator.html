@@ -358,6 +358,9 @@
           <div class="row total"><span>Total</span><span class="num" id="q-total">$0</span></div>
         </div>
         <button class="btn copy-summary" id="copy-airtable-btn" onclick="copyForAirtable()">Copy for Airtable Log</button>
+        <button class="btn secondary" onclick="previewAirtablePayload()" title="Validate the new-base mapping now — nothing is sent">🔎 Preview Airtable Payload (new base)</button>
+        <button class="btn secondary" onclick="pushToAirtable()" title="Send this quote into the new base (enabled at go-live)">⬆ Send to New Base</button>
+        <button class="btn ghost" style="font-size:12px;padding:4px 10px" onclick="openAirtableSettings()">⚙ Airtable connection</button>
         <button class="btn secondary" onclick="printFormalQuote()">Print / Export Quote (Estimate PDF)</button>
         <button class="btn secondary" onclick="showAllDrawingsModal()">📐 Full Drawing Set (all canopies)</button>
       </div>
@@ -698,7 +701,9 @@ function computeCanopy(sectionKey){
     <div class="row"><span>Posts (${posts*qty} × $${tier.post||650}) — separate line item</span>${fmtCopy(postsCost)}</div>
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered };
+  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered,
+    // component breakdown (exact $ per category) for the Airtable line-item push
+    bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost, miterQty: miter*qty, fasciaCost, labor, laborFt: widthFt*qty } };
 }
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
@@ -718,6 +723,8 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
     lightsQty: r.lightsQty,
     postsCost: Math.ceil(r.postsCost),
     postsQty: r.postsQty,
+    bd: r.bd,           // component $ breakdown for Airtable line-item push
+    faceInches: faceInches,
     group: group,
     type: 'canopy',
     spec: {
@@ -2392,6 +2399,247 @@ function copyForAirtable(){
     btn.classList.add('copied');
     setTimeout(()=>{ btn.textContent = original; btn.classList.remove('copied'); }, 1400);
   }).catch(()=>{});
+}
+
+/* =========================================================================
+   AIRTABLE — NEW BASE INTEGRATION  (Flow Digital / new quote model)
+   Build-now / wire-at-go-live. Nothing here touches Airtable until you set
+   AIRTABLE_CFG.enabled = true AND paste a token. Until then, use
+   "Preview Airtable Payload" to validate the mapping against the new base.
+
+   ►► AT GO-LIVE: verify the IDs below against the FINAL base (devs are still
+      converting data). Anything marked null must be filled once those
+      inventory items exist. All IDs came from the "Flow Digital Test Base".
+   ========================================================================= */
+const AIRTABLE_CFG = {
+  enabled: false,                       // flip true at go-live (after token set)
+  baseId: 'appPXMVJ2P83sCUQt',          // Flow Digital Test Base  (replace w/ prod base at go-live)
+  matchOn: 'projectName',               // upsert Quote Request on Project Name
+  tables: {
+    quotes:        'tbluonHEUpfEp64Ze',
+    quoteRequests: 'tblEVnvT3rVK50Xe6',
+    lineItems:     'tbl6lzqYtBTDFR3KX',
+    inventory:     'tblfsAblcEvPFWbKK',
+  },
+  fields: {
+    // Quotes
+    q_builderState: 'fldd7zyICqmX7xnxJ', // "Quote Builder State" (full JSON)
+    q_sqft:         'fldxJJjfxP9n2uxWs',
+    q_distance:     'fld54Ggr8d7MXu7AN',
+    q_reqLink:      'fldJ6M9OyUmH66kEn',  // Quote -> Quote Requests
+    q_lineLink:     'fldBjdHC0Y9HLiWgx',  // Quote -> Line items
+    // Quote Requests
+    r_projectName:  'fldt6IkbytVXaoPlo',
+    r_address:      'fldYtcQCEJnsoTvfY',
+    r_city:         'fldii344bPuQWXduV',
+    r_state:        'fldT1HtAR8jzyaIlc',
+    r_details:      'fld5zK52jpWKcJEpc',
+    // Quote: Builder Line Items
+    li_parent:      'fldtaiuuiYPmdAlHA',
+    li_qty:         'fldRfSY9Wgh2K4h27',
+    li_inventory:   'fldEw0ChyiUpv6vgj',
+    li_desc:        'fldRzlvWQmnrH0d97',
+    li_lineTotal:   null,                 // ►► add "Line Total (from builder)" field at go-live for penny-exact rollup
+  },
+  // inventory item name -> record id (from test base). null = create at go-live.
+  inventory: {
+    fascia8:      'recwjSdzxcMyIvkUT',   // 6"-8" Fascia Size
+    fascia12:     'recWgwiYk0tkLyqzo',   // 10"-12" Fascia Size
+    labor:        'rec1aNDVdfBDV6ccK',   // Labor
+    leds:         'rec5VZDSO7eHiOo9f',   // LEDs
+    outriggers:   'recAmFtXR4xEuWxxU',   // Outriggers
+    cchannel:     'recBbreF1HM8PvTeB',   // C-Channel
+    downspouts:   'recJ8uFivckWpIQjG',   // Downspouts
+    travel:       'recLCPDYLByMCcCDP',   // Travel Rate
+    closedEnds:   'recZ3LwroNzVGLbiq',   // Closed Ends
+    engineering:  'reciZp1aB5LEzASgi',   // Engineering
+    standingSeam: 'rec0xAwA99LkV4Oyj',   // Standing seam awning
+    fabric:       'rec1HEgYC6Ad1pLhm',   // Fabric Awning
+    posts:        null,                  // ►► add "Posts" ($650) to inventory at go-live
+    miter:        null,                  // ►► add "Miter"
+    sunshade:     null,                  // ►► add "Sunshade"
+    recover:      null,                  // ►► add "Recover"
+    survey:       null,                  // ►► add "Survey / PM"
+    lift:         null,                  // ►► add "Lift"
+  },
+};
+function _atToken(){ try { return localStorage.getItem('apmg_at_token') || ''; } catch(e){ return ''; } }
+function _atHdr(id, label){ const el=document.getElementById(id); return el ? (el.value||'').trim() : (label||''); }
+
+// Split "City, ST ZIP" into parts (best-effort, for Quote Request fields)
+function _splitCityStateZip(s){
+  s = (s||'').trim();
+  const m = s.match(/^(.*?),\s*([A-Za-z]{2})\s*(\d{5})?/);
+  if(m) return { city:m[1].trim(), state:m[2].toUpperCase(), zip:m[3]||'' };
+  return { city:s, state:'', zip:'' };
+}
+
+/* Turn the current quote into the new-base payload:
+   { quoteRequest, quote, lineItems[], stateJSON, summary } — exact $ per line. */
+function serializeQuoteForAirtable(){
+  if(!lastQuoteSummary) renderQuote();
+  const s = lastQuoteSummary || {};
+  const inv = AIRTABLE_CFG.inventory;
+  const projName = _atHdr('hdr-projname') || _atHdr('hdr-shipname') || 'Untitled Project';
+  const cityState = _splitCityStateZip(_atHdr('hdr-address2'));
+  const lines = [];
+  const push = (invKey, invName, qty, lineTotal, desc) => {
+    if(!lineTotal) return;               // skip zero components
+    lines.push({ invKey, invName, qty: Math.round((qty||0)*100)/100, lineTotal: Math.round(lineTotal), desc: desc||'' });
+  };
+  let sqftTotal = 0;
+  quoteItems.forEach(it=>{
+    if(it.type==='canopy'){
+      const b = it.bd || {}; sqftTotal += (b.sqft||0);
+      const fasciaKey = (it.faceInches||8) <= 8 ? 'fascia8' : 'fascia12';
+      const fasciaName = (it.faceInches||8) <= 8 ? '6"-8" Fascia Size' : '10"-12" Fascia Size';
+      push(fasciaKey, fasciaName, b.sqft, (b.mfg||0)+(b.fasciaCost||0), `${it.title} — MFG (${it.spec.widthStr} × ${it.spec.projStr})`);
+      push('cchannel', 'C-Channel', b.cchannelFt, b.cchannelCost, `${it.title} — C-Channel`);
+      push('outriggers', 'Outriggers', b.outriggerFt, b.outriggerCost, `${it.title} — Outriggers`);
+      push('miter', 'Miter', b.miterQty, b.miterCost, `${it.title} — Miter`);
+      push('labor', 'Labor', b.laborFt, b.labor, `${it.title} — Labor`);
+      push('leds', 'LEDs', it.lightsQty, it.lightsCost, `${it.title} — Lights`);
+      push('downspouts', 'Downspouts', it.downspoutQty, it.downspoutCost, `${it.title} — Downspouts`);
+      push('posts', 'Posts', it.postsQty, it.postsCost, `${it.title} — Posts`);
+    } else if(it.type==='standingSeam'){
+      push('standingSeam', 'Standing seam awning', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Standing Seam`);
+      push('labor', 'Labor', 1, it.labor, `${it.title} — Labor`);
+    } else if(it.type==='fabric'){
+      push('fabric', 'Fabric Awning', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Fabric`);
+      push('labor', 'Labor', 1, it.labor, `${it.title} — Labor`);
+      push('posts', 'Posts', it.postsQty, it.postsCost, `${it.title} — Posts`);
+    } else if(it.type==='sunshade'){
+      push('sunshade', 'Sunshade', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Sunshade`);
+      push('labor', 'Labor', 1, it.labor, `${it.title} — Labor`);
+    } else if(it.type==='recover'){
+      push('recover', 'Recover', 1, it.amount, `${it.title} — Recover`);
+    }
+  });
+  // job-level lines
+  const miles = parseFloat((document.getElementById('extra-miles')||{}).value)||0;
+  push('travel', 'Travel Rate', miles, s.deliveryCost, 'Delivery / mileage');
+  push('survey', 'Survey / PM', 1, s.survey, 'Survey / PM');
+  push('lift', 'Lift', 1, s.lift, 'Lift rental');
+  push('engineering', 'Engineering', 1, s.stamped, 'Stamped engineering');
+
+  const linesSum = lines.reduce((a,l)=>a+l.lineTotal,0);
+  const stateObj = {
+    v: 1, savedFrom: 'APMG Quote Builder',
+    header: {
+      projectNo: _atHdr('hdr-projno'), projectName: projName,
+      shipName: _atHdr('hdr-shipname'), address1: _atHdr('hdr-address1'),
+      cityStateZip: _atHdr('hdr-address2'), gc: _atHdr('hdr-gc'), date: _atHdr('hdr-date'),
+    },
+    items: quoteItems,
+    totals: { preTax: linesSum, tax: s.tax, taxRate: s.taxRatePercent, grand: s.total },
+  };
+  return {
+    quoteRequest: { projectName: projName, address: (document.getElementById('hdr-address1')||{}).value||'', city: cityState.city, state: cityState.state,
+                    details: `Imported from APMG Quote Builder. Project No: ${_atHdr('hdr-projno')||'—'}. GC: ${_atHdr('hdr-gc')||'—'}.` },
+    quote: { sqft: Math.round(sqftTotal), distance: miles, builderState: JSON.stringify(stateObj) },
+    lineItems: lines,
+    summary: { lineCount: lines.length, preTax: linesSum, tax: s.tax||0, grand: s.total||0 },
+  };
+}
+
+/* ---- Preview (works NOW, no token/base needed) ---- */
+function previewAirtablePayload(){
+  if(!lastQuoteSummary || !quoteItems.length){ alert('Add at least one item to the quote first.'); return; }
+  const p = serializeQuoteForAirtable();
+  const rows = p.lineItems.map(l=>{
+    const linked = AIRTABLE_CFG.inventory[l.invKey] ? '✓' : '⚠ new';
+    return `<tr><td>${l.invName}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">$${l.lineTotal.toLocaleString()}</td><td style="text-align:center">${linked}</td><td style="color:#667">${l.desc}</td></tr>`;
+  }).join('');
+  const reconc = p.summary.preTax === (p.summary.grand - p.summary.tax)
+    ? `<span style="color:#1a7f37">✓ line totals reconcile to app pre-tax total</span>`
+    : `<span style="color:#cf222e">Δ check: lines $${p.summary.preTax.toLocaleString()} vs app pre-tax $${(p.summary.grand-p.summary.tax).toLocaleString()}</span>`;
+  const back = document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='at-preview-backdrop';
+  back.onclick=(e)=>{ if(e.target===back) back.remove(); };
+  back.innerHTML = `<div class="drawing-modal" style="max-width:860px">
+    <h3>Airtable Payload Preview <span style="font-weight:400;font-size:13px;color:#667">(new base — not sent)</span></h3>
+    <div style="font-size:13px;margin-bottom:8px">
+      <b>Quote Request:</b> ${p.quoteRequest.projectName} — ${p.quoteRequest.city}${p.quoteRequest.state?', '+p.quoteRequest.state:''}<br>
+      <b>Quote:</b> ${p.quote.sqft} sq ft · ${p.quote.distance} mi · state JSON ${p.quote.builderState.length} chars<br>
+      <b>Reconcile:</b> ${reconc}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr style="background:#f6f8fa"><th style="text-align:left;padding:4px 6px">Inventory item</th><th>Qty</th><th>Line $</th><th>Linked</th><th style="text-align:left">Description</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid #333"><td>Pre-tax total</td><td></td><td style="text-align:right">$${p.summary.preTax.toLocaleString()}</td><td colspan="2"></td></tr></tfoot>
+    </table>
+    <div style="font-size:11.5px;color:#667;margin-top:8px">⚠ = inventory item not yet in the base (Posts / Miter / Sunshade / Survey / Lift) — add at go-live. Tax is left to the base's state formula.</div>
+    <div class="dm-actions" style="margin-top:12px">
+      <button class="dm-download" onclick="navigator.clipboard.writeText(document.getElementById('at-state-json').value)">Copy State JSON</button>
+      <button class="dm-close" onclick="document.getElementById('at-preview-backdrop').remove()">Close</button>
+    </div>
+    <textarea id="at-state-json" style="position:absolute;left:-9999px">${p.quote.builderState.replace(/</g,'&lt;')}</textarea>
+  </div>`;
+  document.body.appendChild(back);
+}
+
+/* ---- Live push (DORMANT until AIRTABLE_CFG.enabled && token) ---- */
+async function pushToAirtable(){
+  const token = _atToken();
+  if(!AIRTABLE_CFG.enabled || !token){
+    alert('Not connected yet.\n\nThe new base is still being set up (devs are converting data). At go-live: paste your Airtable token in Settings and set AIRTABLE_CFG.enabled = true. Use "Preview Airtable Payload" to validate the mapping now.');
+    return;
+  }
+  const p = serializeQuoteForAirtable();
+  const F = AIRTABLE_CFG.fields, T = AIRTABLE_CFG.tables, B = AIRTABLE_CFG.baseId;
+  const api = (tbl)=>`https://api.airtable.com/v0/${B}/${tbl}`;
+  const H = { 'Authorization':'Bearer '+token, 'Content-Type':'application/json' };
+  try {
+    // 1) upsert Quote Request on Project Name
+    const reqFields = {}; reqFields[F.r_projectName]=p.quoteRequest.projectName;
+    reqFields[F.r_address]=p.quoteRequest.address; reqFields[F.r_city]=p.quoteRequest.city;
+    reqFields[F.r_state]=p.quoteRequest.state; reqFields[F.r_details]=p.quoteRequest.details;
+    const reqResp = await fetch(api(T.quoteRequests), { method:'PATCH', headers:H, body: JSON.stringify({
+      performUpsert:{ fieldsToMergeOn:[F.r_projectName] }, records:[{ fields: reqFields }] }) }).then(r=>r.json());
+    const reqId = reqResp.records && reqResp.records[0] && reqResp.records[0].id;
+    // 2) create Quote
+    const qf = {}; qf[F.q_builderState]=p.quote.builderState; qf[F.q_sqft]=p.quote.sqft; qf[F.q_distance]=p.quote.distance;
+    if(reqId) qf[F.q_reqLink]=[reqId];
+    const qResp = await fetch(api(T.quotes), { method:'POST', headers:H, body: JSON.stringify({ records:[{fields:qf}] }) }).then(r=>r.json());
+    const quoteId = qResp.records && qResp.records[0] && qResp.records[0].id;
+    // 3) create Line Items (batches of 10)
+    const recs = p.lineItems.map(l=>{
+      const f = {}; f[F.li_qty]=l.qty; f[F.li_desc]=l.desc;
+      if(quoteId) f[F.li_parent]=[quoteId];
+      const invId = AIRTABLE_CFG.inventory[l.invKey]; if(invId) f[F.li_inventory]=[invId];
+      if(F.li_lineTotal) f[F.li_lineTotal]=l.lineTotal;   // penny-exact when field exists
+      return { fields:f };
+    });
+    for(let i=0;i<recs.length;i+=10){
+      await fetch(api(T.lineItems), { method:'POST', headers:H, body: JSON.stringify({ records: recs.slice(i,i+10) }) });
+    }
+    alert(`Sent to Airtable ✓\nQuote created with ${recs.length} line items (${p.summary.preTax.toLocaleString()} pre-tax).`);
+  } catch(err){
+    alert('Airtable push failed: '+err.message+'\n(Check token + base/field IDs in AIRTABLE_CFG.)');
+  }
+}
+
+/* ---- token settings ---- */
+function openAirtableSettings(){
+  const cur = _atToken();
+  const back = document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='at-settings-backdrop';
+  back.onclick=(e)=>{ if(e.target===back) back.remove(); };
+  back.innerHTML = `<div class="drawing-modal" style="max-width:520px">
+    <h3>Airtable Connection</h3>
+    <div style="font-size:13px;color:#444;margin-bottom:10px">
+      Personal-use token, stored only in this browser (localStorage) — never in the app source.
+      Leave blank until the new base goes live. Status:
+      <b style="color:${AIRTABLE_CFG.enabled ? '#1a7f37':'#9a6700'}">${AIRTABLE_CFG.enabled ? 'enabled' : 'not connected (build mode)'}</b>.
+    </div>
+    <input type="password" id="at-token-input" placeholder="pat••••••••" value="${cur.replace(/"/g,'')}" style="width:100%;padding:8px;font-family:monospace;margin-bottom:10px">
+    <div class="dm-actions">
+      <button class="dm-download" onclick="try{localStorage.setItem('apmg_at_token',document.getElementById('at-token-input').value.trim());}catch(e){}; document.getElementById('at-settings-backdrop').remove();">Save token</button>
+      <button class="dm-download" onclick="try{localStorage.removeItem('apmg_at_token');}catch(e){}; document.getElementById('at-settings-backdrop').remove();">Clear</button>
+      <button class="dm-close" onclick="document.getElementById('at-settings-backdrop').remove()">Close</button>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
 }
 
 /* ---------------- FORMAL PRINT QUOTE ---------------- */
