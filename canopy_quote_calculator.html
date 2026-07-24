@@ -237,6 +237,7 @@
   <header class="top">
     <h1>Quote<span>Builder</span> — Canopy &amp; Awning</h1>
     <div class="meta">Rates loaded from pricing matrix · 07/2026</div>
+    <button class="btn" id="new-quote-btn" style="background:#1a7f37;margin-left:auto;white-space:nowrap;" onclick="newQuote()">＋ New Quote</button>
   </header>
 
   <nav class="tabs" id="tabs"></nav>
@@ -2224,6 +2225,27 @@ function renderCalc(){
 /* ---------------- QUOTE PANEL ---------------- */
 function removeItem(id){ quoteItems = quoteItems.filter(i=>i.id!==id); renderQuote(); }
 function clearQuote(){ quoteItems = []; renderQuote(); }
+
+// Start a fresh quote — clears line items, header fields, and job-level extras.
+function newQuote(){
+  if(quoteItems.length && !confirm('Start a NEW quote? This clears all line items and the header (customer, project, address, etc.).')) return;
+  quoteItems = [];
+  const setV=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+  const setC=(id,v)=>{ const el=document.getElementById(id); if(el) el.checked=v; };
+  // header fields
+  ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to'].forEach(id=>setV(id,''));
+  setV('hdr-terms','30% Down, Balance per Contract');
+  setV('hdr-company','SA');
+  try{ setV('hdr-date', new Date().toLocaleDateString('en-US')); }catch(e){ setV('hdr-date',''); }
+  // job-level extras
+  ['extra-miles','extra-lift','extra-color','extra-ohio-county'].forEach(id=>setV(id,''));
+  setV('extra-survey','500.00'); setV('extra-stamped','1250');
+  ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items'].forEach(id=>setC(id,false));
+  renderCalc();      // reset the active calculator form
+  renderQuote();     // clear the quote panel
+  window.scrollTo(0,0);
+  const b=document.getElementById('new-quote-btn'); if(b){ const t=b.textContent; b.textContent='New quote ✓'; setTimeout(()=>b.textContent=t,1200); }
+}
 
 function toggleGroup(gid){
   const el = document.getElementById(gid);
