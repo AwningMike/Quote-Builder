@@ -250,6 +250,7 @@
         <details class="settings" style="margin:0 0 16px;">
           <summary>Quote Header (for printed estimate)</summary>
           <div class="settings-body">
+            <div class="field"><label>To — Customer / Attn <span style="text-transform:none;font-weight:400;">(fills the "TO:" box on the quote PDF)</span></label><input type="text" id="hdr-to" placeholder="e.g. Casey's General Stores — Attn: John Smith"></div>
             <div class="grid2">
               <div class="field"><label>Ship To — Name</label><input type="text" id="hdr-shipname" placeholder="e.g. Speedway"></div>
               <div class="field"><label>Date</label><input type="text" id="hdr-date" placeholder="e.g. 7/21/2026"></div>
@@ -2438,6 +2439,8 @@ const CURRENT_BASE_CFG = {
     status:    'fld3f4IDK9H63E6QC',  // Status (singleSelect)
     company:   'fld19JuMc8oKQa1GG',  // Company (singleSelect) — from header picker
     pm:        'fld0wMezQFX23h0Ik',  // PM (collaborators)
+    service:   'fldUCoGdwMJaRtAqM',  // Service (multipleSelects) — derived from quote
+    quotePdf:  'fld2a5zDwKCYcVdYG',  // Quote (attachments) — PDF dropped here
   },
   defaultStatus: 'Scrubbing / Scaling',   // bids upload into this pipeline stage
   pmUser: 'usrbYftDso64IrJbg',            // Mike Sommer (mike@awningpartners.com)
@@ -2470,7 +2473,7 @@ async function pushToCurrentBase(){
   const base = CURRENT_BASE_CFG.baseId, tbl = CURRENT_BASE_CFG.table, F = CURRENT_BASE_CFG.fields;
   const url = `https://api.airtable.com/v0/${base}/${tbl}`;
   const H = { 'Authorization':'Bearer '+token, 'Content-Type':'application/json' };
-  if(!confirm(`Upload to CURRENT base (APMG → Projects)?\n\nProject: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\n\nOn a NEW project it also sets:\n• Status: ${CURRENT_BASE_CFG.defaultStatus}\n• Company: ${_atHdr('hdr-company')||'SA'}\n• PM: Mike Sommer\n\nCreates the project if new, updates it if the name already exists.`)) return;
+  if(!confirm(`Upload to CURRENT base (APMG → Projects)?\n\nProject: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\nQuote PDF will be attached.\n\nOn a NEW project it also sets:\n• Status: ${CURRENT_BASE_CFG.defaultStatus}\n• Company: ${_atHdr('hdr-company')||'SA'}\n• PM: Mike Sommer\n• Service: ${serviceFromQuote().join(', ')||'—'}\n\nCreates the project if new, updates it if the name already exists.`)) return;
   try {
     // find an existing Projects record with this exact name (upsert by Project)
     let existingId = null, existingStatus = '';
@@ -2487,6 +2490,7 @@ async function pushToCurrentBase(){
       const company = _atHdr('hdr-company') || 'SA';
       if(company) fields[F.company] = company;
       if(CURRENT_BASE_CFG.pmUser) fields[F.pm] = [{ id: CURRENT_BASE_CFG.pmUser }];
+      const svc = serviceFromQuote(); if(svc.length) fields[F.service] = svc;
     }
     let resp;
     if(existingId){
@@ -2495,7 +2499,15 @@ async function pushToCurrentBase(){
       resp = await fetch(url, { method:'POST',  headers:H, body: JSON.stringify({ records:[{ fields }], typecast:true }) }).then(r=>r.json());
     }
     if(resp.error){ alert('Upload failed: '+(resp.error.message||JSON.stringify(resp.error))); return; }
-    alert(`Uploaded to current base ✓\n${p.projName} — $${p.grand.toLocaleString()}\n(${existingId ? 'updated existing project'+(existingStatus?` · status kept: ${existingStatus}`:'') : 'new project created · status set to '+CURRENT_BASE_CFG.defaultStatus})`);
+    const recId = existingId || (resp.records && resp.records[0] && resp.records[0].id);
+    // drop the quote PDF into the Quote attachment field
+    let pdfNote = '';
+    if(recId){
+      const pr = await uploadQuotePdf(recId, token);
+      pdfNote = pr && pr.ok ? '\n• Quote PDF attached ✓' : (pr && pr.error ? '\n• Quote PDF NOT attached: '+pr.error : '');
+    }
+    const svc = serviceFromQuote();
+    alert(`Uploaded to current base ✓\n${p.projName} — $${p.grand.toLocaleString()}\n(${existingId ? 'updated existing project'+(existingStatus?` · status kept: ${existingStatus}`:'') : 'new project · Status '+CURRENT_BASE_CFG.defaultStatus+' · Service: '+(svc.join(', ')||'—')})${pdfNote}`);
   } catch(err){
     alert('Upload failed: '+err.message+'\n(Check your token has write access to the APMG base.)');
   }
@@ -2894,8 +2906,8 @@ function buildActivityRows(s, color, height){
   return rows;
 }
 
-function printFormalQuote(){
-  if(!lastQuoteSummary){ window.print(); return; }
+function populateFormalQuoteDoc(){
+  if(!lastQuoteSummary){ return false; }
   const s = lastQuoteSummary;
   const color = document.getElementById('extra-color').value || 'TBD';
   const height = "5'"; // fallback only — per-item height fields now cover the real values
@@ -2936,6 +2948,7 @@ function printFormalQuote(){
       <div class="pq-toship">
         <div>
           <div class="pq-label">TO:</div>
+          <div class="pq-block">${(document.getElementById('hdr-to')||{}).value ? (document.getElementById('hdr-to').value).replace(/</g,'&lt;').replace(/\n/g,'<br>') : ''}</div>
         </div>
         <div>
           <div class="pq-label">Ship To</div>
@@ -2989,8 +3002,63 @@ function printFormalQuote(){
       </div>
     </div>
   `;
+  return true;
+}
+function printFormalQuote(){ if(populateFormalQuoteDoc()) window.print(); else window.print(); }
 
-  window.print();
+/* ---- Service mapping: which Service multi-select options this quote covers ---- */
+function serviceFromQuote(){
+  const set = new Set();
+  (quoteItems||[]).forEach(it=>{
+    if(it.type==='canopy') set.add('Metal Canopy');
+    else if(it.type==='fabric') set.add('Fabric Awning(s)');
+    else if(it.type==='sunshade') set.add('Sunshade(s)');
+    else if(it.type==='standingSeam') set.add('Standing Seam Awning(s)');
+    else if(it.type==='recover') set.add('Recover Fabric Awning(s)');
+  });
+  return [...set];
+}
+
+/* ---- Generate the formal quote as a PDF (base64) via jsPDF + html2canvas ---- */
+function _loadScript(src){
+  return new Promise((res,rej)=>{
+    if([...document.scripts].some(sc=>sc.src===src)) return res();
+    const sc=document.createElement('script'); sc.src=src; sc.onload=()=>res(); sc.onerror=()=>rej(new Error('Could not load '+src)); document.head.appendChild(sc);
+  });
+}
+async function generateQuotePdfBase64(){
+  if(!populateFormalQuoteDoc()) return null;
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await _loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  const el = document.getElementById('print-quote-doc');
+  const prev = el.getAttribute('style') || '';
+  el.setAttribute('style', 'display:block;position:fixed;left:-10000px;top:0;width:800px;background:#fff;z-index:-1;');
+  let canvas;
+  try { canvas = await window.html2canvas(el, { scale:2, backgroundColor:'#ffffff', useCORS:true }); }
+  finally { el.setAttribute('style', prev || 'display:none;'); }
+  const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  const pdf = new jsPDF('p','pt','letter');
+  const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+  const imgData = canvas.toDataURL('image/png');
+  const imgH = canvas.height * (pw/canvas.width);
+  let heightLeft = imgH, position = 0;
+  pdf.addImage(imgData,'PNG',0,position,pw,imgH); heightLeft -= ph;
+  while(heightLeft > 0){ position -= ph; pdf.addPage(); pdf.addImage(imgData,'PNG',0,position,pw,imgH); heightLeft -= ph; }
+  return pdf.output('datauristring').split(',')[1];  // base64
+}
+async function uploadQuotePdf(recordId, token){
+  const F = CURRENT_BASE_CFG.fields;
+  if(!F.quotePdf) return { skipped:'no quote field configured' };
+  let base64; try { base64 = await generateQuotePdfBase64(); } catch(e){ return { error:'PDF build failed: '+e.message }; }
+  if(!base64) return { skipped:'no quote to render' };
+  const projName = _atHdr('hdr-projname') || _atHdr('hdr-shipname') || 'Quote';
+  const url = `https://content.airtable.com/v0/${CURRENT_BASE_CFG.baseId}/${recordId}/${F.quotePdf}/uploadAttachment`;
+  try {
+    const r = await fetch(url, { method:'POST', headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ contentType:'application/pdf', filename:`Quote - ${projName}.pdf`, file: base64 }) });
+    if(!r.ok){ let b={}; try{b=await r.json();}catch(e){} return { error:'attach '+r.status+' '+((b.error&&(b.error.type||b.error.message))||'') }; }
+    return { ok:true };
+  } catch(e){ return { error:'attach failed: '+e.message }; }
 }
 
 /* ---------------- SETTINGS PANEL ---------------- */
