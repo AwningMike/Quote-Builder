@@ -600,11 +600,10 @@ function renderCanopySection(sectionKey, faceLabel){
       <div class="field"><label>Quantity (identical units)</label><input type="number" id="c-qty" value="1" min="1" step="1"></div>
       <div class="checkline" style="margin-top:-2px;">
         <input type="checkbox" id="c-customface-toggle">
-        <label for="c-customface-toggle">Custom fascia size (e.g. larger than 12″) — set size + MFG $/sqft</label>
+        <label for="c-customface-toggle">Custom fascia size (larger than 12″) — priced (Width + 2 × Projection) × $30/ft</label>
       </div>
       <div id="c-customface-wrap" class="grid2" style="display:none;">
         <div class="field"><label>Fascia size (inches)</label><input type="number" id="c-customface-in" value="18" min="1" step="1"></div>
-        <div class="field"><label>MFG $ / sqft (override)</label><input type="number" id="c-customface-mfg" value="" min="0" step="1" placeholder="e.g. 130"></div>
       </div>
       <div id="tier-out" class="tier-badge"></div>
       <div class="grid3">
@@ -669,7 +668,7 @@ function renderCanopySection(sectionKey, faceLabel){
     document.getElementById('c-customface-wrap').style.display = e.target.checked ? '' : 'none';
     computeCanopy(sectionKey);
   });
-  ['c-customface-in','c-customface-mfg'].forEach(id=>document.getElementById(id).addEventListener('input', ()=>computeCanopy(sectionKey)));
+  document.getElementById('c-customface-in').addEventListener('input', ()=>computeCanopy(sectionKey));
   // sensible default attachment by face height (user can change)
   document.getElementById('c-attach').value = faceInches >= 12 ? 'tierod' : 'topsupport';
   computeCanopy(sectionKey);
@@ -698,24 +697,24 @@ function computeCanopy(sectionKey){
   const cchannel = cchannelPerim ? (widthFt + 2*projFt) : (parseFloat(document.getElementById('c-cchannel').value)||0);
   if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
   const tier = pickTier(cfg.tiers, widthFt, projFt);
-  // custom / large fascia override — manual size + MFG $/sqft
+  // custom / large fascia — priced like C-Channel: (Width + 2×Projection) × $30/ft
   const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
-  const cfMfg = parseFloat((document.getElementById('c-customface-mfg')||{}).value)||0;
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
-  const mfgRate = (cfOn && cfMfg>0) ? cfMfg : tier.mfg;
-  document.getElementById('tier-out').innerHTML = (cfOn && cfMfg>0)
-    ? `Custom fascia: <b>${cfIn||'?'}″</b> — MFG $${mfgRate}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`
+  const customFasciaFt = widthFt + 2*projFt;
+  const customFasciaCost = (cfOn && cfIn>0) ? customFasciaFt * tier.cchannel * qty : 0;
+  document.getElementById('tier-out').innerHTML = (cfOn && cfIn>0)
+    ? `<b>${tier.name}</b> — MFG $${tier.mfg}/sqft · Custom fascia <b>${cfIn}″</b>: ${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} = $${Math.round(customFasciaCost)}${qty>1 ? ` · × ${qty}` : ''}`
     : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`;
 
   const sqft = widthFt*projFt;
-  const mfgBase = sqft*mfgRate*qty;
+  const mfgBase = sqft*tier.mfg*qty;
   const lightsCost = lights*tier.lights*qty;
   const downspoutCost = downspout*tier.downspout*qty;
   const postsCost = posts*(tier.post||650)*qty;
   const cchannelCost = cchannel*tier.cchannel*qty;
   const outriggerCost = outrigger*tier.outrigger*qty;
   const miterCost = miter*tier.miter*qty;
-  const fasciaCost = fascia*qty;
+  const fasciaCost = fascia*qty + customFasciaCost;   // manual add + custom-fascia (C-Channel formula)
   // Canopy body only — downspouts & lights are broken out as their own line items on the quote
   const materialsTotal = mfgBase + cchannelCost + outriggerCost + miterCost + fasciaCost;
 
@@ -727,7 +726,8 @@ function computeCanopy(sectionKey){
     <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?' · auto W + 2×Proj (perimeter)':''})</span>${fmtCopy(cchannelCost)}</div>
     <div class="row"><span>Outriggers</span>${fmtCopy(outriggerCost)}</div>
     <div class="row"><span>Miter</span>${fmtCopy(miterCost)}</div>
-    <div class="row"><span>Added Fascia (× ${qty})</span>${fmtCopy(fasciaCost)}</div>
+    ${(cfOn && cfIn>0) ? `<div class="row"><span>Custom Fascia ${cfIn}″ (${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} × ${qty})</span>${fmtCopy(customFasciaCost)}</div>` : ''}
+    <div class="row"><span>Added Fascia — manual (× ${qty})</span>${fmtCopy(fascia*qty)}</div>
     <div class="row total"><span>Canopy Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row" style="margin-top:8px;"><span>Lights (× ${qty}) — separate line item</span>${fmtCopy(lightsCost)}</div>
     <div class="row"><span>Downspouts (× ${qty}) — separate line item</span>${fmtCopy(downspoutCost)}</div>
