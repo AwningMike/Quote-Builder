@@ -2466,6 +2466,33 @@ const AIRTABLE_CFG = {
 function _atToken(){ try { return localStorage.getItem('apmg_at_token') || ''; } catch(e){ return ''; } }
 function _atHdr(id, label){ const el=document.getElementById(id); return el ? (el.value||'').trim() : (label||''); }
 
+/* ---- Inventory resolver: pull name->recId from Airtable so we never hand-maintain
+   IDs in code. Live map (fetched w/ token) is cached; falls back to the seed IDs in
+   AIRTABLE_CFG.inventory. Match is name-based + normalized (case/space/punct-insensitive). */
+const _atNorm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function _atInvCache(){ try { return JSON.parse(localStorage.getItem('apmg_at_inv')||'{}'); } catch(e){ return {}; } }
+async function fetchInventoryMap(token){
+  const url = `https://api.airtable.com/v0/${AIRTABLE_CFG.baseId}/${AIRTABLE_CFG.tables.inventory}?pageSize=100`;
+  const map = {}; let offset;
+  do {
+    const r = await fetch(url + (offset?`&offset=${offset}`:''), { headers:{ 'Authorization':'Bearer '+token } }).then(r=>r.json());
+    (r.records||[]).forEach(rec=>{
+      const nm = rec.fields && (rec.fields['Name'] || Object.values(rec.fields).find(v=>typeof v==='string'));
+      if(nm) map[_atNorm(nm)] = rec.id;
+    });
+    offset = r.offset;
+  } while(offset);
+  try { localStorage.setItem('apmg_at_inv', JSON.stringify(map)); } catch(e){}
+  return map;
+}
+// resolve one line's inventory record id: live cache (by name) -> seed id (by key)
+function resolveInv(invName, invKey){
+  const cache = _atInvCache();
+  const hit = cache[_atNorm(invName)];
+  if(hit) return hit;
+  return AIRTABLE_CFG.inventory[invKey] || null;
+}
+
 // Split "City, ST ZIP" into parts (best-effort, for Quote Request fields)
 function _splitCityStateZip(s){
   s = (s||'').trim();
@@ -2547,7 +2574,7 @@ function previewAirtablePayload(){
   if(!lastQuoteSummary || !quoteItems.length){ alert('Add at least one item to the quote first.'); return; }
   const p = serializeQuoteForAirtable();
   const rows = p.lineItems.map(l=>{
-    const linked = AIRTABLE_CFG.inventory[l.invKey] ? '✓' : '⚠ new';
+    const linked = resolveInv(l.invName, l.invKey) ? '✓' : '⚠ new';
     return `<tr><td>${l.invName}</td><td style="text-align:right">${l.qty}</td><td style="text-align:right">$${l.lineTotal.toLocaleString()}</td><td style="text-align:center">${linked}</td><td style="color:#667">${l.desc}</td></tr>`;
   }).join('');
   const reconc = p.summary.preTax === (p.summary.grand - p.summary.tax)
@@ -2590,6 +2617,9 @@ async function pushToAirtable(){
   const api = (tbl)=>`https://api.airtable.com/v0/${B}/${tbl}`;
   const H = { 'Authorization':'Bearer '+token, 'Content-Type':'application/json' };
   try {
+    await fetchInventoryMap(token);   // refresh name->id map so new items link automatically
+    const missing = p.lineItems.filter(l=>!resolveInv(l.invName, l.invKey)).map(l=>l.invName);
+    if(missing.length && !confirm(`These inventory items aren't in the base yet and will be sent without an inventory link:\n\n• ${[...new Set(missing)].join('\n• ')}\n\nSend anyway?`)) return;
     // 1) upsert Quote Request on Project Name
     const reqFields = {}; reqFields[F.r_projectName]=p.quoteRequest.projectName;
     reqFields[F.r_address]=p.quoteRequest.address; reqFields[F.r_city]=p.quoteRequest.city;
@@ -2606,7 +2636,7 @@ async function pushToAirtable(){
     const recs = p.lineItems.map(l=>{
       const f = {}; f[F.li_qty]=l.qty; f[F.li_desc]=l.desc;
       if(quoteId) f[F.li_parent]=[quoteId];
-      const invId = AIRTABLE_CFG.inventory[l.invKey]; if(invId) f[F.li_inventory]=[invId];
+      const invId = resolveInv(l.invName, l.invKey); if(invId) f[F.li_inventory]=[invId];
       if(F.li_lineTotal) f[F.li_lineTotal]=l.lineTotal;   // penny-exact when field exists
       return { fields:f };
     });
@@ -2633,13 +2663,30 @@ function openAirtableSettings(){
       <b style="color:${AIRTABLE_CFG.enabled ? '#1a7f37':'#9a6700'}">${AIRTABLE_CFG.enabled ? 'enabled' : 'not connected (build mode)'}</b>.
     </div>
     <input type="password" id="at-token-input" placeholder="pat••••••••" value="${cur.replace(/"/g,'')}" style="width:100%;padding:8px;font-family:monospace;margin-bottom:10px">
+    <div style="font-size:12px;color:#555;margin-bottom:8px">Inventory is pulled from Airtable by name — no IDs kept in the app. Cached items: <b id="at-inv-count">${Object.keys(_atInvCache()).length}</b>.</div>
     <div class="dm-actions">
       <button class="dm-download" onclick="try{localStorage.setItem('apmg_at_token',document.getElementById('at-token-input').value.trim());}catch(e){}; document.getElementById('at-settings-backdrop').remove();">Save token</button>
+      <button class="dm-download" id="at-refresh-inv" onclick="refreshInventoryFromAirtable()">Refresh inventory from Airtable</button>
       <button class="dm-download" onclick="try{localStorage.removeItem('apmg_at_token');}catch(e){}; document.getElementById('at-settings-backdrop').remove();">Clear</button>
       <button class="dm-close" onclick="document.getElementById('at-settings-backdrop').remove()">Close</button>
     </div>
   </div>`;
   document.body.appendChild(back);
+}
+async function refreshInventoryFromAirtable(){
+  const t = document.getElementById('at-token-input');
+  const token = (t && t.value.trim()) || _atToken();
+  if(!token){ alert('Paste your Airtable token first, then Refresh.'); return; }
+  try { localStorage.setItem('apmg_at_token', token); } catch(e){}
+  const btn = document.getElementById('at-refresh-inv'); if(btn){ btn.textContent='Refreshing…'; btn.disabled=true; }
+  try {
+    const map = await fetchInventoryMap(token);
+    const c = document.getElementById('at-inv-count'); if(c) c.textContent = Object.keys(map).length;
+    if(btn){ btn.textContent='Refreshed ✓ ('+Object.keys(map).length+' items)'; }
+  } catch(err){
+    if(btn){ btn.textContent='Refresh failed'; btn.disabled=false; }
+    alert('Could not fetch inventory: '+err.message);
+  }
 }
 
 /* ---------------- FORMAL PRINT QUOTE ---------------- */
