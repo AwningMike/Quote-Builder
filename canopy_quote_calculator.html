@@ -598,6 +598,14 @@ function renderCanopySection(sectionKey, faceLabel){
         ${ftInField('c-proj','Projection')}
       </div>
       <div class="field"><label>Quantity (identical units)</label><input type="number" id="c-qty" value="1" min="1" step="1"></div>
+      <div class="checkline" style="margin-top:-2px;">
+        <input type="checkbox" id="c-customface-toggle">
+        <label for="c-customface-toggle">Custom fascia size (e.g. larger than 12″) — set size + MFG $/sqft</label>
+      </div>
+      <div id="c-customface-wrap" class="grid2" style="display:none;">
+        <div class="field"><label>Fascia size (inches)</label><input type="number" id="c-customface-in" value="18" min="1" step="1"></div>
+        <div class="field"><label>MFG $ / sqft (override)</label><input type="number" id="c-customface-mfg" value="" min="0" step="1" placeholder="e.g. 130"></div>
+      </div>
       <div id="tier-out" class="tier-badge"></div>
       <div class="grid3">
         <div class="field"><label>Lights (qty)</label><input type="number" id="c-lights" value="0" min="0"></div>
@@ -657,6 +665,11 @@ function renderCanopySection(sectionKey, faceLabel){
     document.getElementById('c-cchannel').disabled = e.target.checked;
     computeCanopy(sectionKey);
   });
+  document.getElementById('c-customface-toggle').addEventListener('change', (e)=>{
+    document.getElementById('c-customface-wrap').style.display = e.target.checked ? '' : 'none';
+    computeCanopy(sectionKey);
+  });
+  ['c-customface-in','c-customface-mfg'].forEach(id=>document.getElementById(id).addEventListener('input', ()=>computeCanopy(sectionKey)));
   // sensible default attachment by face height (user can change)
   document.getElementById('c-attach').value = faceInches >= 12 ? 'tierod' : 'topsupport';
   computeCanopy(sectionKey);
@@ -685,10 +698,17 @@ function computeCanopy(sectionKey){
   const cchannel = cchannelPerim ? (widthFt + 2*projFt) : (parseFloat(document.getElementById('c-cchannel').value)||0);
   if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
   const tier = pickTier(cfg.tiers, widthFt, projFt);
-  document.getElementById('tier-out').innerHTML = `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`;
+  // custom / large fascia override — manual size + MFG $/sqft
+  const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
+  const cfMfg = parseFloat((document.getElementById('c-customface-mfg')||{}).value)||0;
+  const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
+  const mfgRate = (cfOn && cfMfg>0) ? cfMfg : tier.mfg;
+  document.getElementById('tier-out').innerHTML = (cfOn && cfMfg>0)
+    ? `Custom fascia: <b>${cfIn||'?'}″</b> — MFG $${mfgRate}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`
+    : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${qty>1 ? ` · × ${qty} units` : ''}${mitered ? ` · mitered, total width ${widthFt.toFixed(2)}ft` : ''}`;
 
   const sqft = widthFt*projFt;
-  const mfgBase = sqft*tier.mfg*qty;
+  const mfgBase = sqft*mfgRate*qty;
   const lightsCost = lights*tier.lights*qty;
   const downspoutCost = downspout*tier.downspout*qty;
   const postsCost = posts*(tier.post||650)*qty;
@@ -721,6 +741,10 @@ function computeCanopy(sectionKey){
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   const r = computeCanopy(sectionKey);
+  // custom / large fascia size overrides the section's fixed face
+  const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
+  const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
+  if(cfOn && cfIn>0){ faceInches = cfIn; faceLabel = cfIn + '"'; }
   const widthStr = r.mitered ? [ftInLabel('c-width1'), ftInLabel('c-width2'), ftInLabel('c-width3')].join(' x ') : ftInLabel('c-width');
   const name = document.getElementById('c-name').value || `${faceLabel} Canopy`;
   const group = document.getElementById('c-group').value || 'Metal-Tech Canopy - Fully welded construction';
@@ -2450,7 +2474,7 @@ function serializeForCurrentBase(){
   if(!lastQuoteSummary) renderQuote();
   const s = lastQuoteSummary || {};
   const F = CURRENT_BASE_CFG.fields;
-  const projName = _atHdr('hdr-projname') || _atHdr('hdr-shipname') || 'Untitled Bid';
+  const projName = projectNameForUpload();
   const addrParts = [_atHdr('hdr-address1'), _atHdr('hdr-address2')].filter(Boolean).join('\n');
   const log = buildAirtableLogText();
   const grand = s.total || 0;
@@ -2612,6 +2636,14 @@ function _splitCityStateZip(s){
   if(m) return { city:m[1].trim(), state:m[2].toUpperCase(), zip:m[3]||'' };
   return { city:s, state:'', zip:'' };
 }
+// Project name for Airtable = "<name> - City, ST" (appends location if not already present)
+function projectNameForUpload(){
+  const baseName = _atHdr('hdr-projname') || _atHdr('hdr-shipname') || 'Untitled Bid';
+  const cs = _splitCityStateZip(_atHdr('hdr-address2'));
+  const loc = (cs.city && cs.state) ? `${cs.city}, ${cs.state}` : (cs.city || cs.state || '');
+  if(loc && baseName.toLowerCase().indexOf(loc.toLowerCase()) < 0) return `${baseName} - ${loc}`;
+  return baseName;
+}
 
 /* Turn the current quote into the new-base payload:
    { quoteRequest, quote, lineItems[], stateJSON, summary } — exact $ per line. */
@@ -2619,7 +2651,7 @@ function serializeQuoteForAirtable(){
   if(!lastQuoteSummary) renderQuote();
   const s = lastQuoteSummary || {};
   const inv = AIRTABLE_CFG.inventory;
-  const projName = _atHdr('hdr-projname') || _atHdr('hdr-shipname') || 'Untitled Project';
+  const projName = projectNameForUpload();
   const cityState = _splitCityStateZip(_atHdr('hdr-address2'));
   const lines = [];
   const push = (invKey, invName, qty, lineTotal, desc) => {
