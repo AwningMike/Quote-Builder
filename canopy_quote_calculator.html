@@ -2765,7 +2765,7 @@ function openAirtableSettings(){
     <input type="password" id="at-token-input" placeholder="pat••••••••" value="${cur.replace(/"/g,'')}" style="width:100%;padding:8px;font-family:monospace;margin-bottom:10px">
     <div style="font-size:12px;color:#555;margin-bottom:8px">Inventory is pulled from Airtable by name — no IDs kept in the app. Cached items: <b id="at-inv-count">${Object.keys(_atInvCache()).length}</b>.</div>
     <div class="dm-actions">
-      <button class="dm-download" onclick="try{localStorage.setItem('apmg_at_token',document.getElementById('at-token-input').value.trim());}catch(e){}; document.getElementById('at-settings-backdrop').remove();">Save token</button>
+      <button class="dm-download" onclick="saveAirtableToken()">Save token</button>
       <button class="dm-download" id="at-test-conn" onclick="testAirtableConnection()">Test connection</button>
       <button class="dm-download" id="at-refresh-inv" onclick="refreshInventoryFromAirtable()">Refresh inventory from Airtable</button>
       <button class="dm-download" onclick="try{localStorage.removeItem('apmg_at_token');}catch(e){}; document.getElementById('at-settings-backdrop').remove();">Clear</button>
@@ -2773,6 +2773,15 @@ function openAirtableSettings(){
     </div>
   </div>`;
   document.body.appendChild(back);
+}
+function saveAirtableToken(){
+  const el = document.getElementById('at-token-input');
+  const v = el ? el.value.trim() : '';
+  if(v && (v.length < 50 || v.indexOf('.') < 0)){
+    if(!confirm('⚠ That token looks incomplete.\n\nA full Airtable token is ~82 characters and contains a period (.) — a short ID, then a long secret after the dot. You entered '+v.length+' characters'+(v.indexOf('.')<0?' with no period':'')+'.\n\nAirtable only shows the full token once at creation. If it was truncated, create a new token and Copy the whole value.\n\nSave anyway?')) return;
+  }
+  try { localStorage.setItem('apmg_at_token', v); } catch(e){}
+  const bd = document.getElementById('at-settings-backdrop'); if(bd) bd.remove();
 }
 async function testAirtableConnection(){
   const t = document.getElementById('at-token-input');
