@@ -2720,11 +2720,61 @@ async function pushToCurrentBase(){
       const pr = await uploadQuotePdf(recId, token);
       pdfNote = pr && pr.ok ? '\n• Quote PDF attached ✓' : (pr && pr.error ? '\n• Quote PDF NOT attached: '+pr.error : '');
     }
+    // Phase 2: append a margin snapshot to the Margin Log (material-only for now)
+    let marginNote = '';
+    const ml = await writeMarginLog(token);
+    if(ml.ok) marginNote = `\n• Margin logged: ${ml.marginPct.toFixed(1)}% material`;
+    else if(ml.error) marginNote = '\n• Margin log NOT written: '+ml.error;
     const svc = serviceFromQuote();
-    alert(`Uploaded to current base ✓\n${p.projName} — $${p.grand.toLocaleString()}\n(${existingId ? 'updated existing project'+(existingStatus?` · status kept: ${existingStatus}`:'') : 'new project · Status '+CURRENT_BASE_CFG.defaultStatus+' · Service: '+(svc.join(', ')||'—')})${pdfNote}`);
+    alert(`Uploaded to current base ✓\n${p.projName} — $${p.grand.toLocaleString()}\n(${existingId ? 'updated existing project'+(existingStatus?` · status kept: ${existingStatus}`:'') : 'new project · Status '+CURRENT_BASE_CFG.defaultStatus+' · Service: '+(svc.join(', ')||'—')})${pdfNote}${marginNote}`);
   } catch(err){
     alert('Upload failed: '+err.message+'\n(Check your token has write access to the APMG base.)');
   }
+}
+
+/* ---------------- PHASE 2 — MARGIN LOG (Airtable margin history) ----------------
+   Appends one dated snapshot per bid upload to the "Margin Log" table in the APMG
+   base. Feeds the margin safety-net (rolling-avg dip, downward trend, jobs below
+   floor). Margin is MATERIAL-ONLY until shop/install labor numbers are set. */
+const MARGIN_LOG_CFG = {
+  baseId: 'appHEn1othbGBQEMc',   // APMG (same as current base)
+  table:  'tblLLVInhCh9yh4L9',   // Margin Log
+  fields: {
+    project:'fldyISCg5dLaMNjjx', date:'fld2asBrDsVXVIWSW', qbNo:'fldzRHM8cBlaT4Wo0',
+    company:'fldtaVAZrc5zvG0G0', sale:'flddKi3HEnX91kO9i', matCost:'fldxFCrDaaP8C4xaU',
+    margin:'fldgOznisIw6CXVTE', target:'fldYLbU4freqXRuVp', basis:'fldhPBM1K5lXQkHii',
+    sqft:'fldmBIEBUsjzsXJCv', source:'fldmyKeKfSFZaOxOn'
+  }
+};
+async function writeMarginLog(token){
+  try {
+    const cans = quoteItems.filter(i=>i.type==='canopy');
+    if(!cans.length) return { ok:false, skipped:true };
+    let sell=0, mat=0, sqft=0;
+    cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount; mat+=c.material; sqft+=c.sqft; });
+    if(sell<=0) return { ok:false, skipped:true };
+    const target = parseFloat((document.getElementById('mc-target')||{}).value)||42.5;
+    const marginPct = (sell-mat)/sell*100;
+    const F = MARGIN_LOG_CFG.fields, f = {};
+    f[F.project] = projectNameForUpload();
+    f[F.date]    = new Date().toISOString().slice(0,10);
+    f[F.qbNo]    = _atHdr('hdr-projno');
+    f[F.company] = _atHdr('hdr-company') || 'SA';
+    f[F.sale]    = Math.round(sell);
+    f[F.matCost] = Math.round(mat);
+    f[F.margin]  = Math.round(marginPct*10)/10;
+    f[F.target]  = target;
+    f[F.basis]   = 'Material only';
+    f[F.sqft]    = Math.round(sqft);
+    f[F.source]  = 'Quote Builder';
+    const resp = await fetch(`https://api.airtable.com/v0/${MARGIN_LOG_CFG.baseId}/${MARGIN_LOG_CFG.table}`, {
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ records:[{ fields:f }], typecast:true })
+    }).then(r=>r.json());
+    if(resp.error) return { ok:false, error: resp.error.message||JSON.stringify(resp.error) };
+    return { ok:true, marginPct, sell, mat };
+  } catch(e){ return { ok:false, error:e.message }; }
 }
 
 /* =========================================================================
