@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>APMG Price Watch — supplier pricing → margin impact</title>
+<style>
+  :root{--navy:#1f3b6e;--red:#c0392b;--grn:#1f6b33;--amb:#b8860b;--line:#d9d9d9;--ink:#1a1a1a;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:#eef1f4;}
+  header.top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  header.top h1{font-size:16px;margin:0;font-weight:700;}
+  header.top .tag{font-size:11px;opacity:.85;}
+  .wrap{display:flex;gap:14px;padding:14px;align-items:flex-start;flex-wrap:wrap;}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;}
+  .left{width:430px;flex:0 0 430px;}
+  .right{flex:1;min-width:460px;}
+  h3{font-size:13px;margin:0 0 8px;color:var(--navy);}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th{background:var(--navy);color:#fff;padding:6px;text-align:left;font-size:10.5px;}
+  td{border:1px solid #e6e9ee;padding:5px 6px;}
+  tr.alt td{background:#f6f8fb;}
+  input.px{width:78px;padding:4px 5px;font-size:12px;border:1px solid #bbb;border-radius:4px;text-align:right;}
+  input.small{width:64px;padding:4px 5px;font-size:12px;border:1px solid #bbb;border-radius:4px;}
+  button{background:var(--navy);color:#fff;border:0;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+  button.sec{background:#5a6b82;}
+  button.grn{background:var(--grn);}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .up{color:var(--red);font-weight:700;} .dn{color:var(--grn);font-weight:700;} .flat{color:#8a94a6;}
+  .stat{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+  .stile{background:#f7f9fc;border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:150px;}
+  .stile .v{font-size:22px;font-weight:800;} .stile .l{font-size:11px;color:#8a94a6;}
+  .muted{color:#8a94a6;font-size:11px;margin-top:8px;line-height:1.5;}
+  .flag{background:#fdecea;}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>APMG Price Watch</h1>
+  <span class="tag">supplier pricing → margin impact on typical builds · test run</span>
+  <span class="tag" id="tok"></span>
+</header>
+<div class="wrap">
+  <div class="panel left">
+    <h3>Eastern Metal member prices ($/stick)</h3>
+    <div class="btns">
+      <span style="font-size:12px;">Simulate tariff: bump all <input id="bump" class="small" type="number" value="10" step="1">% </span>
+      <button class="sec" onclick="bumpAll()">Apply</button>
+      <button class="sec" onclick="resetPrices()">Reset to current</button>
+    </div>
+    <table id="ptable"><thead><tr><th>Member</th><th>SKU</th><th>Current</th><th>New</th><th>Δ%</th></tr></thead><tbody></tbody></table>
+    <div class="muted">Edit "New" for any member (or paste a supplier update), then read the margin impact on the right. Prices mirror the quote builder / drawing tool cost engine.</div>
+  </div>
+  <div class="panel right">
+    <h3>Margin impact on typical builds</h3>
+    <div class="stat" id="stats"></div>
+    <table id="itable"><thead><tr><th>Build</th><th>Sq ft</th><th>Sell*</th><th>Material now</th><th>Material new</th><th>$ Δ</th><th>Margin now</th><th>Margin new</th><th>Δ</th></tr></thead><tbody></tbody></table>
+    <div class="muted">*Sell = sq ft × your $95/$105 rate. Margin here is <b>material-only</b> (matches the quote builder today) — the point is the <b>erosion</b> when supplier prices move; the below-target flag becomes meaningful once labor is folded in. </div>
+    <div class="btns" style="margin-top:14px;">
+      <span style="font-size:12px;">Effective date <input id="effdate" class="small" type="date" style="width:130px"></span>
+      <input id="notes" class="small" style="width:200px" placeholder="notes (e.g. tariff round 2)">
+      <button class="grn" onclick="logUpdate()">Log this price update to Airtable</button>
+    </div>
+    <div class="muted" id="logmsg"></div>
+  </div>
+</div>
+<script>
+// ---- member cost drivers (mirror of the quote builder / drawing builder) ----
+const MEMBERS = [
+  {k:'pan6',   sku:'56-63-015', role:'6" self-mating pan',  cur:140.4, stock:24, cover:0.5},
+  {k:'pan8',   sku:'56-63-046', role:'8" self-mating pan',  cur:174.0, stock:24, cover:0.667},
+  {k:'fascia6',sku:'56-63-033', role:'6" gutter fascia',    cur:246.0, stock:24},
+  {k:'fascia8',sku:'56-63-016', role:'8" gutter fascia',    cur:372.0, stock:24},
+  {k:'fascia10',sku:'56-63-043',role:'10" gutter fascia',   cur:474.0, stock:24},
+  {k:'fascia12',sku:'56-63-042',role:'12" gutter fascia',   cur:594.0, stock:24},
+  {k:'support14',sku:'20-63-235',role:'1×4 front/rear',     cur:175.2, stock:24},
+  {k:'tierod1',sku:'18-63-225', role:'Sch40 1" tie-rod',    cur:60.0,  stock:20},
+  {k:'sleeve125',sku:'18-63-230',role:'Sch40 1.25" sleeve', cur:100.8, stock:24},
+  {k:'plate',  sku:'10-61-365', role:'wall plate bar',      cur:14.0,  stock:24},
+  {k:'outrig22',sku:'13-63-272',role:'2×2 outrigger',       cur:14.0,  stock:24},
+];
+const M = {}; MEMBERS.forEach(m=>M[m.k]=m);
+const FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
+let NEW = {}; MEMBERS.forEach(m=>NEW[m.k]=m.cur);   // editable new prices
+
+const BUILDS = [
+  {label:'8" · 10×4', W:10,P:4,face:8,attach:'tierod'},
+  {label:'8" · 20×5', W:20,P:5,face:8,attach:'tierod'},
+  {label:'12" · 12×5',W:12,P:5,face:12,attach:'tierod'},
+  {label:'8" · 30×8', W:30,P:8,face:8,attach:'tierod'},
+];
+
+function ffd(pieces,stock){pieces=[...pieces].sort((a,b)=>b-a);let bins=[];for(const p of pieces){let d=false;for(let i=0;i<bins.length;i++){if(bins[i]>=p+1/12){bins[i]-=(p+1/12);d=true;break;}}if(!d)bins.push(stock-p-1/12);}return bins.length;}
+// material $ for a canopy, priced by map PX (memberKey -> $/stick)
+function material(spec, PX){
+  const face=spec.face, qty=spec.qty||1, legs=[{w:spec.W,p:spec.P}], N=1;
+  const pan=M[spec.pan||'pan6'], fasc=M[FAS[face]||'fascia8'];
+  let mat=0;
+  let pp=[]; legs.forEach(l=>{const n=Math.max(1,Math.ceil(l.w/pan.cover));for(let k=0;k<n;k++)pp.push(l.p);});
+  mat += ffd(pp,pan.stock)*PX[pan.k];
+  let fp=[]; legs.forEach(l=>fp.push(l.w)); fp.push(legs[0].p); fp.push(legs[N-1].p);
+  mat += ffd(fp,fasc.stock)*PX[fasc.k];
+  let sp=[]; legs.forEach(l=>{sp.push(l.w);sp.push(l.w);});
+  mat += ffd(sp,M.support14.stock)*PX.support14;
+  let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
+  if(spec.attach==='tierod'){
+    let tp=[]; legs.forEach(l=>{const n=Math.ceil(l.w/4)+1;for(let k=0;k<n;k++)tp.push(l.p+3);});
+    mat += ffd(tp,M.tierod1.stock)*PX.tierod1;
+    mat += ffd(tp.map(()=>1),M.sleeve125.stock)*PX.sleeve125;
+  }
+  mat += ffd(Array(pts).fill(0.5),M.plate.stock)*PX.plate;
+  mat += pts*8;
+  mat *= qty; mat *= 1.03;
+  return mat;
+}
+const CUR = {}; MEMBERS.forEach(m=>CUR[m.k]=m.cur);
+function sellOf(b){const sqft=b.W*b.P; return sqft*(b.face<=8?95:105);}
+
+function renderPrices(){
+  const tb=document.querySelector('#ptable tbody'); let h='';
+  MEMBERS.forEach((m,i)=>{
+    const chg=(NEW[m.k]-m.cur)/m.cur*100;
+    const cls=chg>0.05?'up':(chg<-0.05?'dn':'flat');
+    h+=`<tr class="${i%2?'alt':''}"><td>${m.role}</td><td>${m.sku}</td><td>$${m.cur.toFixed(2)}</td>`+
+       `<td><input class="px" type="number" step="0.01" value="${NEW[m.k].toFixed(2)}" onchange="setNew('${m.k}',this.value)"></td>`+
+       `<td class="${cls}">${chg>0?'+':''}${chg.toFixed(1)}%</td></tr>`;
+  });
+  tb.innerHTML=h;
+}
+function setNew(k,v){NEW[k]=parseFloat(v)||0; render();}
+function bumpAll(){const p=(parseFloat(document.getElementById('bump').value)||0)/100; MEMBERS.forEach(m=>NEW[m.k]=Math.round(m.cur*(1+p)*100)/100); render();}
+function resetPrices(){MEMBERS.forEach(m=>NEW[m.k]=m.cur); render();}
+
+let LAST=null;
+function renderImpact(){
+  const tb=document.querySelector('#itable tbody'); let h='';
+  let sumMatOld=0,sumMatNew=0,sumSqft=0,mNewSum=0,mOldSum=0;
+  BUILDS.forEach((b,i)=>{
+    const sqft=b.W*b.P, sell=sellOf(b);
+    const mo=material(b,CUR), mn=material(b,NEW);
+    const marOld=(sell-mo)/sell, marNew=(sell-mn)/sell, d=marNew-marOld;
+    sumMatOld+=mo; sumMatNew+=mn; sumSqft+=sqft; mNewSum+=marNew; mOldSum+=marOld;
+    const dcls=d<-0.001?'up':(d>0.001?'dn':'flat');
+    h+=`<tr class="${i%2?'alt':''}"><td>${b.label}</td><td>${sqft}</td><td>$${Math.round(sell).toLocaleString()}</td>`+
+       `<td>$${Math.round(mo).toLocaleString()}</td><td>$${Math.round(mn).toLocaleString()}</td>`+
+       `<td class="${mn>mo?'up':'flat'}">${mn>mo?'+':''}$${Math.round(mn-mo).toLocaleString()}</td>`+
+       `<td>${(marOld*100).toFixed(1)}%</td><td>${(marNew*100).toFixed(1)}%</td>`+
+       `<td class="${dcls}">${d>0?'+':''}${(d*100).toFixed(1)} pts</td></tr>`;
+  });
+  tb.innerHTML=h;
+  const avgMatSqftNew=sumMatNew/sumSqft;
+  const blendedDelta=(mNewSum-mOldSum)/BUILDS.length*100;
+  // biggest mover
+  let bm={k:null,chg:0}; MEMBERS.forEach(m=>{const c=(NEW[m.k]-m.cur)/m.cur; if(Math.abs(c)>Math.abs(bm.chg))bm={k:m.k,chg:c};});
+  const bmTxt = bm.k ? `${M[bm.k].role} ${bm.chg>0?'+':''}${(bm.chg*100).toFixed(0)}%` : '—';
+  LAST={avgMatSqftNew, blendedDelta, bmTxt, avgMatSqftOld:sumMatOld/sumSqft};
+  const dcol=blendedDelta<-0.05?'var(--red)':(blendedDelta>0.05?'var(--grn)':'var(--ink)');
+  document.getElementById('stats').innerHTML=
+    `<div class="stile"><div class="v" style="color:${dcol}">${blendedDelta>0?'+':''}${blendedDelta.toFixed(1)} pts</div><div class="l">blended margin change</div></div>`+
+    `<div class="stile"><div class="v">$${avgMatSqftNew.toFixed(2)}</div><div class="l">avg material $/sq ft (was $${(sumMatOld/sumSqft).toFixed(2)})</div></div>`+
+    `<div class="stile"><div class="v" style="font-size:15px">${bmTxt}</div><div class="l">biggest mover</div></div>`;
+}
+function render(){renderPrices();renderImpact();}
+
+// ---- log to Airtable Supplier Price History (same origin token as quote builder) ----
+const HIST = {
+  base:'appHEn1othbGBQEMc', table:'tbl7A5LWHvRFAfH15',
+  f:{update:'fldq89ojQ7uRgxVNF',date:'fldYx1LOXaJyi0wF8',avgsqft:'fldakrQy0aNjERHXl',
+     impact:'fld529Pvy3GRhWR1S',mover:'fldAIheFJF8fA0zba',prices:'fldKS9T14N6iNQaS8',
+     notes:'fld2UBrvbJnV21OkF',source:'fldB1fKqjlHbOXNrg'}
+};
+function token(){ try{return localStorage.getItem('apmg_at_token')||'';}catch(e){return '';} }
+async function logUpdate(){
+  const msg=document.getElementById('logmsg');
+  const t=token();
+  if(!t){ msg.innerHTML='<span style="color:var(--red)">No Airtable token found. Open the Quote Builder, paste your token under ⚙ Airtable connection, then come back (same browser).</span>'; return; }
+  const eff=document.getElementById('effdate').value || new Date().toISOString().slice(0,10);
+  const f={};
+  f[HIST.f.update]='EMS '+eff;
+  f[HIST.f.date]=eff;
+  f[HIST.f.avgsqft]=Math.round(LAST.avgMatSqftNew*100)/100;
+  f[HIST.f.impact]=Math.round(LAST.blendedDelta*10)/10;
+  f[HIST.f.mover]=LAST.bmTxt;
+  f[HIST.f.prices]=JSON.stringify(NEW);
+  f[HIST.f.notes]=document.getElementById('notes').value||'';
+  f[HIST.f.source]='Price Watch';
+  msg.textContent='Logging…';
+  try{
+    const r=await fetch(`https://api.airtable.com/v0/${HIST.base}/${HIST.table}`,{method:'POST',
+      headers:{'Authorization':'Bearer '+t,'Content-Type':'application/json'},
+      body:JSON.stringify({records:[{fields:f}],typecast:true})}).then(r=>r.json());
+    if(r.error){ msg.innerHTML='<span style="color:var(--red)">Log failed: '+(r.error.message||JSON.stringify(r.error))+'</span>'; return; }
+    msg.innerHTML='<span style="color:var(--grn)">Logged ✓ — Supplier Price History updated ('+eff+').</span>';
+  }catch(e){ msg.innerHTML='<span style="color:var(--red)">Log failed: '+e.message+'</span>'; }
+}
+
+document.getElementById('tok').textContent = token() ? '· Airtable token found' : '· no token (log disabled until set in Quote Builder)';
+document.getElementById('effdate').value = new Date().toISOString().slice(0,10);
+render();
+</script>
+</body>
+</html>
