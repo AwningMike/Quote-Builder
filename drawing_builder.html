@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>APMG Drawing Builder — Shop Drawing + Cut Sheet</title>
+<style>
+  :root{--navy:#1f3b6e;--red:#c0392b;--org:#e67e22;--ink:#1a1a1a;--line:#d9d9d9;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:#eef1f4;}
+  header.top{background:var(--navy);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  header.top h1{font-size:16px;margin:0;font-weight:700;}
+  header.top .tag{font-size:11px;opacity:.8;}
+  .wrap{display:flex;gap:14px;padding:14px;align-items:flex-start;flex-wrap:wrap;}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;}
+  .inputs{width:320px;flex:0 0 320px;}
+  .out{flex:1;min-width:520px;}
+  label{display:block;font-size:12px;font-weight:600;margin:8px 0 3px;}
+  input,select{width:100%;padding:6px 8px;font-size:13px;border:1px solid #bbb;border-radius:5px;}
+  .row2{display:flex;gap:8px;}.row2>div{flex:1;}
+  .chk{display:flex;align-items:center;gap:8px;margin-top:10px;}
+  .chk input{width:auto;}
+  button{background:var(--navy);color:#fff;border:0;border-radius:6px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;}
+  button.sec{background:#5a6b82;}
+  button.green{background:#1f6b33;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .legrow{display:flex;gap:6px;margin-top:5px;}
+  table{border-collapse:collapse;width:100%;font-size:11.5px;margin-top:6px;}
+  th{background:var(--navy);color:#fff;padding:5px 6px;text-align:left;font-size:10.5px;}
+  td{border:1px solid #e3e6ea;padding:4px 6px;}
+  tr.alt td{background:#f6f8fb;}
+  tr.tot td{background:#eef1f4;font-weight:700;}
+  .muted{color:#777;font-size:11px;}
+  .warn{color:#b00000;}
+  svg{max-width:100%;height:auto;border:1px solid var(--line);background:#fff;border-radius:6px;}
+  h3{font-size:13px;margin:14px 0 4px;color:var(--navy);}
+  .pill{display:inline-block;font-size:10px;background:#eef1f4;border:1px solid #cdd6e0;border-radius:10px;padding:1px 7px;margin-left:6px;color:#555;}
+  @media print{header.top,.inputs,.btns,.noprint{display:none!important;}.out{width:100%;}body{background:#fff;}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>APMG Drawing Builder</h1>
+  <span class="tag">Shop drawing + metal cut sheet · v1 (canopies)</span>
+  <span class="tag" id="src"></span>
+</header>
+<div class="wrap">
+  <div class="panel inputs noprint">
+    <div class="row2"><div><label>Job #</label><input id="job" placeholder="3903"></div><div><label>Customer</label><input id="cust" placeholder="Chipotle"></div></div>
+    <div class="row2"><div><label>Width (ft)</label><input id="W" type="number" value="20" step="0.5"></div><div><label>Projection (ft)</label><input id="P" type="number" value="5" step="0.5"></div></div>
+    <div class="row2"><div><label>Face height</label><select id="face"><option>6</option><option selected>8</option><option>10</option><option>12</option></select></div><div><label>Qty</label><input id="qty" type="number" value="1" min="1"></div></div>
+    <label>Roof pan (designer call)</label>
+    <select id="pan"><option value="pan6" selected>6" self-mating pan (56-63-015)</option><option value="pan8">8" self-mating pan (56-63-046)</option></select>
+    <div class="chk"><input type="checkbox" id="mit"><label style="margin:0">Mitered / multi-leg (corner turn)</label></div>
+    <div id="legbox" style="display:none">
+      <label>Legs</label><select id="legN"><option>2</option><option>3</option><option>4</option><option>5</option></select>
+      <div id="legrows"></div>
+    </div>
+    <label style="margin-top:10px">Attachment</label>
+    <select id="attach"><option value="allthread" selected>All-thread to wall (standard)</option><option value="tierod">Tie-rod hung</option><option value="cantilever">Cantilever</option></select>
+    <div class="chk"><input type="checkbox" id="outrig"><label style="margin:0">Add 2×2 outriggers (on request)</label></div>
+    <div id="outbox" style="display:none"><label>Outrigger spacing (ft o.c.)</label><input id="outsp" type="number" value="7" step="0.5"></div>
+    <div class="btns"><button onclick="generate()">Generate</button></div>
+    <div class="btns"><button class="sec" onclick="downloadCSV()">Cut list CSV</button><button class="sec" onclick="window.print()">Print sheet</button><button class="green" id="atbtn" title="coming next">Push to Airtable</button></div>
+    <p class="muted" id="note"></p>
+  </div>
+  <div class="panel out">
+    <div id="draw"></div>
+    <h3>Framing schedule &amp; cut list <span class="pill" id="matpill"></span></h3>
+    <div id="cut"></div>
+    <p class="muted">Sticks = whole stock lengths after nesting cuts (real purchasing). <span class="warn">Prices marked ⚠ are unconfirmed (SKU not on the supplier quote yet).</span> Auto-generated fabrication aid — verify + engineer review before fabrication.</p>
+  </div>
+</div>
+<script>
+// ---------- embedded member data (from APMG inventory / Eastern Metal) ----------
+const M = {
+ pan6:{sku:"56-63-015",role:'6" self-mating pan',profile:"3x6x.065",cover:0.5,stock:24,perpc:140.4,conf:true},
+ pan8:{sku:"56-63-046",role:'8" self-mating pan',profile:"2x8x.075",cover:0.667,stock:24,perpc:174.0,conf:true},
+ fascia6:{sku:"56-63-033",role:'6" gutter fascia',profile:"4x6x.093",stock:24,perpc:246.0,conf:true},
+ fascia8:{sku:"56-63-016",role:'8" gutter fascia',profile:"4x8x.125",stock:24,perpc:372.0,conf:true},
+ fascia10:{sku:"56-63-043",role:'10" gutter fascia',profile:"4x10x.140",stock:24,perpc:474.0,conf:true},
+ fascia12:{sku:"56-63-042",role:'12" gutter fascia',profile:"4x12x.160",stock:24,perpc:594.0,conf:true},
+ support14:{sku:"20-63-235",role:'1x4 front/rear support',profile:"1x4x.125",stock:24,perpc:175.2,conf:true},
+ tierod1:{sku:"18-63-225",role:'Sch40 1" tie-rod',profile:'1" sch40',stock:20,perpc:60.0,conf:true},
+ sleeve125:{sku:"18-63-230",role:'Sch40 1.25" sleeve',profile:'1.25" sch40',stock:24,perpc:100.8,conf:true},
+ plate:{sku:"10-61-365",role:'6x6x1/4 wall plate (cut from 1/4x6 bar)',profile:"1/4x6 bar",stock:24,perpc:14,conf:false},
+ outrig22:{sku:"13-63-272",role:'2x2 outrigger',profile:"2x2x1/8",stock:24,perpc:14,conf:false},
+};
+const FASCIA={6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
+const KERF=1/12;
+
+function ftin(ft){let inch=Math.round(ft*12),f=Math.floor(inch/12),i=inch%12;return i?`${f}'-${i}"`:`${f}'-0"`;}
+function ffd(pieces,stock){pieces=[...pieces].sort((a,b)=>b-a);let bins=[];
+  for(const p of pieces){let done=false;
+    for(let i=0;i<bins.length;i++){if(bins[i].rem>=p+KERF){bins[i].rem-=(p+KERF);done=true;break;}}
+    if(!done)bins.push({rem:stock-p-KERF});}
+  return bins.length;}
+
+// ---------- recipe ----------
+function members(spec){
+  const {W,P,face,qty,pan,attach,outrig,outsp,mitered,legs}=spec;
+  const rows=[];
+  const fasciaKey=FASCIA[face]||'fascia8';
+  const panM=M[pan]||M.pan6;
+  const legList = mitered&&legs&&legs.length? legs : [{w:W,p:P}];
+  const N=legList.length;
+  const totW=legList.reduce((a,l)=>a+l.w,0);
+
+  // 1. ROOF PANS — width ÷ cover, each = projection (per leg)
+  let panPieces=[],panNote=[];
+  legList.forEach((l,i)=>{const n=Math.max(1,Math.ceil(l.w/panM.cover));panPieces.push(...Array(n).fill(l.p));panNote.push(`leg ${i+1}: ${n}×${ftin(l.p)}`);});
+  addLinear(rows,panM,panPieces,`Roof pan — ${panM.role.split(' ')[0]} self-mating`, N>1?panNote.join(' · '):`${panPieces.length} pans × ${ftin(P)}`,qty,'seats in fascia; top plate welded');
+
+  // 2. GUTTER FASCIA — front(s) + 2 ends, mitred corners
+  const fM=M[fasciaKey];
+  let fpieces=[]; legList.forEach(l=>fpieces.push(l.w)); fpieces.push(legList[0].p); fpieces.push(legList[N-1].p);
+  const welds=(N-1)+2;
+  addLinear(rows,fM,fpieces,`Gutter fascia — ${face}" (wraps ${N} leg${N>1?'s':''})`,`${welds} mitred+welded corners`,qty,`45° mitre corners${face==8?' · 1"×3/16" C detail':face==12?' · 4"×2" angle ext':''}`);
+
+  // 3. FRONT/REAR SUPPORT 1x4 — front + rear per leg
+  let sp=[]; legList.forEach(l=>{sp.push(l.w);sp.push(l.w);});
+  addLinear(rows,M.support14,sp,'Front/rear support — 1×4',`front + rear × ${N} leg${N>1?'s':''}`,qty,'perimeter framing');
+
+  // 4. ATTACHMENT
+  let pts=0; legList.forEach(l=>pts+=Math.ceil(l.w/2)+1); // anchors @ 24" o.c.
+  if(attach==='tierod'||attach==='cantilever'){
+    let tp=[]; legList.forEach(l=>{const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3);});
+    addLinear(rows,M.tierod1,tp,`${attach==='cantilever'?'Cantilever':'Tie-rod'} — Sch40 1"`,`${tp.length} @ ~4' o.c.`,qty,'threaded');
+    addLinear(rows,M.sleeve125,tp.map(()=>1),'Sleeve pipe — Sch40 1.25"',`${tp.length} sleeves`,qty,'over tie-rod');
+  }
+  // wall plates (cut 6" from bar) + anchors
+  addLinear(rows,M.plate,Array(pts).fill(0.5),'Wall plates — 6×6×1/4',`${pts} @ 24" o.c.`,qty,'3/8" all-thread into 2×8 blocking');
+  addCount(rows,{sku:'(hardware)',role:'Anchors / hardware',profile:'3/8" all-thread',conf:true,perpc:8},pts,`${pts} points`,qty);
+
+  // 5. OUTRIGGERS (optional)
+  if(outrig){
+    let op=[]; legList.forEach(l=>{const n=Math.ceil(l.w/(outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p);});
+    addLinear(rows,M.outrig22,op,'2×2 outriggers (added)',`${op.length} @ ${outsp}' o.c.`,qty,'welded; sleeve if steel-tied');
+  }
+
+  const mat=rows.reduce((a,r)=>a+r.cost,0);
+  const misc=mat*0.03;
+  return {rows,mat:mat+misc,misc,legList,welds,totW};
+}
+function addLinear(rows,m,pieces,role,detail,qty,angle){
+  if(!pieces.length)return;
+  const lineal=pieces.reduce((a,b)=>a+b,0);
+  const sticks=ffd(pieces,m.stock||24);
+  const cost=(sticks*(m.perpc||0))*qty;
+  rows.push({role,sku:m.sku,profile:m.profile,detail,lineal,sticks:sticks*qty,angle,cost,conf:m.conf!==false,cutlist:collapse(pieces,angle)});
+}
+function addCount(rows,m,n,detail,qty){
+  rows.push({role:m.role,sku:m.sku,profile:m.profile,detail,lineal:null,sticks:null,angle:'',cost:n*(m.perpc||0)*qty,conf:m.conf!==false,cutlist:[]});
+}
+function collapse(pieces,angle){const map={};pieces.forEach(p=>{map[p]=(map[p]||0)+1;});return Object.entries(map).map(([len,q])=>({len:+len,q,angle}));}
+
+// ---------- drawing ----------
+function drawSVG(spec,res){
+  const {W,P,face}=spec; const NS='http://www.w3.org/2000/svg';
+  const legList=res.legList, N=legList.length;
+  const SW=1180, SH=760, sc=Math.min(30, 620/Math.max(res.totW, P+2));
+  let e=[];
+  const R=(x,y,w,h,st,sw,f)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f||'none'}" stroke="${st||'#1a1a1a'}" stroke-width="${sw||1.4}"/>`;
+  const L=(x1,y1,x2,y2,st,sw)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${st||'#1a1a1a'}" stroke-width="${sw||1}"/>`;
+  const T=(x,y,s,sz,w,f,anc)=>`<text x="${x}" y="${y}" font-family="Arial" font-size="${sz||12}" font-weight="${w||400}" fill="${f||'#1a1a1a'}" text-anchor="${anc||'start'}">${s}</text>`;
+  e.push(`<rect x="0" y="0" width="${SW}" height="${SH}" fill="#fff"/>`);
+  e.push(R(10,10,SW-20,SH-20,'#1a1a1a',2));
+  // PLAN
+  const ox=70, oy=150;
+  e.push(T(ox,oy-70,'PLAN VIEW'+(N>1?' — '+N+'-LEG MITERED':''),15,700));
+  let cursor=ox;
+  legList.forEach((l,i)=>{
+    const w=l.w*sc, h=l.p*sc;
+    e.push(R(cursor,oy,w,h));
+    const nrib=Math.max(2,Math.ceil(l.w/2)+1);
+    for(let k=0;k<nrib;k++){const x=cursor+Math.min(k*2,l.w)*sc; e.push(L(x,oy,x,oy+h,'#2c6fbb',1));}
+    e.push(L(cursor,oy+h,cursor+w,oy+h,'#111',3.5)); // front support
+    if(spec.outrig){const os=(spec.outsp||7); for(let k=0;k*os<=l.w;k++){const x=cursor+Math.min(k*os,l.w)*sc; e.push(L(x,oy,x,oy+h,'#e67e22',2));}}
+    // dims
+    e.push(L(cursor,oy+h+28,cursor+w,oy+h+28,'#c0392b',1));
+    e.push(T(cursor+w/2,oy+h+24,(N>1?`LEG ${i+1} `:'W ')+ftin(l.w),11,600,'#c0392b','middle'));
+    cursor+=w;
+  });
+  // corner weld marks between legs + ends
+  e.push(T(ox,oy+legList[0].p*sc+52,`FASCIA: ${res.welds} mitred+welded corners · 6" self-mating pans run the projection`,11,600,'#e67e22'));
+  e.push(L(ox-24,oy,ox-24,oy+legList[0].p*sc,'#c0392b',1));
+  e.push(T(ox-30,oy+legList[0].p*sc/2,'P '+ftin(legList[0].p),11,600,'#c0392b','middle'));
+  // ELEVATION
+  const ey=oy+Math.max(...legList.map(l=>l.p))*sc+95, fh=face/12*sc*2;
+  e.push(T(ox,ey-12,'FRONT ELEVATION',15,700));
+  e.push(R(ox,ey,res.totW*sc,fh,'#1a1a1a',1.4,'#eef3f8'));
+  e.push(L(ox,ey,ox+res.totW*sc,ey,'#111',2.5));
+  e.push(T(ox+res.totW*sc+14,ey+fh/2,`${face}" GUTTER FASCIA (${M[FASCIA[face]].sku})`,12,600));
+  e.push(L(ox-24,ey,ox-24,ey+fh,'#c0392b',1));
+  e.push(T(ox-30,ey+fh/2,face+'"',11,600,'#c0392b','middle'));
+  // callouts
+  const cx=ox+res.totW*sc+14;
+  e.push(T(cx,oy+10,`ROOF PAN — ${M[spec.pan].role} (${M[spec.pan].sku})`,12,600));
+  e.push(T(cx,oy+30,`FRONT/REAR SUPPORT — 1×4 (20-63-235)`,12,600));
+  e.push(T(cx,oy+50,`ATTACH — ${spec.attach==='allthread'?'all-thread @24" o.c.':spec.attach}`,12,600));
+  if(spec.outrig)e.push(T(cx,oy+70,`OUTRIGGERS — 2×2 @ ${spec.outsp}' o.c.`,12,600,'#e67e22'));
+  // title block
+  const tbx=SW-430, tby=SH-140;
+  e.push(R(tbx,tby,410,110,'#1a1a1a',1.4));
+  e.push(L(tbx,tby+28,tbx+410,tby+28)); e.push(L(tbx,tby+56,tbx+410,tby+56)); e.push(L(tbx,tby+82,tbx+410,tby+82));
+  e.push(T(tbx+8,tby+19,'AWNING PARTNERS MFG GROUP — SHOP DRAWING',12,700));
+  e.push(T(tbx+8,tby+47,`CANOPY: ${N>1?N+'-LEG · ':''}${ftin(W)}×${ftin(P)} · ${face}" FACE`,11,600));
+  e.push(T(tbx+8,tby+74,`JOB #: ${spec.job||'____'}   ${spec.cust||''}`,11,600));
+  e.push(T(tbx+8,tby+99,'Auto-generated fab aid — verify + engineer review',9,400,'#c0392b'));
+  document.getElementById('draw').innerHTML=`<svg xmlns="${NS}" viewBox="0 0 ${SW} ${SH}">${e.join('')}</svg>`;
+}
+
+// ---------- cut sheet table ----------
+function cutTable(res){
+  let h='<table><thead><tr><th>Member</th><th>SKU</th><th>Profile</th><th>Cut length</th><th>Qty</th><th>Cut angle / note</th><th>Sticks</th><th>Cost</th></tr></thead><tbody>';
+  let alt=false;
+  res.rows.forEach(r=>{
+    const cl=r.cutlist&&r.cutlist.length?r.cutlist:[{len:null,q:'',angle:r.angle}];
+    cl.forEach((c,i)=>{
+      h+=`<tr class="${alt?'alt':''}"><td>${i?'':esc(r.role)}</td><td>${i?'':r.sku}</td><td>${i?'':esc(r.profile||'')}</td>`+
+         `<td>${c.len?ftin(c.len):(i?'':esc(r.detail||''))}</td><td>${c.q||''}</td><td>${esc(c.angle||'')}</td>`+
+         `<td>${i?'':(r.sticks||'-')}</td><td>${i?'':'$'+Math.round(r.cost).toLocaleString()+(r.conf?'':' <span class=warn>⚠</span>')}</td></tr>`;
+    });
+    alt=!alt;
+  });
+  h+=`<tr class="tot"><td colspan="7" style="text-align:right">MATERIAL</td><td>$${Math.round(res.mat).toLocaleString()}</td></tr>`;
+  h+='</tbody></table>';
+  document.getElementById('cut').innerHTML=h;
+  document.getElementById('matpill').textContent='material $'+Math.round(res.mat).toLocaleString();
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+
+// ---------- CSV (machine cut list) ----------
+let LAST=null;
+function downloadCSV(){
+  if(!LAST){generate();}
+  let rows=[['part','sku','profile','length_in','angle_left_deg','angle_right_deg','qty','material_note']];
+  LAST.rows.forEach(r=>{(r.cutlist||[]).forEach(c=>{
+    const mit=/mitre|miter|45/i.test(c.angle||'');
+    rows.push([r.role,r.sku,r.profile||'',c.len?(c.len*12).toFixed(2):'',mit?'45':'90',mit?'45':'90',c.q,c.angle||'']);
+  });});
+  const csv=rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download=`APMG_cutlist_${(document.getElementById('job').value||'job')}.csv`;a.click();
+}
+
+// ---------- UI wiring ----------
+function readSpec(){
+  const mit=document.getElementById('mit').checked;
+  let legs=null;
+  if(mit){legs=[];const n=+document.getElementById('legN').value;for(let i=0;i<n;i++){legs.push({w:+(document.getElementById('lw'+i)?.value||10),p:+(document.getElementById('lp'+i)?.value||5)});}}
+  return {job:document.getElementById('job').value,cust:document.getElementById('cust').value,
+    W:+document.getElementById('W').value,P:+document.getElementById('P').value,face:+document.getElementById('face').value,
+    qty:+document.getElementById('qty').value,pan:document.getElementById('pan').value,attach:document.getElementById('attach').value,
+    outrig:document.getElementById('outrig').checked,outsp:+document.getElementById('outsp').value,mitered:mit,legs};
+}
+function generate(){const spec=readSpec();const res=members(spec);LAST=res;drawSVG(spec,res);cutTable(res);
+  const unconf=res.rows.filter(r=>!r.conf).map(r=>r.sku);
+  document.getElementById('note').innerHTML=unconf.length?`<span class="warn">⚠ Unconfirmed pricing/SKU: ${[...new Set(unconf)].join(', ')}</span>`:'All member pricing from supplier quote.';
+}
+function buildLegRows(){const n=+document.getElementById('legN').value;let h='';for(let i=0;i<n;i++){h+=`<div class="legrow"><input id="lw${i}" type="number" placeholder="leg ${i+1} W" value="${i?8:12}" step="0.5"><input id="lp${i}" type="number" placeholder="P" value="5" step="0.5"></div>`;}document.getElementById('legrows').innerHTML=h;}
+document.getElementById('mit').onchange=e=>{document.getElementById('legbox').style.display=e.target.checked?'block':'none';if(e.target.checked)buildLegRows();};
+document.getElementById('legN').onchange=buildLegRows;
+document.getElementById('outrig').onchange=e=>{document.getElementById('outbox').style.display=e.target.checked?'block':'none';};
+
+// ---------- handoff: parse #spec=<base64 json> from the quote builder button ----------
+function loadHandoff(){
+  try{
+    const h=location.hash;if(!h.includes('spec='))return false;
+    const raw=decodeURIComponent(h.split('spec=')[1]);
+    const s=JSON.parse(atob(raw));
+    if(s.job!==undefined)document.getElementById('job').value=s.job;
+    if(s.cust!==undefined)document.getElementById('cust').value=s.cust;
+    if(s.W)document.getElementById('W').value=s.W;
+    if(s.P)document.getElementById('P').value=s.P;
+    if(s.face)document.getElementById('face').value=s.face;
+    if(s.qty)document.getElementById('qty').value=s.qty;
+    if(s.mitered&&s.legs){document.getElementById('mit').checked=true;document.getElementById('legbox').style.display='block';document.getElementById('legN').value=s.legs.length;buildLegRows();s.legs.forEach((l,i)=>{document.getElementById('lw'+i).value=l.w;document.getElementById('lp'+i).value=l.p;});}
+    document.getElementById('src').textContent='← received from Quote Builder';
+    return true;
+  }catch(err){console.warn('handoff parse',err);return false;}
+}
+loadHandoff();
+generate();
+</script>
+</body>
+</html>

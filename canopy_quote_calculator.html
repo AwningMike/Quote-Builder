@@ -370,6 +370,14 @@
           <div class="row" id="q-tax-row" style="display:none;"><span id="q-tax-label">Sales Tax (7%)</span><span class="num" id="q-tax">$0</span></div>
           <div class="row total"><span>Total</span><span class="num" id="q-total">$0</span></div>
         </div>
+        <style>@media print{.margin-check{display:none!important}}</style>
+        <div class="margin-check" id="margin-check" style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f7f9fc;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only · internal — not on the customer quote</span></strong>
+            <span style="font-size:12px;">target <input id="mc-target" type="number" value="42.5" step="0.5" style="width:54px;padding:2px 4px;font-size:12px;" onchange="renderQuote()">%</span>
+          </div>
+          <div id="mc-body" style="font-size:12px;margin-top:8px;color:#555;">Add a canopy to see its margin against your true cost.</div>
+        </div>
         <button class="btn copy-summary" id="copy-airtable-btn" onclick="copyForAirtable()">Copy for Airtable Log</button>
         <button class="btn" style="background:#1a7f37" onclick="pushToCurrentBase()" title="Upload this bid to your current APMG Projects base now">⬆ Upload Bid to Current Base (Projects)</button>
         <button class="btn secondary" onclick="previewAirtablePayload()" title="Validate the new-base mapping now — nothing is sent">🔎 Preview Airtable Payload (new base)</button>
@@ -625,23 +633,44 @@ function renderCanopySection(sectionKey, faceLabel){
         <label for="c-cchannel-perimeter">C-Channel auto — full perimeter (Width + 2 × Projection)</label>
       </div>
       <div class="field"><label>Added Fascia ($ — your call)</label><input type="number" id="c-fascia" value="0" min="0" step="1"></div>
-      <div class="grid2">
-        <div class="field"><label>Attachment <span style="text-transform:none;font-weight:400;">(for drawing)</span></label>
-          <select id="c-attach">
-            <option value="tierod">Tie-Rod (hung)</option>
-            <option value="cchannel">C-Channel (low attach)</option>
-            <option value="topsupport">Top Support (flat)</option>
-          </select>
+      <style>
+        .drawing-opts{border:1px solid var(--line);border-radius:6px;margin:8px 0;}
+        .drawing-opts>summary{cursor:pointer;list-style:none;padding:8px 10px;font-size:12px;font-weight:700;color:#e0a800;user-select:none;}
+        .drawing-opts>summary::-webkit-details-marker{display:none;}
+        .drawing-opts>summary::before{content:'▸ ';}
+        .drawing-opts[open]>summary::before{content:'▾ ';}
+        .drawing-opts>summary .do-sub{font-weight:400;color:var(--text-faint);text-transform:none;}
+        .drawing-opts .do-body{padding:2px 10px 10px;}
+      </style>
+      <details class="drawing-opts">
+        <summary>Drawing details <span class="do-sub">— attachment · paint · blocking · arm height (only needed if you'll make a drawing)</span></summary>
+        <div class="do-body">
+          <div class="grid2">
+            <div class="field"><label>Attachment <span style="text-transform:none;font-weight:400;">(for drawing)</span></label>
+              <select id="c-attach">
+                <option value="tierod">Tie-Rod (hung)</option>
+                <option value="cchannel">C-Channel (low attach)</option>
+                <option value="topsupport">Top Support (flat)</option>
+              </select>
+            </div>
+            <div class="field"><label>Finish / Paint <span style="text-transform:none;font-weight:400;">(blank = mill)</span></label><input type="text" id="c-paint" placeholder="e.g. Regal Red MP15394"></div>
+          </div>
+          <div class="field"><label>Wall / Blocking <span style="text-transform:none;font-weight:400;">(for attachment detail)</span></label>
+            <select id="c-blocking">
+              <option value="wood">Wood Blocking — (2) 2&quot;x8&quot; @ 24&quot; O.C.</option>
+              <option value="masonry">Masonry / Concrete</option>
+              <option value="metal">Metal / Steel</option>
+            </select>
+          </div>
+          <div class="field"><label>Arm height <span style="text-transform:none;font-weight:400;">(bottom of canopy → top of plate)</span></label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="number" id="c-armft" value="5" min="0" style="flex:1;" title="feet"><span style="font-size:12px;color:var(--text-faint);">ft</span>
+              <input type="number" id="c-armin" value="5" min="0" max="11" step="0.5" style="flex:1;" title="inches"><span style="font-size:12px;color:var(--text-faint);">in</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:3px;">Drives the tie-rod/plate height <b>and</b> blocking placement on the attachment detail. Default 5&#39;5&quot;.</div>
+          </div>
         </div>
-        <div class="field"><label>Finish / Paint <span style="text-transform:none;font-weight:400;">(blank = mill)</span></label><input type="text" id="c-paint" placeholder="e.g. Regal Red MP15394"></div>
-      </div>
-      <div class="field"><label>Wall / Blocking <span style="text-transform:none;font-weight:400;">(for attachment detail)</span></label>
-        <select id="c-blocking">
-          <option value="wood">Wood Blocking — (2) 2&quot;x8&quot; @ 24&quot; O.C.</option>
-          <option value="masonry">Masonry / Concrete</option>
-          <option value="metal">Metal / Steel</option>
-        </select>
-      </div>
+      </details>
       <div class="field"><label>Job / item label</label><input type="text" id="c-name" placeholder="e.g. Front entry canopy"></div>
       <div class="field"><label>Quote Group</label><input type="text" id="c-group" value="Metal-Tech Canopy - Fully welded construction"></div>
       <div class="breakdown" id="c-breakdown"></div>
@@ -804,7 +833,8 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
       cchannelPerUnit: r.cchannelPerUnit,
       attach: (document.getElementById('c-attach')||{}).value || 'tierod',
       paint: ((document.getElementById('c-paint')||{}).value || '').trim(),
-      blocking: (document.getElementById('c-blocking')||{}).value || 'wood'
+      blocking: (document.getElementById('c-blocking')||{}).value || 'wood',
+      armHeightIn: (parseFloat((document.getElementById('c-armft')||{}).value)||5)*12 + (parseFloat((document.getElementById('c-armin')||{}).value)||0)
     }
   });
   renderQuote();
@@ -1322,8 +1352,12 @@ function wallDetailFigure(item, baseY, label){
   const deckY = baseY+360, deckH = 26, deckOut = projIn*3.4;
   s += `<rect x="${wsX2}" y="${deckY}" width="${deckOut}" height="${deckH}" fill="url(#pans)" stroke="#111" stroke-width="1.3"/>`;
   s += `<rect x="${wsX2+deckOut-6}" y="${deckY-1}" width="6" height="${deckH+2}" fill="#eee" stroke="#111" stroke-width="1"/>`; // front fascia edge
-  // blocking blocks (red X-hatch) — top behind wall plate, bottom behind lower framing
-  const topBlkY = wTop+10, botBlkY = deckY-2;
+  // blocking blocks (red X-hatch) — top behind wall plate, bottom behind lower framing.
+  // Top-blocking / wall-plate height is driven by the canopy's arm height (bottom of canopy
+  // to top of plate). Default 5'5" (65") — matches the old hardcoded value.
+  const armIn = (s0.armHeightIn!=null ? s0.armHeightIn : (projIn>50?98:65));
+  const spanPx = Math.max(60, Math.min(deckY-(wTop+10), armIn*3.0)); // scale ~3px/in, clamped to wall
+  const topBlkY = Math.max(wTop+10, deckY - spanPx), botBlkY = deckY-2;
   s += _blkBlock(wsX-10, topBlkY, 12, 34);       // top blocking
   s += _blkBlock(wsX-10, botBlkY, 12, 20);       // bottom blocking (7")
   // tie-rod triangle: wall plate (top) -> top plate at canopy end
@@ -1353,8 +1387,8 @@ function wallDetailFigure(item, baseY, label){
   s += `<line x1="${noteX}" y1="${noteY+40}" x2="${wsX2+deckOut-10}" y2="${deckY}" stroke="#111" stroke-width="0.6"/>`;
   // Standard 2" EIFs callout
   s += leader(430, baseY+250, wsX-2, baseY+250, 'Standard 2" EIFs', 'start');
-  // dims: wall-attach span (vertical) + 7" bottom blocking
-  s += vDim(wsX-40, topBlkY, deckY, projIn>50?98:65, {extTo:wsX-10});
+  // dims: wall-attach span (vertical, = arm height) + 7" bottom blocking
+  s += vDim(wsX-40, topBlkY, deckY, armIn, {extTo:wsX-10});
   s += vDim(wsX-14, botBlkY, deckY, 7, {extTo:wsX2});
   // Bottom of Canopies AFF TBD
   s += `<text x="${wsX2+deckOut/2}" y="${deckY+deckH+26}" font-size="13" font-weight="600" fill="#111" text-anchor="middle">Bottom of Canopies</text>`;
@@ -1832,6 +1866,7 @@ function showDrawingModal(itemId){
       <div class="dm-actions">
         <button class="dm-pdf" onclick="exportCanopyPDF(${item.id})">Export PDF</button>
         <button class="dm-download" onclick="downloadCanopyDXF(${item.id})">Download DXF (AutoCAD)</button>
+        <button class="dm-download" style="background:#1f6b33" onclick="openDrawingBuilder(${item.id})" title="Open this canopy in the standalone Drawing Builder for a detailed shop drawing + metal cut sheet">🔧 Shop Drawing + Cut Sheet</button>
         <button class="dm-close" onclick="closeDrawingModal()">Close</button>
       </div>
       <div class="dm-note">APMG-format reference drawing — dimensions shown in feet-inches with total inches in [brackets]. Views are schematic (fascia height exaggerated for readability, as on the shop sheets); all labels are exact. Joist layout is generic from the accessory counts. The downloaded DXF is drawn to true scale in inches with all three views, border and title block — a starting point for the drafter, not a finished shop drawing (no hardware, joinery, or mounting detail).</div>
@@ -1842,6 +1877,29 @@ function showDrawingModal(itemId){
 function closeDrawingModal(){
   const el = document.getElementById('drawing-modal-backdrop');
   if(el) el.remove();
+}
+
+// Hand this canopy off to the standalone Drawing Builder (detailed shop drawing + cut sheet).
+// The quick-concept drawing in this app stays as-is; this opens the separate tool with the spec.
+function openDrawingBuilder(itemId){
+  const item = quoteItems.find(i=>i.id===itemId);
+  if(!item) return;
+  const s = item.spec || {};
+  const gv = id => { const el=document.getElementById(id); return el ? el.value.trim() : ''; };
+  const attachMap = { tierod:'tierod', cchannel:'allthread', topsupport:'allthread' };
+  const spec = {
+    job: gv('hdr-projno'),
+    cust: gv('hdr-projname') || gv('hdr-shipname'),
+    W: s.widthFt || 0,
+    P: s.projFt || 0,
+    face: s.face || 8,
+    qty: s.qty || 1,
+    attach: attachMap[s.attach] || 'allthread',
+    mitered: !!s.mitered,
+    legs: (s.mitered && s.legs) ? s.legs.map(l=>({ w:l.wFt, p:l.pFt })) : null
+  };
+  const url = 'drawing_builder.html#spec=' + encodeURIComponent(btoa(JSON.stringify(spec)));
+  window.open(url, '_blank');
 }
 
 // combined drawing of every canopy on the quote, one sheet
@@ -2252,6 +2310,89 @@ function toggleGroup(gid){
   if(el) el.style.display = el.style.display==='block' ? 'none' : 'block';
 }
 
+/* ---------------- MARGIN CHECK — true-cost engine (shared with Drawing Builder) ----------------
+   Material from the canopy framing recipe (BOM, nested into stock sticks) + labor (weld/paint prep/
+   paint time) + paint materials + freight. Compared to the canopy SELL to show live margin.
+   Members/pricing mirror the standalone Drawing Builder so the two never disagree. */
+const CM = {
+ pan6:{cover:0.5,stock:24,perpc:140.4}, pan8:{cover:0.667,stock:24,perpc:174.0},
+ fascia6:{stock:24,perpc:246.0}, fascia8:{stock:24,perpc:372.0}, fascia10:{stock:24,perpc:474.0}, fascia12:{stock:24,perpc:594.0},
+ support14:{stock:24,perpc:175.2}, tierod1:{stock:20,perpc:60.0}, sleeve125:{stock:24,perpc:100.8},
+ plate:{stock:24,perpc:14}, outrig22:{stock:24,perpc:14}
+};
+const CM_FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
+const CM_LABOR = { weldHrPerSqft:0.08, prepHrPerSqft:0.06, paintHrPerSqft:0.06, rate:65 };
+const CM_PAINTMAT = 4;   // $/sqft
+const CM_FREIGHT = 0.05; // % of material
+function _cmFfd(pieces, stock){
+  pieces=[...pieces].sort((a,b)=>b-a); let bins=[];
+  for(const p of pieces){ let done=false;
+    for(let i=0;i<bins.length;i++){ if(bins[i]>=p+1/12){ bins[i]-=(p+1/12); done=true; break; } }
+    if(!done) bins.push(stock-p-1/12);
+  }
+  return bins.length;
+}
+// True cost for one canopy line item (all qty). Returns {material,labor,finish,freight,cost,sqft}.
+function canopyTrueCost(spec){
+  if(!spec) return {material:0,labor:0,finish:0,freight:0,cost:0,sqft:0};
+  const face = spec.face||8, qty = spec.qty||1;
+  const legs = (spec.mitered && spec.legs && spec.legs.length)
+    ? spec.legs.map(l=>({w:l.wFt||0,p:l.pFt||0}))
+    : [{w:spec.widthFt||0,p:spec.projFt||0}];
+  const N = legs.length;
+  const pan = CM[spec.panKey||'pan6'];
+  const fasc = CM[CM_FAS[face]||'fascia8'];
+  let mat = 0;
+  let pp=[]; legs.forEach(l=>{ const n=Math.max(1,Math.ceil(l.w/pan.cover)); for(let k=0;k<n;k++) pp.push(l.p); });
+  mat += _cmFfd(pp,pan.stock)*pan.perpc;
+  let fp=[]; legs.forEach(l=>fp.push(l.w)); fp.push(legs[0].p); fp.push(legs[N-1].p);
+  mat += _cmFfd(fp,fasc.stock)*fasc.perpc;
+  let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
+  mat += _cmFfd(sp,CM.support14.stock)*CM.support14.perpc;
+  let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
+  if((spec.attach||'')==='tierod'){
+    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3); });
+    mat += _cmFfd(tp,CM.tierod1.stock)*CM.tierod1.perpc;
+    mat += _cmFfd(tp.map(()=>1),CM.sleeve125.stock)*CM.sleeve125.perpc;
+  }
+  mat += _cmFfd(Array(pts).fill(0.5),CM.plate.stock)*CM.plate.perpc;
+  mat += pts*8;
+  if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); mat += _cmFfd(op,CM.outrig22.stock)*CM.outrig22.perpc; }
+  mat *= qty; mat *= 1.03; // fasteners / misc
+  const sqft = legs.reduce((a,l)=>a+l.w*l.p,0)*qty;
+  const labor = sqft*(CM_LABOR.weldHrPerSqft+CM_LABOR.prepHrPerSqft+CM_LABOR.paintHrPerSqft)*CM_LABOR.rate;
+  const finish = sqft*CM_PAINTMAT;
+  const freight = mat*CM_FREIGHT;
+  return {material:mat, labor, finish, freight, cost:mat+labor+finish+freight, sqft};
+}
+function updateMarginCheck(){
+  const el = document.getElementById('mc-body'); if(!el) return;
+  const target = (parseFloat(document.getElementById('mc-target').value)||42.5)/100;
+  const cans = quoteItems.filter(i=>i.type==='canopy');
+  if(!cans.length){ el.innerHTML = 'Add a canopy to see its margin against your true cost.'; return; }
+  // MATERIAL ONLY for now — labor/finish/freight are held out until hard numbers are set.
+  // (canopyTrueCost still computes them so they can be switched on later without rework.)
+  let sell=0, mat=0;
+  cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount; mat+=c.material; });
+  const margin = sell>0 ? (sell-mat)/sell : 0;
+  const reqSell = mat/(1-target);
+  const ok = margin>=target;
+  const col = ok ? '#1f6b33' : (margin>=target-0.05 ? '#b8860b' : '#c0392b');
+  const badge = ok ? 'ON TARGET' : (margin>=target-0.05 ? 'CLOSE' : 'BELOW TARGET');
+  el.innerHTML =
+    `<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:baseline;">
+       <span style="font-size:20px;font-weight:800;color:${col};">${(margin*100).toFixed(1)}%</span>
+       <span style="font-weight:700;color:${col};">${badge}</span>
+       <span style="color:#8a94a6;">material margin vs ${(target*100).toFixed(1)}% target</span>
+     </div>
+     <div style="margin-top:6px;line-height:1.6;">
+       Canopy sell <b>$${Math.round(sell).toLocaleString()}</b> &nbsp;·&nbsp; material cost <b>$${Math.round(mat).toLocaleString()}</b><br>
+       To hit ${(target*100).toFixed(1)}% on material, sell ≥ <b>$${Math.round(reqSell).toLocaleString()}</b>
+       ${ok?'':`<span style="color:${col};font-weight:700;"> — you're $${Math.round(reqSell-sell).toLocaleString()} light</span>`}
+     </div>
+     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM, bought as whole sticks.</div>`;
+}
+
 function renderQuote(){
   const list = document.getElementById('quote-list');
   const countLabel = document.getElementById('item-count-label');
@@ -2349,6 +2490,7 @@ function renderQuote(){
   setCopyableTotal('q-stamped', stamped);
   setCopyableTotal('q-tax', tax);
   setCopyableTotal('q-total', total);
+  updateMarginCheck();
 
   lastQuoteSummary = {
     groups: (()=>{
