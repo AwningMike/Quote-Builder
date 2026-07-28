@@ -70,6 +70,8 @@
   /* Save / Quotes / New Quote relocated below the calculator, matched to the Quote box width */
   .quote-actions{ width:340px; max-width:100%; margin-top:16px; display:flex; flex-direction:column; gap:10px; }
   .quote-actions .btn{ width:100%; padding:12px 14px; font-size:14px; }
+  /* Saved Quotes modal: buttons must size to content, not the base .btn width:100% */
+  #quotes-modal-backdrop .btn{ width:auto; margin-top:0; flex:0 0 auto; }
 
   .card{ background:var(--panel); border:1px solid var(--line); border-radius:2px; padding:20px; }
   .card + .card{ margin-top:16px; }
@@ -2420,20 +2422,50 @@ function openQuotesModal(){
 }
 function closeQuotesModal(){ const b=document.getElementById('quotes-modal-backdrop'); if(b) b.remove(); }
 function _fmtWhen(iso){ try{ return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } }
+// Customer / city / project# line, so two quotes with the same total are easy to tell apart.
+function _quoteRowDesc(st){
+  if(!st || !st.hdr) return '';
+  const h=st.hdr;
+  const who  = (h['hdr-projname']||h['hdr-shipname']||'').trim();
+  const to   = (h['hdr-to']||'').split('\n')[0].trim();          // customer / attn from the TO box
+  const city = (h['hdr-address2']||'').replace(/\s*\d{5}(-\d{4})?\s*$/,'').replace(/[,\s]+$/,'').trim();
+  const no   = (h['hdr-projno']||'').trim();
+  const parts=[];
+  if(to) parts.push(to); else if(who) parts.push(who);
+  if(city) parts.push(city);
+  if(no) parts.push('#'+no);
+  return parts.join(' · ');
+}
+// Short preview of what's actually in the quote.
+function _quoteItemPreview(st){
+  const items=(st&&st.items)||[];
+  if(!items.length) return '';
+  const label=it=>{
+    if(it && it.title && String(it.title).trim()) return String(it.title).trim();
+    if(it && it.sub){ const seg=String(it.sub).split('·')[0].trim(); if(seg) return seg; }
+    return (it&&it.type)||'item';
+  };
+  const names=items.map(label);
+  return names.slice(0,2).join(', ') + (names.length>2?` +${names.length-2} more`:'');
+}
 function renderQuotesModal(){
   const body=document.getElementById('quotes-modal-body'); if(!body) return;
   const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const arr=_lsQuotes();
-  let dev = arr.length ? arr.map((r,i)=>`
+  let dev = arr.length ? arr.map((r,i)=>{
+    const desc=_quoteRowDesc(r.state), prev=_quoteItemPreview(r.state);
+    return `
     <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid #e3e8ef;border-radius:6px;margin-bottom:6px;">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
-        <div style="font-size:11px;color:#777">${r.total?('$'+Math.round(r.total).toLocaleString()+' · '):''}${(r.state&&r.state.items?r.state.items.length:0)} item(s) · ${_fmtWhen(r.savedAt)}</div>
+        ${desc?`<div style="font-size:12px;color:#33415a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(desc)}</div>`:''}
+        ${prev?`<div style="font-size:11px;color:#667;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(prev)}</div>`:''}
+        <div style="font-size:11px;color:#999;margin-top:1px">${r.total?('$'+Math.round(r.total).toLocaleString()+' · '):''}${(r.state&&r.state.items?r.state.items.length:0)} item(s) · ${_fmtWhen(r.savedAt)}</div>
       </div>
       <button class="btn" style="background:#1a7f37;padding:6px 10px;font-size:12px" onclick="openDeviceQuote(${i})">Open</button>
       <button class="btn" style="background:#5a6b82;padding:6px 8px;font-size:12px" title="Duplicate" onclick="duplicateDeviceQuote(${i})">⧉</button>
       <button class="btn" style="background:#b23; padding:6px 8px;font-size:12px" title="Delete" onclick="deleteDeviceQuote(${i})">🗑</button>
-    </div>`).join('') : `<div style="font-size:12px;color:#888;padding:6px 0">No quotes saved on this device yet. Build a quote, then hit <b>💾 Save</b>.</div>`;
+    </div>`; }).join('') : `<div style="font-size:12px;color:#888;padding:6px 0">No quotes saved on this device yet. Build a quote, then hit <b>💾 Save</b>.</div>`;
   body.innerHTML = `
     <div style="font-size:11px;font-weight:700;color:#5a6b82;text-transform:uppercase;letter-spacing:.04em;margin:2px 0 8px">On this device</div>
     ${dev}
