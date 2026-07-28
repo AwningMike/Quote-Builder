@@ -2529,7 +2529,7 @@ function buildSpecLines(i, height){
     }
     if(i.spec.lightsPerUnit>0){
       const total = i.spec.lightsPerUnit*i.spec.qty;
-      lines.push(i.spec.qty>1 ? `  LED Strip Lights: ${total} (${i.spec.lightsPerUnit}ea)` : `  LED Strip Lights: ${total}`);
+      lines.push(i.spec.qty>1 ? `  LEDs: ${total} (${i.spec.lightsPerUnit}ea)` : `  LEDs: ${total}`);
     }
     if(i.spec.postsPerUnit>0){
       const total = i.spec.postsPerUnit*i.spec.qty;
@@ -2612,7 +2612,7 @@ function buildAirtableLogText(){
   if(s.survey>0) lines.push(`Survey / PM: ${fmtDecimal(s.survey)}`);
   mfgLines.forEach(l=>lines.push(l));
   if(s.downspoutsTotal>0) lines.push(`Downspouts (${s.downspoutsQty}): ${fmtDecimal(s.downspoutsTotal)}`);
-  if(s.lightsTotal>0) lines.push(`LED Strip Lights (${s.lightsQty}): ${fmtDecimal(s.lightsTotal)}`);
+  if(s.lightsTotal>0) lines.push(`LEDs (${s.lightsQty}): ${fmtDecimal(s.lightsTotal)}`);
   if(s.postsTotal>0) lines.push(`Posts (${s.postsQty}): ${fmtDecimal(s.postsTotal)}`);
   lines.push(`Install: ${fmtDecimal(s.installation)}`);
   if(s.lift>0) lines.push(`Lift: ${fmtDecimal(s.lift)}`);
