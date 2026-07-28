@@ -3160,7 +3160,7 @@ function buildActivityRows(s, color, height){
     });
   }
   if(s.lightsTotal>0){
-    rows.push({ label:`LED Strip Lights - ${s.lightsQty}`, desc:'', amt: fmtDecimal(s.lightsTotal), taxed:true });
+    rows.push({ label:`LEDs - ${s.lightsQty}`, desc:'', amt: fmtDecimal(s.lightsTotal), taxed:true });
   }
   if(s.postsTotal>0){
     rows.push({ label:`Posts - ${s.postsQty}`, desc:'Support post(s) for canopy per plan. Footings/foundation by GC unless noted.', amt: fmtDecimal(s.postsTotal), taxed:true });
