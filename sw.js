@@ -1,8 +1,10 @@
 // APMG Quote Calculator service worker
 // Bump CACHE version whenever you deploy a new build so clients refresh cleanly.
-const CACHE = 'apmg-quote-calc-v29';
+const CACHE = 'apmg-quote-calc-v30';
 const ASSETS = [
   './canopy_quote_calculator.html',
+  './drawing_builder.html',
+  './price_watch.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
@@ -10,7 +12,7 @@ const ASSETS = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((c) => c.addAll(ASSETS).catch(()=>{})).then(() => self.skipWaiting())
   );
 });
 
@@ -24,19 +26,29 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  // Only ever cache same-origin GET requests (the app's own assets). Cross-origin
-  // calls like api.airtable.com — and any non-GET — must always hit the live network,
-  // never the cache, so auth/results are never served stale.
-  let sameOrigin = false;
-  try { sameOrigin = new URL(req.url).origin === self.location.origin; } catch (_) {}
-  if (req.method !== 'GET' || !sameOrigin) return; // browser handles it directly
+  // Only handle same-origin GET. Cross-origin (api.airtable.com) and non-GET always hit the live network.
+  let url;
+  try { url = new URL(req.url); } catch (_) { return; }
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+
+  // NETWORK-FIRST for pages/HTML so a new deploy is always picked up (no stale app).
+  // Cache is only the offline fallback. This prevents the "stuck on an old version" problem.
+  const isPage = req.mode === 'navigate' || req.destination === 'document' || url.pathname.endsWith('.html');
+  if (isPage) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.status === 200) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+        return res;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // CACHE-FIRST for static assets (icons, manifest) — with background refresh.
   e.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req).then((res) => {
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
+        if (res && res.status === 200) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;
       }).catch(() => cached);
       return cached || network;
