@@ -237,7 +237,9 @@
   <header class="top">
     <h1>Quote<span>Builder</span> — Canopy &amp; Awning</h1>
     <div class="meta">Rates loaded from pricing matrix · 07/2026</div>
-    <button class="btn" id="new-quote-btn" style="background:#1a7f37;margin-left:auto;white-space:nowrap;" onclick="newQuote()">＋ New Quote</button>
+    <button class="btn" id="save-quote-btn" style="background:#5a6b82;margin-left:auto;white-space:nowrap;" onclick="saveQuoteToDevice()">💾 Save</button>
+    <button class="btn" id="open-quote-btn" style="background:#3f5878;white-space:nowrap;" onclick="openQuotesModal()">📂 Quotes</button>
+    <button class="btn" id="new-quote-btn" style="background:#1a7f37;white-space:nowrap;" onclick="newQuote()">＋ New Quote</button>
   </header>
 
   <nav class="tabs" id="tabs"></nav>
@@ -2306,6 +2308,179 @@ function newQuote(){
   const b=document.getElementById('new-quote-btn'); if(b){ const t=b.textContent; b.textContent='New quote ✓'; setTimeout(()=>b.textContent=t,1200); }
 }
 
+/* ==================== SAVE / REOPEN QUOTES ====================
+   Two ways to come back to a quote and edit it:
+   (1) DEVICE — saved in this browser (localStorage). Instant, offline, private to this machine.
+   (2) CLOUD  — every bid you upload to Airtable also stores its full editable state, so you can
+       reopen it from any machine that has the Airtable token pasted in.
+   captureQuoteState() is the single source of truth for what a "quote" is. It's plain JSON so it
+   round-trips through localStorage and Airtable's Quote Builder State field with no data loss. */
+const QB_STATE_VERSION = 1;
+const LS_QUOTES_KEY = 'apmg_saved_quotes';
+const QB_HDR_FIELDS   = ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to','hdr-terms','hdr-company','hdr-date'];
+const QB_EXTRA_VALS   = ['extra-miles','extra-lift','extra-color','extra-ohio-county','extra-survey','extra-stamped'];
+const QB_EXTRA_CHECKS = ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items'];
+
+function captureQuoteState(){
+  const gv = id => { const el=document.getElementById(id); return el ? el.value : ''; };
+  const gc = id => { const el=document.getElementById(id); return el ? !!el.checked : false; };
+  const hdr={}, ev={}, ec={};
+  QB_HDR_FIELDS.forEach(id=>hdr[id]=gv(id));
+  QB_EXTRA_VALS.forEach(id=>ev[id]=gv(id));
+  QB_EXTRA_CHECKS.forEach(id=>ec[id]=gc(id));
+  return {
+    v: QB_STATE_VERSION,
+    savedAt: new Date().toISOString(),
+    items: JSON.parse(JSON.stringify(quoteItems||[])),
+    hdr, extraVals: ev, extraChecks: ec
+  };
+}
+function restoreQuoteState(st){
+  if(!st || typeof st!=='object'){ alert('Could not read that saved quote.'); return false; }
+  const sv=id=>{ const el=document.getElementById(id); return el; };
+  quoteItems = Array.isArray(st.items) ? JSON.parse(JSON.stringify(st.items)) : [];
+  // keep new line-item ids unique going forward
+  let maxId=0; quoteItems.forEach(i=>{ if(typeof i.id==='number' && i.id>maxId) maxId=i.id; });
+  itemSeq = maxId+1;
+  if(st.hdr)         Object.keys(st.hdr).forEach(id=>{ const el=sv(id); if(el) el.value=st.hdr[id]; });
+  if(st.extraVals)   Object.keys(st.extraVals).forEach(id=>{ const el=sv(id); if(el) el.value=st.extraVals[id]; });
+  if(st.extraChecks) Object.keys(st.extraChecks).forEach(id=>{ const el=sv(id); if(el) el.checked=!!st.extraChecks[id]; });
+  try{ renderCalc(); }catch(e){}
+  try{ renderQuote(); }catch(e){}
+  window.scrollTo(0,0);
+  return true;
+}
+
+/* ---- device (localStorage) store ---- */
+function _lsQuotes(){ try{ return JSON.parse(localStorage.getItem(LS_QUOTES_KEY)||'[]'); }catch(e){ return []; } }
+function _lsQuotesSet(arr){ try{ localStorage.setItem(LS_QUOTES_KEY, JSON.stringify(arr)); return true; }catch(e){ alert('Could not save on this device (storage full or blocked).'); return false; } }
+function _defaultQuoteName(){
+  const gv=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const nm = gv('hdr-projname')||gv('hdr-shipname')||'Untitled quote';
+  const no = gv('hdr-projno');
+  return no ? `${nm} — #${no}` : nm;
+}
+function saveQuoteToDevice(){
+  if(!quoteItems.length){ alert('Add at least one line item before saving.'); return; }
+  const name = prompt('Save this quote on this device as:', _defaultQuoteName());
+  if(name===null) return;
+  const nm = (name.trim()||_defaultQuoteName());
+  const arr = _lsQuotes();
+  const state = captureQuoteState();
+  const rec = { name:nm, savedAt:state.savedAt, total:(lastQuoteSummary&&lastQuoteSummary.total)||0, state };
+  const i = arr.findIndex(x=>x.name.toLowerCase()===nm.toLowerCase());
+  if(i>=0){ if(!confirm(`"${nm}" already exists on this device. Overwrite it?`)) return; arr[i]=rec; }
+  else arr.unshift(rec);
+  if(_lsQuotesSet(arr)){
+    const b=document.getElementById('save-quote-btn'); if(b){ const t=b.textContent; b.textContent='Saved ✓'; setTimeout(()=>b.textContent=t,1200); }
+    const back=document.getElementById('quotes-modal-backdrop'); if(back) renderQuotesModal();
+  }
+}
+function openDeviceQuote(idx){
+  const arr=_lsQuotes(); const rec=arr[idx]; if(!rec) return;
+  if(quoteItems.length && !confirm('Open this saved quote? It replaces what you have on screen now.')) return;
+  if(restoreQuoteState(rec.state)) closeQuotesModal();
+}
+function deleteDeviceQuote(idx){
+  const arr=_lsQuotes(); const rec=arr[idx]; if(!rec) return;
+  if(!confirm(`Delete saved quote "${rec.name}" from this device? This cannot be undone.`)) return;
+  arr.splice(idx,1); _lsQuotesSet(arr); renderQuotesModal();
+}
+function duplicateDeviceQuote(idx){
+  const arr=_lsQuotes(); const rec=arr[idx]; if(!rec) return;
+  const copy=JSON.parse(JSON.stringify(rec)); copy.name=rec.name+' (copy)';
+  arr.unshift(copy); _lsQuotesSet(arr); renderQuotesModal();
+}
+
+/* ---- Saved Quotes modal ---- */
+function openQuotesModal(){
+  if(document.getElementById('quotes-modal-backdrop')) return;
+  const back=document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='quotes-modal-backdrop';
+  back.addEventListener('click',e=>{ if(e.target===back) closeQuotesModal(); });
+  back.innerHTML = `<div class="drawing-modal" style="max-width:640px">
+    <h3>Saved Quotes</h3>
+    <div class="dm-sub">Reopen a quote to edit it. Saves on this device are instant; cloud quotes come from Airtable bids you've uploaded.</div>
+    <div id="quotes-modal-body">Loading…</div>
+    <div class="dm-actions" style="margin-top:18px"><button class="dm-close" onclick="closeQuotesModal()">Close</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  renderQuotesModal();
+}
+function closeQuotesModal(){ const b=document.getElementById('quotes-modal-backdrop'); if(b) b.remove(); }
+function _fmtWhen(iso){ try{ return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } }
+function renderQuotesModal(){
+  const body=document.getElementById('quotes-modal-body'); if(!body) return;
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const arr=_lsQuotes();
+  let dev = arr.length ? arr.map((r,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid #e3e8ef;border-radius:6px;margin-bottom:6px;">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+        <div style="font-size:11px;color:#777">${r.total?('$'+Math.round(r.total).toLocaleString()+' · '):''}${(r.state&&r.state.items?r.state.items.length:0)} item(s) · ${_fmtWhen(r.savedAt)}</div>
+      </div>
+      <button class="btn" style="background:#1a7f37;padding:6px 10px;font-size:12px" onclick="openDeviceQuote(${i})">Open</button>
+      <button class="btn" style="background:#5a6b82;padding:6px 8px;font-size:12px" title="Duplicate" onclick="duplicateDeviceQuote(${i})">⧉</button>
+      <button class="btn" style="background:#b23; padding:6px 8px;font-size:12px" title="Delete" onclick="deleteDeviceQuote(${i})">🗑</button>
+    </div>`).join('') : `<div style="font-size:12px;color:#888;padding:6px 0">No quotes saved on this device yet. Build a quote, then hit <b>💾 Save</b>.</div>`;
+  body.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:#5a6b82;text-transform:uppercase;letter-spacing:.04em;margin:2px 0 8px">On this device</div>
+    ${dev}
+    <div style="font-size:11px;font-weight:700;color:#5a6b82;text-transform:uppercase;letter-spacing:.04em;margin:18px 0 8px">From Airtable (cloud)</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input id="qb-cloud-search" type="text" placeholder="Search project name…" style="flex:1;padding:7px 9px;border:1px solid #ccc;border-radius:5px;font-size:13px"
+        onkeydown="if(event.key==='Enter')searchAirtableQuotes()">
+      <button class="btn" style="background:#3f5878;padding:7px 12px;font-size:12px" onclick="searchAirtableQuotes()">Search</button>
+    </div>
+    <div id="qb-cloud-results" style="font-size:12px;color:#888">Type a project name and hit Search to find a bid to reopen.</div>`;
+}
+async function searchAirtableQuotes(){
+  const res=document.getElementById('qb-cloud-results'); if(!res) return;
+  const term=((document.getElementById('qb-cloud-search')||{}).value||'').trim();
+  const token=_atToken();
+  if(!token){ res.innerHTML='<span style="color:#b23">Paste your Airtable token first (⚙ Airtable connection) to search cloud quotes.</span>'; return; }
+  if(!term){ res.textContent='Type a project name first.'; return; }
+  res.textContent='Searching…';
+  const F=CURRENT_BASE_CFG.fields, base=CURRENT_BASE_CFG.baseId, tbl=CURRENT_BASE_CFG.table;
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  try{
+    const formula=`SEARCH(LOWER(${JSON.stringify(term)}),LOWER({Project}&''))`;
+    const url=`https://api.airtable.com/v0/${base}/${tbl}?maxRecords=25&filterByFormula=${encodeURIComponent(formula)}`
+      +`&fields[]=${F.project}&fields[]=${F.salePrice}&fields[]=${F.qbState}&fields[]=${F.status}`;
+    const q=await fetch(url,{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    if(q.error){ res.innerHTML='<span style="color:#b23">'+esc(q.error.message||'Airtable error')+'</span>'; return; }
+    const recs=(q.records||[]);
+    if(!recs.length){ res.textContent='No projects matched "'+term+'".'; return; }
+    res.innerHTML = recs.map(r=>{
+      const nm=r.fields[F.project]||'(unnamed)';
+      const price=r.fields[F.salePrice]; const status=r.fields[F.status]||'';
+      const has=!!r.fields[F.qbState];
+      return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border:1px solid #e3e8ef;border-radius:6px;margin-bottom:6px;">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
+          <div style="font-size:11px;color:#777">${price?('$'+Math.round(price).toLocaleString()):'—'}${status?(' · '+esc(status)):''}</div>
+        </div>
+        ${has
+          ? `<button class="btn" style="background:#1a7f37;padding:6px 10px;font-size:12px" onclick="loadAirtableQuote('${r.id}')">Open</button>`
+          : `<span style="font-size:11px;color:#b23;max-width:150px;text-align:right">no editable state saved (uploaded before this feature)</span>`}
+      </div>`;
+    }).join('');
+  }catch(e){ res.innerHTML='<span style="color:#b23">Search failed: '+esc(e.message)+'</span>'; }
+}
+async function loadAirtableQuote(recId){
+  const token=_atToken(); if(!token){ alert('Paste your Airtable token first.'); return; }
+  const F=CURRENT_BASE_CFG.fields, base=CURRENT_BASE_CFG.baseId, tbl=CURRENT_BASE_CFG.table;
+  try{
+    const q=await fetch(`https://api.airtable.com/v0/${base}/${tbl}/${recId}`,{headers:{Authorization:'Bearer '+token}}).then(r=>r.json());
+    if(q.error){ alert('Could not load: '+(q.error.message||'error')); return; }
+    const raw=q.fields && q.fields[F.qbState];
+    if(!raw){ alert('That project has no saved Quote Builder state to reopen.'); return; }
+    let st; try{ st=JSON.parse(raw); }catch(e){ alert('Saved state on that project is unreadable.'); return; }
+    if(quoteItems.length && !confirm('Open this cloud quote? It replaces what you have on screen now.')) return;
+    if(restoreQuoteState(st)) closeQuotesModal();
+  }catch(e){ alert('Load failed: '+e.message); }
+}
+
 function toggleGroup(gid){
   const el = document.getElementById(gid);
   if(el) el.style.display = el.style.display==='block' ? 'none' : 'block';
@@ -2656,6 +2831,7 @@ const CURRENT_BASE_CFG = {
     pm:        'fld0wMezQFX23h0Ik',  // PM (collaborators)
     service:   'fldUCoGdwMJaRtAqM',  // Service (multipleSelects) — derived from quote
     quotePdf:  'fld2a5zDwKCYcVdYG',  // Quote (attachments) — PDF dropped here
+    qbState:   'fld6FjuUbTeTrUaHk',  // Quote Builder State (multilineText) — full JSON to reopen/edit the quote
   },
   defaultStatus: 'Scrubbing / Scaling',   // bids upload into this pipeline stage
   pmUser: 'usrbYftDso64IrJbg',            // Mike Sommer (mike@awningpartners.com)
@@ -2678,6 +2854,8 @@ function serializeForCurrentBase(){
   fields[F.gc]        = _atHdr('hdr-gc');
   fields[F.detailsLog]= `TOTAL: $${grand.toLocaleString()}\n\n${log}\n\n— uploaded from APMG Quote Builder`;
   if(isIndiana) fields[F.indiana] = true;
+  // Save the full editable quote state so this bid can be reopened & edited later from Airtable.
+  try { if(F.qbState) fields[F.qbState] = JSON.stringify(captureQuoteState()); } catch(e){}
   return { projName, grand, fields };
 }
 async function pushToCurrentBase(){
