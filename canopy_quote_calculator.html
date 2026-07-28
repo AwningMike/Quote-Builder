@@ -3166,12 +3166,12 @@ function buildActivityRows(s, color, height){
     rows.push({ label:`Posts - ${s.postsQty}`, desc:'Support post(s) for canopy per plan. Footings/foundation by GC unless noted.', amt: fmtDecimal(s.postsTotal), taxed:true });
   }
 
+  // Installation and delivery are always combined into ONE "Installation" line (labor + mileage),
+  // for every quote type — matching how canopy-only quotes already read.
+  rows.push({ label:'Installation', desc:'', amt: fmtDecimal(s.installation), taxed:false });
   if(s.hasNonCanopy){
-    rows.push({ label:'Installation - Labor', desc:'', amt: fmtDecimal(s.laborSubtotal), taxed:false });
-    rows.push({ label:'Delivery - $4.25 per mile', desc:'', amt: fmtDecimal(s.deliveryCost), taxed:false });
     rows.push({ label:'Engineering - If needed '+fmt(stampedAmt), desc:'', amt: fmtDecimal(s.stamped), taxed:false });
   } else {
-    rows.push({ label:'Installation', desc:'', amt: fmtDecimal(s.installation), taxed:false });
     if(s.stamped>0) rows.push({ label:'Stamped Engineering', desc:'', amt: fmtDecimal(s.stamped), taxed:false });
   }
   if(s.lift>0) rows.push({ label:'Lift Rental -- Waived if lift is provided', desc:'', amt: fmtDecimal(s.lift), taxed:false });
