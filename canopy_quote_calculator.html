@@ -66,6 +66,10 @@
 
   .layout{ display:grid; grid-template-columns: 1fr 340px; gap:22px; align-items:start; }
   @media (max-width:880px){ .layout{ grid-template-columns:1fr; } }
+  .calc-col{ min-width:0; }
+  /* Save / Quotes / New Quote relocated below the calculator, matched to the Quote box width */
+  .quote-actions{ width:340px; max-width:100%; margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .quote-actions .btn{ width:100%; padding:12px 14px; font-size:14px; }
 
   .card{ background:var(--panel); border:1px solid var(--line); border-radius:2px; padding:20px; }
   .card + .card{ margin-top:16px; }
@@ -237,15 +241,21 @@
   <header class="top">
     <h1>Quote<span>Builder</span> — Canopy &amp; Awning</h1>
     <div class="meta">Rates loaded from pricing matrix · 07/2026</div>
-    <button class="btn" id="save-quote-btn" style="background:#5a6b82;margin-left:auto;white-space:nowrap;" onclick="saveQuoteToDevice()">💾 Save</button>
-    <button class="btn" id="open-quote-btn" style="background:#3f5878;white-space:nowrap;" onclick="openQuotesModal()">📂 Quotes</button>
-    <button class="btn" id="new-quote-btn" style="background:#1a7f37;white-space:nowrap;" onclick="newQuote()">＋ New Quote</button>
   </header>
 
   <nav class="tabs" id="tabs"></nav>
 
   <div class="layout">
-    <div id="calc-area"></div>
+    <div class="calc-col">
+      <div id="calc-area"></div>
+      <!-- Relocated Save / Quotes / New Quote — sits in the open space below the calculator,
+           sized to match the Quote box width (340px). -->
+      <div class="quote-actions" id="quote-actions">
+        <button class="btn" id="save-quote-btn" style="background:#5a6b82;white-space:nowrap;" onclick="saveQuoteToDevice()">💾 Save</button>
+        <button class="btn" id="open-quote-btn" style="background:#3f5878;white-space:nowrap;" onclick="openQuotesModal()">📂 Quotes</button>
+        <button class="btn" id="new-quote-btn" style="background:#1a7f37;white-space:nowrap;" onclick="newQuote()">＋ New Quote</button>
+      </div>
+    </div>
     <div class="quote-panel">
       <div class="card">
         <h2>Quote <span id="item-count-label"></span><button onclick="clearQuote()">clear all</button></h2>
