@@ -394,6 +394,7 @@
             <span style="font-size:12px;">target <input id="mc-target" type="number" value="42.5" step="0.5" style="width:54px;padding:2px 4px;font-size:12px;" onchange="renderQuote()">%</span>
           </div>
           <div id="mc-body" style="font-size:12px;margin-top:8px;color:#555;">Add a canopy to see its margin against your true cost.</div>
+          <button class="btn secondary" style="margin-top:8px;font-size:12px;padding:6px 10px;width:100%" onclick="openCostSheet()" title="See every material, stick count, and price behind the margin">🧾 Show cut sheet (how the margin is priced)</button>
         </div>
         <button class="btn copy-summary" id="copy-airtable-btn" onclick="copyForAirtable()">Copy for Airtable Log</button>
         <button class="btn" style="background:#1a7f37" onclick="pushToCurrentBase()" title="Upload this bid to your current APMG Projects base now">⬆ Upload Bid to Current Base (Projects)</button>
@@ -2723,9 +2724,10 @@ function _cmFfd(pieces, stock){
   }
   return bins.length;
 }
-// True cost for one canopy line item (all qty). Returns {material,labor,finish,freight,cost,sqft}.
+// True cost for one canopy line item (all qty). Also returns an itemized `lines` cut sheet
+// built from the SAME math, so the breakdown can never disagree with the margin number.
 function canopyTrueCost(spec){
-  if(!spec) return {material:0,labor:0,finish:0,freight:0,cost:0,sqft:0};
+  if(!spec) return {material:0,labor:0,finish:0,freight:0,cost:0,sqft:0,lines:[],qty:1,framingPU:0,miscPU:0,dsPU:0,ccPU:0};
   const face = spec.face||8, qty = spec.qty||1;
   const legs = (spec.mitered && spec.legs && spec.legs.length)
     ? spec.legs.map(l=>({w:l.wFt||0,p:l.pFt||0}))
@@ -2733,39 +2735,125 @@ function canopyTrueCost(spec){
   const N = legs.length;
   const pan = CM[spec.panKey||'pan6'];
   const fasc = CM[CM_FAS[face]||'fascia8'];
-  let mat = 0;
+  const lines = [];
+  // helper: nest `pieces` into whole sticks of this SKU, record a line, return per-unit cost
+  // display counts are JOB TOTALS (× qty) so every row reconciles with its Cost column.
+  const stick = (role, sku, pieces, note) => {
+    const s = _cmFfd(pieces, emsLen(sku)); const per = emsStick(sku); const c = s*per; const js=s*qty;
+    lines.push({ role, sku, desc:emsDesc(sku), note, qtyText:js+' stick'+(js===1?'':'s'), unitText:'$'+per.toFixed(2)+'/stick', costPU:c, cat:'framing' });
+    return c;
+  };
+  let framingPU = 0;
   let pp=[]; legs.forEach(l=>{ const n=Math.max(1,Math.ceil(l.w/pan.cover)); for(let k=0;k<n;k++) pp.push(l.p); });
-  mat += _cmFfd(pp,emsLen(pan.sku))*emsStick(pan.sku);
+  framingPU += stick('Roof pans', pan.sku, pp, `${pp.length*qty} pans @ ${legs[0].p.toFixed(1)}′`);
   let fp=[]; legs.forEach(l=>fp.push(l.w)); fp.push(legs[0].p); fp.push(legs[N-1].p);
-  mat += _cmFfd(fp,emsLen(fasc.sku))*emsStick(fasc.sku);
+  framingPU += stick(`Gutter fascia ${face}"`, fasc.sku, fp, `${fp.length*qty} pcs · mitred corners`);
   let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
-  mat += _cmFfd(sp,emsLen(CM.support14.sku))*emsStick(CM.support14.sku);
+  framingPU += stick('1×4 front/rear support', CM.support14.sku, sp, `${sp.length*qty} pcs`);
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
   if((spec.attach||'')==='tierod'){
     let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3); });
-    mat += _cmFfd(tp,emsLen(CM.tierod1.sku))*emsStick(CM.tierod1.sku);
-    mat += _cmFfd(tp.map(()=>1),emsLen(CM.sleeve125.sku))*emsStick(CM.sleeve125.sku);
+    framingPU += stick('Tie-rods (1" Sch40)', CM.tierod1.sku, tp, `${tp.length*qty} rods @ ${(legs[0].p+3).toFixed(1)}′`);
+    framingPU += stick('Tie-rod sleeves', CM.sleeve125.sku, tp.map(()=>1), `${tp.length*qty} sleeves`);
   }
-  // Wall plates are 6" pieces cut many-per-bar from 1/4x6 stock → price PER PLATE, not per whole bar.
+  // Wall plates: 6" pieces cut many-per-bar → price PER PLATE, not per whole bar.
   const platesPerBar = Math.max(1, Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
-  mat += pts * (emsStick(CM.plate.sku)/platesPerBar);
-  mat += pts*8;   // anchors / hardware — 3/8" all-thread, ~$8 per point (not a stock SKU)
-  if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); mat += _cmFfd(op,emsLen(CM.outrig22.sku))*emsStick(CM.outrig22.sku); }
-  mat *= qty; mat *= 1.03; // fasteners / misc (framing)
+  const platePer = emsStick(CM.plate.sku)/platesPerBar;
+  const plateCost = pts*platePer;
+  lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${pts*qty} plates · ${platesPerBar}/bar`, qtyText:(pts*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
+  framingPU += plateCost;
+  const anchorCost = pts*8;
+  lines.push({ role:'Anchors / hardware', sku:'—', desc:'3/8" all-thread + hardware', note:`${pts*qty} anchor points`, qtyText:(pts*qty)+' pts', unitText:'$8.00/pt', costPU:anchorCost, cat:'framing' });
+  framingPU += anchorCost;
+  if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); framingPU += stick('Outriggers', CM.outrig22.sku, op, `${op.length*qty} pcs`); }
+  const miscPU = framingPU*0.03;   // fasteners / misc, +3% on framing
   // Downspouts & C-channel — material only, sized from real SKUs in the price book.
-  // Downspout: 2x2x1/8 tube by default, 2x3x1/8 on 10"+ fascia jobs; DS_DROP_FT ft of tube per drop.
-  // C-channel: brake-formed from 1/4"x4'x8' plate — $/ft = sheet price / yieldFt.
   const dsSku = (face>=10) ? CM.downspout23.sku : CM.downspout22.sku;
-  const dsMat = (spec.downspoutPerUnit||0) * ((EMS[dsSku] ? EMS[dsSku].ppf : 0) * DS_DROP_FT);
-  const ccMat = (spec.cchannelPerUnit||0) * (emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
-  const accMat = (dsMat + ccMat) * qty;
-  mat += accMat;
+  const dsN = (spec.downspoutPerUnit||0);
+  const dsPpf = EMS[dsSku] ? EMS[dsSku].ppf : 0;
+  const dsPU = dsN * (dsPpf * DS_DROP_FT);
+  if(dsN>0) lines.push({ role:'Downspouts', sku:dsSku, desc:emsDesc(dsSku), note:`${dsN*qty} drops × ${DS_DROP_FT}′`, qtyText:(dsN*DS_DROP_FT*qty).toFixed(0)+' ft', unitText:'$'+dsPpf.toFixed(2)+'/ft', costPU:dsPU, cat:'acc' });
+  const ccFt = (spec.cchannelPerUnit||0);
+  const ccPerFt = emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt;
+  const ccPU = ccFt*ccPerFt;
+  if(ccFt>0) lines.push({ role:'C-channel (LED)', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku), note:`${(ccFt*qty).toFixed(1)} ft · ¼×4×8 sheet ÷ ${CM.cchannel.yieldFt}ft`, qtyText:(ccFt*qty).toFixed(1)+' ft', unitText:'$'+ccPerFt.toFixed(2)+'/ft', costPU:ccPU, cat:'acc' });
+
+  const materialPU = framingPU + miscPU + dsPU + ccPU;
+  const mat = materialPU*qty;
   const sqft = legs.reduce((a,l)=>a+l.w*l.p,0)*qty;
   const labor = sqft*(CM_LABOR.weldHrPerSqft+CM_LABOR.prepHrPerSqft+CM_LABOR.paintHrPerSqft)*CM_LABOR.rate;
   const finish = sqft*CM_PAINTMAT;
   const freight = mat*CM_FREIGHT;
   return {material:mat, labor, finish, freight, cost:mat+labor+finish+freight, sqft,
-          downspoutMat: dsMat*qty, cchannelMat: ccMat*qty};
+          downspoutMat: dsPU*qty, cchannelMat: ccPU*qty,
+          lines, qty, framingPU, miscPU, dsPU, ccPU, materialPU};
+}
+// ---- Cut sheet / cost detail: shows exactly how the margin material cost is built ----
+function openCostSheet(){
+  if(document.getElementById('costsheet-backdrop')) return;
+  const back=document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='costsheet-backdrop';
+  back.addEventListener('click',e=>{ if(e.target===back) back.remove(); });
+  back.innerHTML=`<div class="drawing-modal" style="max-width:820px">
+    <h3>Cut Sheet &amp; Cost Detail</h3>
+    <div class="dm-sub">Every material, stick count, and price behind the margin — from the Eastern Metal price book (#${EMS_QUOTE.no}, ${EMS_QUOTE.date}). Material-only, internal.</div>
+    <div id="cs-body" style="max-height:64vh;overflow:auto"></div>
+    <div class="dm-actions" style="margin-top:14px"><button class="dm-close" onclick="document.getElementById('costsheet-backdrop').remove()">Close</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  renderCostSheet();
+}
+function renderCostSheet(){
+  const body=document.getElementById('cs-body'); if(!body) return;
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const money=n=>'$'+Math.round(n).toLocaleString();
+  const cans=(quoteItems||[]).filter(i=>i.type==='canopy');
+  if(!cans.length){ body.innerHTML='<div style="color:#888;padding:8px">Add a canopy to the quote first — then this shows its full material breakdown.</div>'; return; }
+  let gMat=0, gSell=0, html='';
+  cans.forEach(i=>{
+    const c=canopyTrueCost(i.spec), q=c.qty||1;
+    const sell=(i.amount||0)+(i.downspoutCost||0);
+    gMat+=c.material; gSell+=sell;
+    const rowsHtml=c.lines.map(l=>`<tr style="border-bottom:1px solid #eee">
+      <td style="padding:5px 7px">${esc(l.role)}${l.cat==='acc'?' <span style="color:#7a5">●</span>':''}</td>
+      <td style="padding:5px 7px;font-family:monospace;white-space:nowrap">${esc(l.sku)}</td>
+      <td style="padding:5px 7px;color:#666">${esc(l.note||'')}</td>
+      <td style="padding:5px 7px;text-align:right;white-space:nowrap">${esc(l.qtyText)}</td>
+      <td style="padding:5px 7px;text-align:right;white-space:nowrap;color:#666">${esc(l.unitText)}</td>
+      <td style="padding:5px 7px;text-align:right;font-weight:600">${money(l.costPU*q)}</td>
+    </tr>`).join('');
+    const margin= sell>0 ? ((sell-c.material)/sell*100) : 0;
+    const mcol = margin>=42.5?'#1a7f37':(margin>=35?'#b7791f':'#c0392b');
+    const s=i.spec||{};
+    html+=`<div style="border:1px solid #e3e8ef;border-radius:8px;padding:12px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:2px">${esc(i.title||'Canopy')}</div>
+      <div style="font-size:11px;color:#777;margin-bottom:8px">${(s.widthFt||0)}′ W × ${(s.projFt||0)}′ P · ${s.face||8}" face · ${(s.attach||'tierod')==='tierod'?'tie-rod':'all-thread'} attach${q>1?` · × ${q} units`:''}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;color:#1a1a1a">
+        <thead><tr style="text-align:left;border-bottom:2px solid #ccc;color:#555;font-size:10.5px;text-transform:uppercase">
+          <th style="padding:5px 7px">Material</th><th style="padding:5px 7px">SKU</th><th style="padding:5px 7px">Detail</th>
+          <th style="padding:5px 7px;text-align:right">Qty</th><th style="padding:5px 7px;text-align:right">Unit</th><th style="padding:5px 7px;text-align:right">Cost</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot style="font-size:12px">
+          <tr style="border-top:2px solid #ccc"><td colspan="5" style="padding:5px 7px;text-align:right;color:#555">Framing subtotal</td><td style="padding:5px 7px;text-align:right">${money(c.framingPU*q)}</td></tr>
+          <tr><td colspan="5" style="padding:3px 7px;text-align:right;color:#555">Fasteners / misc (+3%)</td><td style="padding:3px 7px;text-align:right">${money(c.miscPU*q)}</td></tr>
+          ${c.dsPU>0?`<tr><td colspan="5" style="padding:3px 7px;text-align:right;color:#555">Downspouts</td><td style="padding:3px 7px;text-align:right">${money(c.dsPU*q)}</td></tr>`:''}
+          ${c.ccPU>0?`<tr><td colspan="5" style="padding:3px 7px;text-align:right;color:#555">C-channel</td><td style="padding:3px 7px;text-align:right">${money(c.ccPU*q)}</td></tr>`:''}
+          <tr style="border-top:1px solid #ccc;font-weight:700"><td colspan="5" style="padding:6px 7px;text-align:right">Material cost</td><td style="padding:6px 7px;text-align:right">${money(c.material)}</td></tr>
+          <tr><td colspan="5" style="padding:3px 7px;text-align:right;color:#555">Sell (canopy + downspouts)</td><td style="padding:3px 7px;text-align:right">${money(sell)}</td></tr>
+          <tr style="font-weight:700"><td colspan="5" style="padding:3px 7px;text-align:right">Margin</td><td style="padding:3px 7px;text-align:right;color:${mcol}">${margin.toFixed(1)}%</td></tr>
+        </tfoot>
+      </table>
+    </div>`;
+  });
+  const gMargin= gSell>0 ? ((gSell-gMat)/gSell*100) : 0;
+  const gcol = gMargin>=42.5?'#1a7f37':(gMargin>=35?'#b7791f':'#c0392b');
+  const banner=`<div style="background:#1f3b6e;color:#fff;border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div><div style="font-size:10.5px;opacity:.8;text-transform:uppercase">Total material</div><div style="font-size:16px;font-weight:700">${money(gMat)}</div></div>
+    <div><div style="font-size:10.5px;opacity:.8;text-transform:uppercase">Total sell</div><div style="font-size:16px;font-weight:700">${money(gSell)}</div></div>
+    <div><div style="font-size:10.5px;opacity:.8;text-transform:uppercase">Blended margin</div><div style="font-size:16px;font-weight:700;color:${gMargin>=42.5?'#7be3a0':'#ffd27a'}">${gMargin.toFixed(1)}%</div></div>
+  </div>`;
+  body.innerHTML = banner + html +
+    `<div style="font-size:11px;color:#888;line-height:1.5;margin-top:4px">● = downspouts / C-channel (added to material &amp; sell). Excludes shop labor, paint, and freight (margin is material-only). Lights &amp; posts are billed as separate lines and aren't in this margin.</div>`;
 }
 function updateMarginCheck(){
   const el = document.getElementById('mc-body'); if(!el) return;
