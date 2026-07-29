@@ -390,7 +390,7 @@
         <style>@media print{.margin-check{display:none!important}}</style>
         <div class="margin-check" id="margin-check" style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f7f9fc;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only · internal — not on the customer quote</span></strong>
+            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only (incl. downspouts &amp; C-channel) · internal — not on the customer quote</span></strong>
             <span style="font-size:12px;">target <input id="mc-target" type="number" value="42.5" step="0.5" style="width:54px;padding:2px 4px;font-size:12px;" onchange="renderQuote()">%</span>
           </div>
           <div id="mc-body" style="font-size:12px;margin-top:8px;color:#555;">Add a canopy to see its margin against your true cost.</div>
@@ -2650,8 +2650,12 @@ const CM = {
  tierod1:{ sku:'18-63-225' },
  sleeve125:{ sku:'18-63-235' },                         // 1-1/2" Sch40 sleeve over the 1" tie-rod
  plate:{ sku:'10-63-350', plateLenIn:6, kerfIn:0.125 }, // 6x6x1/4 plates cut from 1/4x6 bar (price per plate)
- outrig22:{ sku:'11-63-320' }                           // 2x2x3/16 outrigger (optional / on request)
+ outrig22:{ sku:'11-63-320' },                          // 2x2x3/16 outrigger (optional / on request)
+ downspout22:{ sku:'19-63-210' },                       // 2x2x1/8 square tube — downspout (default)
+ downspout23:{ sku:'20-63-275' },                       // 2x3x1/8 tube — downspout on 10"+ fascia jobs
+ cchannel:{ sku:'50-03-300', yieldFt:96 }               // C-channel brake-formed from 1/4"x4'x8' plate (~96 lin ft/sheet)
 };
+const DS_DROP_FT = 8;   // feet of downspout tube per drop (editable — typical straight downspout)
 // SKU -> role, for tagging which price-book items the canopy recipe actually uses.
 function _recipeSkuRoles(){
   const roles={
@@ -2747,12 +2751,21 @@ function canopyTrueCost(spec){
   mat += pts * (emsStick(CM.plate.sku)/platesPerBar);
   mat += pts*8;   // anchors / hardware — 3/8" all-thread, ~$8 per point (not a stock SKU)
   if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); mat += _cmFfd(op,emsLen(CM.outrig22.sku))*emsStick(CM.outrig22.sku); }
-  mat *= qty; mat *= 1.03; // fasteners / misc
+  mat *= qty; mat *= 1.03; // fasteners / misc (framing)
+  // Downspouts & C-channel — material only, sized from real SKUs in the price book.
+  // Downspout: 2x2x1/8 tube by default, 2x3x1/8 on 10"+ fascia jobs; DS_DROP_FT ft of tube per drop.
+  // C-channel: brake-formed from 1/4"x4'x8' plate — $/ft = sheet price / yieldFt.
+  const dsSku = (face>=10) ? CM.downspout23.sku : CM.downspout22.sku;
+  const dsMat = (spec.downspoutPerUnit||0) * ((EMS[dsSku] ? EMS[dsSku].ppf : 0) * DS_DROP_FT);
+  const ccMat = (spec.cchannelPerUnit||0) * (emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
+  const accMat = (dsMat + ccMat) * qty;
+  mat += accMat;
   const sqft = legs.reduce((a,l)=>a+l.w*l.p,0)*qty;
   const labor = sqft*(CM_LABOR.weldHrPerSqft+CM_LABOR.prepHrPerSqft+CM_LABOR.paintHrPerSqft)*CM_LABOR.rate;
   const finish = sqft*CM_PAINTMAT;
   const freight = mat*CM_FREIGHT;
-  return {material:mat, labor, finish, freight, cost:mat+labor+finish+freight, sqft};
+  return {material:mat, labor, finish, freight, cost:mat+labor+finish+freight, sqft,
+          downspoutMat: dsMat*qty, cchannelMat: ccMat*qty};
 }
 function updateMarginCheck(){
   const el = document.getElementById('mc-body'); if(!el) return;
@@ -2762,7 +2775,7 @@ function updateMarginCheck(){
   // MATERIAL ONLY for now — labor/finish/freight are held out until hard numbers are set.
   // (canopyTrueCost still computes them so they can be switched on later without rework.)
   let sell=0, mat=0;
-  cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount; mat+=c.material; });
+  cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0); mat+=c.material; });
   const margin = sell>0 ? (sell-mat)/sell : 0;
   const reqSell = mat/(1-target);
   const ok = margin>=target;
@@ -3143,7 +3156,7 @@ async function writeMarginLog(token){
     const cans = quoteItems.filter(i=>i.type==='canopy');
     if(!cans.length) return { ok:false, skipped:true };
     let sell=0, mat=0, sqft=0;
-    cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount; mat+=c.material; sqft+=c.sqft; });
+    cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0); mat+=c.material; sqft+=c.sqft; });
     if(sell<=0) return { ok:false, skipped:true };
     const target = parseFloat((document.getElementById('mc-target')||{}).value)||42.5;
     const marginPct = (sell-mat)/sell*100;
