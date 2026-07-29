@@ -2807,6 +2807,28 @@ function canopyTrueCost(spec, mode){
           downspoutMat: dsPU*qty, cchannelMat: ccPU*qty,
           lines, qty, framingPU, miscPU, dsPU, ccPU, materialPU};
 }
+// ---- Price adjuster: snap the canopy sell to material × N (owner's pricing model) ----
+// Scales every canopy line item's amount proportionally so total canopy sell (incl. the
+// downspout lines) lands exactly on material × N. Non-canopy items are untouched.
+function setPriceToMultiple(m){
+  const cans = quoteItems.filter(i=>i.type==='canopy');
+  if(!cans.length){ alert('Add a canopy first.'); return; }
+  let mat=0, sellNow=0, amtNow=0, dsNow=0;
+  cans.forEach(i=>{ mat+=canopyTrueCost(i.spec).material; amtNow+=(i.amount||0); dsNow+=(i.downspoutCost||0); });
+  sellNow = amtNow + dsNow;
+  const target = mat*m;
+  const newAmtTotal = target - dsNow;   // downspout lines keep their price; canopy bodies absorb the change
+  if(newAmtTotal <= 0){ alert('Material × '+m+' is less than the downspout lines alone — cannot set.'); return; }
+  if(!confirm(`Set canopy pricing to ${m}× material?\n\nMaterial cost: $${Math.round(mat).toLocaleString()}\nCanopy sell now: $${Math.round(sellNow).toLocaleString()} (${mat>0?(sellNow/mat).toFixed(2):'—'}×)\nCanopy sell after: $${Math.round(target).toLocaleString()} (${m}×)\n\nEvery canopy line item is rescaled proportionally. Lights, posts, labor and other lines are untouched.`)) return;
+  const factor = newAmtTotal/amtNow;
+  let running=0;
+  cans.forEach((i,idx)=>{
+    if(idx===cans.length-1){ i.amount = Math.round(newAmtTotal-running); }   // last item absorbs rounding so the total is exact
+    else { i.amount = Math.round((i.amount||0)*factor); running += i.amount; }
+  });
+  renderQuote();
+}
+
 // ---- Cut sheet / cost detail: shows exactly how the margin material cost is built ----
 function openCostSheet(){
   if(document.getElementById('costsheet-backdrop')) return;
@@ -2899,17 +2921,25 @@ function updateMarginCheck(){
        To hit ${(target*100).toFixed(1)}% on material, sell ≥ <b>$${Math.round(reqSell).toLocaleString()}</b>
        ${ok?'':`<span style="color:${col};font-weight:700;"> — you're $${Math.round(reqSell-sell).toLocaleString()} light</span>`}
      </div>
-     ${(()=>{ // 4× RULE — owner's universal pricing model: sell should be material × 4
+     ${(()=>{ // MULTIPLE RULES — owner's universal pricing model: sell = material × N (4× standard, 3.5× floor)
        const mult = mat>0 ? sell/mat : 0;
-       const sell4x = mat*4;
-       const delta = sell - sell4x;
-       const c4 = Math.abs(delta) <= sell4x*0.02 ? '#1f6b33' : (delta>0 ? '#1f6b33' : '#c0392b');
-       const word = Math.abs(delta) <= sell4x*0.02 ? 'right at 4×' : (delta>0 ? 'ABOVE 4×' : 'BELOW 4×');
+       const row = (m)=>{
+         const sellX = mat*m;
+         const delta = sell - sellX;
+         const near = Math.abs(delta) <= sellX*0.02;
+         const c = (near||delta>0) ? '#1f6b33' : '#c0392b';
+         const word = near ? `right at ${m}×` : (delta>0 ? `ABOVE ${m}×` : `BELOW ${m}×`);
+         return `<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+           <div style="flex:1;line-height:1.45;">
+             <b>${m}×</b> = <b>$${Math.round(sellX).toLocaleString()}</b> — <b style="color:${c};">${word}</b>${near?'':` by <b style="color:${c};">$${Math.round(Math.abs(delta)).toLocaleString()}</b>`}
+           </div>
+           <button class="btn" style="width:auto;margin:0;padding:4px 10px;font-size:11px;background:#1f3b6e;color:#fff;" onclick="setPriceToMultiple(${m})">Set to ${m}×</button>
+         </div>`;
+       };
        return `<div style="margin-top:8px;padding:7px 9px;background:#eef3fb;border:1px solid #d5e0f0;border-radius:6px;line-height:1.55;">
-         <b style="color:#1f3b6e;">4× rule</b> <span style="color:#8a94a6;font-size:11px;">(sell = material × 4)</span><br>
-         Current multiple <b style="color:${c4};">${mult.toFixed(2)}×</b> — <b style="color:${c4};">${word}</b>
-         ${Math.abs(delta) > sell4x*0.02 ? ` by <b style="color:${c4};">$${Math.round(Math.abs(delta)).toLocaleString()}</b>` : ''}<br>
-         Sell at exactly 4× = <b>$${Math.round(sell4x).toLocaleString()}</b>
+         <b style="color:#1f3b6e;">Pricing rules</b> <span style="color:#8a94a6;font-size:11px;">(sell = material × N) · current multiple <b>${mult.toFixed(2)}×</b></span>
+         ${row(4)}
+         ${row(3.5)}
        </div>`; })()}
      <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing.</div>`;
 }
