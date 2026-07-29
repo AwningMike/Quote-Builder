@@ -2899,7 +2899,19 @@ function updateMarginCheck(){
        To hit ${(target*100).toFixed(1)}% on material, sell ≥ <b>$${Math.round(reqSell).toLocaleString()}</b>
        ${ok?'':`<span style="color:${col};font-weight:700;"> — you're $${Math.round(reqSell-sell).toLocaleString()} light</span>`}
      </div>
-     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM, bought as whole sticks.</div>`;
+     ${(()=>{ // 4× RULE — owner's universal pricing model: sell should be material × 4
+       const mult = mat>0 ? sell/mat : 0;
+       const sell4x = mat*4;
+       const delta = sell - sell4x;
+       const c4 = Math.abs(delta) <= sell4x*0.02 ? '#1f6b33' : (delta>0 ? '#1f6b33' : '#c0392b');
+       const word = Math.abs(delta) <= sell4x*0.02 ? 'right at 4×' : (delta>0 ? 'ABOVE 4×' : 'BELOW 4×');
+       return `<div style="margin-top:8px;padding:7px 9px;background:#eef3fb;border:1px solid #d5e0f0;border-radius:6px;line-height:1.55;">
+         <b style="color:#1f3b6e;">4× rule</b> <span style="color:#8a94a6;font-size:11px;">(sell = material × 4)</span><br>
+         Current multiple <b style="color:${c4};">${mult.toFixed(2)}×</b> — <b style="color:${c4};">${word}</b>
+         ${Math.abs(delta) > sell4x*0.02 ? ` by <b style="color:${c4};">$${Math.round(Math.abs(delta)).toLocaleString()}</b>` : ''}<br>
+         Sell at exactly 4× = <b>$${Math.round(sell4x).toLocaleString()}</b>
+       </div>`; })()}
+     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing.</div>`;
 }
 
 function renderQuote(){
