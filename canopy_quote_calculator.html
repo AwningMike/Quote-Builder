@@ -390,7 +390,7 @@
         <style>@media print{.margin-check{display:none!important}}</style>
         <div class="margin-check" id="margin-check" style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f7f9fc;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only · proportional ft +12% waste · internal — not on the customer quote</span></strong>
+            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only · proportional lineal-ft · internal — not on the customer quote</span></strong>
             <span style="font-size:12px;">target <input id="mc-target" type="number" value="42.5" step="0.5" style="width:54px;padding:2px 4px;font-size:12px;" onchange="renderQuote()">%</span>
           </div>
           <div id="mc-body" style="font-size:12px;margin-top:8px;color:#555;">Add a canopy to see its margin against your true cost.</div>
@@ -2662,7 +2662,7 @@ const DS_DROP_FT = 8;   // feet of downspout tube per drop (editable — typical
 //   'prop'  = proportional / lineal-foot: charge only the feet consumed (+ kerf) × waste allowance.
 const CM_COST_MODE = 'prop';    // proportional lineal-foot costing (per Mike, 07/2026)
 const CM_KERF_FT   = 1/12;      // saw kerf per cut (~1")
-const CM_WASTE     = 1.12;      // drop/waste multiplier for 'prop' mode — +12% covers kerf & unusable drops
+const CM_WASTE     = 1.00;      // drop/waste multiplier for 'prop' mode — 0% (pure lineal-ft; kerf still counted per cut)
 // SKU -> role, for tagging which price-book items the canopy recipe actually uses.
 function _recipeSkuRoles(){
   const roles={
