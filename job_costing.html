@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APMG Job Costing — Live Project Cost & BOM</title>
+<style>
+  :root{
+    --bg:#14181f; --panel:#1c222c; --panel2:#222a36; --line:#303a49;
+    --text:#e8ecf2; --text-dim:#9aa5b5; --text-faint:#6b7686;
+    --amber:#d9900f; --amber-bright:#f0a81e; --grn:#2ea35a; --grn-dim:#1f6b33;
+    --red:#d64541; --blue:#4a7fc9;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.45; }
+  .app{ max-width:1180px; margin:0 auto; padding:18px 20px 60px; }
+  header.top{ display:flex; align-items:baseline; gap:14px; border-bottom:2px solid var(--line); padding-bottom:12px; margin-bottom:16px; flex-wrap:wrap; }
+  header.top h1{ font-size:22px; font-weight:800; letter-spacing:.02em; }
+  header.top h1 span{ color:var(--amber); }
+  header.top .meta{ color:var(--text-faint); font-size:12px; margin-left:auto; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .card h2{ font-size:14px; text-transform:uppercase; letter-spacing:.05em; color:var(--amber); margin-bottom:12px; }
+  .grid4{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .grid6{ display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+  @media (max-width:860px){ .grid4{grid-template-columns:1fr 1fr;} .grid6{grid-template-columns:1fr 1fr 1fr;} }
+  .field label{ display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); margin-bottom:4px; font-weight:700; }
+  input,select{ width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:5px; padding:8px 9px; font-size:14px; font-family:inherit; }
+  input:focus,select:focus{ outline:none; border-color:var(--amber); }
+  .btn{ background:var(--amber); color:#1b1502; border:none; border-radius:4px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer; text-transform:uppercase; letter-spacing:.04em; }
+  .btn:hover{ background:var(--amber-bright); }
+  .btn.secondary{ background:none; border:1px solid var(--text-faint); color:var(--text-dim); }
+  .btn.secondary:hover{ border-color:var(--text); color:var(--text); }
+  .btn.danger{ background:none; border:1px solid #7a3030; color:#d98080; }
+  .btn.small{ padding:6px 10px; font-size:11.5px; }
+  table.list{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.list th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim); padding:7px 8px; border-bottom:2px solid var(--line); }
+  table.list td{ padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.list td.num, table.list th.num{ text-align:right; }
+  table.list input{ padding:6px 7px; font-size:13px; }
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:14px; }
+  @media (max-width:860px){ .kpis{grid-template-columns:1fr 1fr;} }
+  .kpi{ background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .kpi .l{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint); font-weight:700; }
+  .kpi .v{ font-size:22px; font-weight:800; margin-top:2px; }
+  .kpi .d{ font-size:11px; color:var(--text-dim); margin-top:1px; }
+  .rulebox{ background:#1b2433; border:1px solid #2c3c55; border-radius:8px; padding:11px 13px; margin-top:12px; line-height:1.6; }
+  .rulebox b.hdr{ color:#8fb4e8; }
+  .ok{ color:var(--grn); } .bad{ color:#e06d6a; } .warn{ color:var(--amber-bright); }
+  .muted{ color:var(--text-faint); font-size:11.5px; }
+  .tag{ display:inline-block; background:#2a3140; color:var(--text-dim); border-radius:8px; padding:1px 8px; font-size:10.5px; font-weight:700; }
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .empty{ color:var(--text-faint); padding:14px 6px; font-size:13px; }
+  @media print{
+    @page{ size:8.5in 11in; margin:0.5in; }
+    body{ background:#fff; color:#111; }
+    .app{ max-width:none; padding:0; }
+    .card{ background:#fff; border-color:#ccc; break-inside:avoid; }
+    .card h2{ color:#1f3b6e; }
+    .kpi{ background:#f5f7fa; border-color:#ddd; color:#111; }
+    .kpi .v{ color:#111; }
+    input,select{ background:#fff; color:#111; border-color:#bbb; }
+    .btn,.actions,.no-print{ display:none !important; }
+    table.list th{ color:#555; border-color:#999; }
+    table.list td{ border-color:#ddd; color:#111; }
+    .rulebox{ background:#eef3fb; border-color:#c5d4ea; color:#111; }
+    .muted{ color:#666; }
+    header.top{ border-color:#999; } header.top h1{ color:#111; } header.top h1 span{ color:#b57300; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <h1>Job<span>Costing</span> — Live Project</h1>
+    <div class="meta">Same cost engine &amp; supplier price book as the Quote Builder · for designers</div>
+  </header>
+
+  <div class="card">
+    <h2>Job</h2>
+    <div class="grid4">
+      <div class="field"><label>Project / Customer</label><input id="j-name" placeholder="e.g. Speedway - Shelbyville, IN" oninput="persist()"></div>
+      <div class="field"><label>Job #</label><input id="j-no" placeholder="e.g. 4299" oninput="persist()"></div>
+      <div class="field"><label>Designer</label><input id="j-designer" placeholder="Your name" oninput="persist()"></div>
+      <div class="field"><label>Sold Price (canopy scope $)</label><input id="j-sold" type="number" min="0" step="50" placeholder="What the job sold for" oninput="recalc()"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Canopies on this job</h2>
+    <div style="overflow-x:auto;">
+    <table class="list" id="can-table">
+      <thead><tr>
+        <th>Label</th><th>Width (ft)</th><th>Proj (ft)</th><th>Fascia</th><th>Qty</th>
+        <th>Attach</th><th>Downspouts</th><th>C-Chan (ft)</th><th>Outriggers</th><th class="num">Material</th><th></th>
+      </tr></thead>
+      <tbody id="can-body"></tbody>
+    </table>
+    </div>
+    <div class="actions no-print">
+      <button class="btn" onclick="addCanopy()">＋ Add Canopy</button>
+      <span class="muted" style="align-self:center;">Mitered/multi-leg canopies: enter each leg as its own line, or total W×P as one line for a close cost.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Job Cost &amp; Margin</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Material Cost</div><div class="v" id="k-mat">$0</div><div class="d">proportional lineal-ft · EMS <span id="k-book"></span></div></div>
+      <div class="kpi"><div class="l">Sold Price</div><div class="v" id="k-sold">—</div><div class="d">canopy scope</div></div>
+      <div class="kpi"><div class="l">Material Margin</div><div class="v" id="k-margin">—</div><div class="d">(sold − material) ÷ sold</div></div>
+      <div class="kpi"><div class="l">Multiple</div><div class="v" id="k-mult">—</div><div class="d">sold ÷ material</div></div>
+    </div>
+    <div class="rulebox" id="rules">Enter the sold price to check it against the pricing rules.</div>
+    <div class="muted" style="margin-top:10px;"><b>Material only</b> — shop/install labor, paint &amp; freight are held out until hard numbers are set (same basis as the Quote Builder margin tracker). Reference full-cost estimate (incl. placeholder labor/paint/freight): <b id="k-full">$0</b>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Bill of Materials <span class="tag" id="bom-count"></span></h2>
+    <div style="overflow-x:auto;">
+    <table class="list" id="bom-table">
+      <thead><tr>
+        <th>Material</th><th>SKU</th><th>Description</th>
+        <th class="num">Pieces</th><th class="num">Lineal ft</th><th class="num">Sticks to buy</th>
+        <th class="num">$/stick</th><th class="num">Buy cost</th><th class="num">Costed (prop.)</th>
+      </tr></thead>
+      <tbody id="bom-body"><tr><td colspan="9" class="empty">Add a canopy to build the BOM.</td></tr></tbody>
+      <tfoot id="bom-foot"></tfoot>
+    </table>
+    </div>
+    <div class="muted" style="margin-top:8px;">
+      <b>Sticks to buy</b> = whole stock lengths after nesting all cuts across the whole job (what purchasing orders — includes drop).
+      <b>Costed (prop.)</b> = the feet this job actually consumes at $/ft — what the margin uses. The difference is drop that carries to the next job.
+    </div>
+    <div class="actions no-print">
+      <button class="btn secondary" onclick="exportCSV()">⬇ Export BOM (CSV)</button>
+      <button class="btn secondary" onclick="window.print()">🖨 Print / PDF</button>
+      <button class="btn danger small" onclick="clearJob()" style="margin-left:auto;">Clear job</button>
+    </div>
+  </div>
+
+  <div class="muted" style="text-align:center;">APMG Digital Toolkit · Job Costing · prices from Eastern Metal quote <span id="f-book"></span> · engine identical to the Quote Builder margin tracker</div>
+</div>
+
+<script>
+/* =========================================================================
+   PRICE BOOK — Eastern Metal Supply quote #584313 (05/19/26).
+   IDENTICAL to the Quote Builder's EMS block. Update BOTH together.
+   ========================================================================= */
+const EMS_QUOTE = { no:'584313', date:'05/19/26', supplier:'Eastern Metal Supply of MO' };
+const EMS = {
+ "60-00-200":{d:"MP-1 (.125\" WALL) X 24' (WHITE",ppf:2.8,len:24.0},
+ "60-00-205":{d:"MP-1A (.100\" WALL) X 24'",ppf:2.4,len:24.0},
+ "60-00-206":{d:"MP-1C (.063\" WALL) X 24'",ppf:1.9,len:24.0},
+ "60-00-225":{d:"MP-3 (1\" X 2\") X 24'",ppf:2.74,len:24.0},
+ "60-00-235":{d:"MP-3S(1\"X2\") X 24'",ppf:3.1,len:24.0},
+ "60-00-255":{d:"MP-3H (1\" X 2\") X 24'",ppf:4.75,len:24.0},
+ "60-00-221":{d:"MP-2 X 2 X 24'",ppf:6.25,len:24.0},
+ "60-00-215":{d:"MP-2A (1\" FLANGE) X 24'",ppf:2.7,len:24.0},
+ "60-00-220":{d:"MP-2B X 24'",ppf:2.55,len:24.0},
+ "60-00-226":{d:"MP-3A(1\" X 2\") X 24'",ppf:4.761,len:24.0},
+ "40-63-010":{d:"1\" SQ W/DOUBLE FLANGE X 24'",ppf:2.1,len:24.0},
+ "60-00-240":{d:"MP-4 (1\" X 4\") X 24'",ppf:7.6,len:24.0},
+ "56-63-015":{d:"3 X 6 X .065 X 24'",ppf:5.75,len:24.0},
+ "56-63-033":{d:"4 X 6 X .093 X 24'",ppf:10.25,len:24.0},
+ "56-63-016":{d:"4 X 8 X .125 X 24'",ppf:14.75,len:24.0},
+ "56-63-039":{d:"4 X 8 X 3 X .125 X 24'",ppf:14.35,len:24.0},
+ "56-63-043":{d:"4 X 10 X 4 X .140 X 24'",ppf:19.75,len:24.0},
+ "56-63-045":{d:"4 X 10 X 4 X .125 X 30'",ppf:19.75,len:30.0},
+ "56-63-042":{d:"4 X 12 X 5 X .160 X 24'",ppf:24.65,len:24.0},
+ "56-63-046":{d:"2 X 8 X 24'",ppf:7.25,len:24.0},
+ "19-63-345":{d:"1 X .093 X 24'",ppf:1.98,len:24.0},
+ "19-63-170":{d:"1-1/2\" SQ X 1/8\" X 24'",ppf:4.1,len:24.0},
+ "19-63-180":{d:"1 3/4 X .093 X 24'",ppf:3.65,len:24.0},
+ "19-61-205":{d:"2\" SQ X .093 X 26'(BLUE ENDS)",ppf:4.5,len:26.0},
+ "19-63-210":{d:"2\" SQ X 1/8\" X 24'",ppf:5.85,len:24.0},
+ "11-61-270":{d:"2 X 2 X 3/16 X 25'",ppf:4.5,len:25.0},
+ "19-61-212":{d:"2\" SQ X 1/4\" WALL X 24'",ppf:10.75,len:24.0},
+ "19-63-235":{d:"3\" SQ X 1/8\" WALL X 24'",ppf:8.8,len:24.0},
+ "11-63-335":{d:"3 X 3 X .250 X 20'",ppf:8.8,len:20.0},
+ "19-61-258":{d:"5 X 1/4 X 24'",ppf:29.0,len:24.0},
+ "19-61-260":{d:"6 X 1/4 X 24'",ppf:36.0,len:24.0},
+ "20-63-222":{d:"1 X 2 X .062 X 24' W/.125 RAD",ppf:2.15,len:24.0},
+ "20-63-227":{d:"1\" X 2\" X .093\" X 24'",ppf:3.15,len:24.0},
+ "20-63-225":{d:"1 X 2 X 1/8 X 24'",ppf:4.25,len:24.0},
+ "20-63-230":{d:"1 X 3 X 1/8 X 24'",ppf:5.75,len:24.0},
+ "20-63-235":{d:"1 X 4 X 1/8 X 24'",ppf:7.3,len:24.0},
+ "20-63-236":{d:"1 X 5 X 1/8 X 20'",ppf:8.76,len:20.0},
+ "20-63-237":{d:"1 X 6 X .125 X 24'",ppf:10.2,len:24.0},
+ "20-63-250":{d:"1 1/2 X 3 X 1/8 X 24'",ppf:6.5,len:24.0},
+ "20-63-272":{d:"2 X 3 X .093 X 24'",ppf:5.25,len:24.0},
+ "20-63-275":{d:"2 X 3 X 1/8 X 24'",ppf:7.2,len:24.0},
+ "52-61-194":{d:"2 X 3 X 1/4 X 24'",ppf:13.15,len:24.0},
+ "20-63-280":{d:"2 X 4 X 1/8 X 24'",ppf:8.75,len:24.0},
+ "20-61-281":{d:"2 X 4 X 1/4 X 24'",ppf:16.5,len:24.0},
+ "20-63-290":{d:"2 X 6 X 1/8 X 24'",ppf:11.5,len:24.0},
+ "20-63-285":{d:"2 X 5 X 1/8 X 24'",ppf:10.25,len:24.0},
+ "20-63-295":{d:"2 X 8 X 1/8 X 24'",ppf:15.0,len:24.0},
+ "20-63-400":{d:"2 X 10 X 1/8 X 24'",ppf:18.0,len:24.0},
+ "20-63-500":{d:"2 X 12 X .188 X 24'",ppf:32.0,len:24.0},
+ "20-63-300":{d:"3 X 4 X 1/8 X 24'",ppf:10.5,len:24.0},
+ "20-63-303":{d:"3 X 6 X 1/8 X 24'",ppf:13.2,len:24.0},
+ "20-63-499":{d:"4 X 10 X .188 X 24'",ppf:33.0,len:24.0},
+ "20-63-245":{d:"1 1/2 X 2 X 1/8 X 24'",ppf:4.95,len:24.0},
+ "20-63-240":{d:"1-1/4 X 2-1/2 X 1/8 X 24' (RED",ppf:5.4,len:24.0},
+ "10-61-215":{d:"1/8 X 1 X 12'",ppf:0.8,len:12.0},
+ "10-61-325":{d:"1/4 X 1 X 12'",ppf:1.55,len:12.0},
+ "10-61-340":{d:"1/4 X 2 X 12'",ppf:3.1,len:12.0},
+ "10-61-345":{d:"1/4\" X 2-1/2\" X 12'",ppf:3.85,len:12.0},
+ "10-61-350":{d:"1/4\" X 3\" X 12'",ppf:4.7,len:12.0},
+ "10-63-345":{d:"1/4 X 4 X 20'",ppf:6.0,len:20.0},
+ "10-61-360":{d:"1/4 X 5 X 12'",ppf:7.5,len:12.0},
+ "10-63-350":{d:"1/4 X 6 X 20'",ppf:9.55,len:20.0},
+ "10-63-280":{d:"3/16\" X 2\" X 20'",ppf:2.3,len:20.0},
+ "10-63-285":{d:"3/16\" X 3\" X 20'",ppf:3.65,len:20.0},
+ "10-61-370":{d:"1/4 X 8 X 12'",ppf:12.0,len:12.0},
+ "10-61-375":{d:"1/4\" X 10\" X 12'",ppf:15.0,len:12.0},
+ "33-61-100":{d:"1/4\" X 12\" X 12'",ppf:19.25,len:12.0},
+ "18-63-225":{d:"1\" SCH 40 X 20'",ppf:3.0,len:20.0},
+ "18-63-235":{d:"1-1/2\" SCH 40 X 20'",ppf:4.65,len:20.0},
+ "14-63-215":{d:"1/2\" DIA X 20'",ppf:1.25,len:20.0},
+ "11-63-269":{d:"1 X 1 1/2 X 1/8 X 20'",ppf:1.7,len:20.0},
+ "11-63-365":{d:"1 X 2 X 1/16 X 20'",ppf:1.1,len:20.0},
+ "11-63-370":{d:"1 X 2 X 1/8 X 20'",ppf:2.25,len:20.0},
+ "11-63-410":{d:"1 1/2 X 2 X 1/8 X 20'",ppf:2.75,len:20.0},
+ "11-63-375":{d:"1 X 3 X 1/8 X 20'",ppf:3.0,len:20.0},
+ "11-63-390":{d:"2 X 3 X 1/8 X 20'",ppf:4.0,len:20.0},
+ "11-63-395":{d:"2 X 4 X 1/8 X 20'",ppf:4.5,len:20.0},
+ "11-63-396":{d:"2 X 4 X 1/4 X 20'",ppf:9.0,len:20.0},
+ "11-63-405":{d:"2 X 5 X 1/8 X 20'",ppf:5.75,len:20.0},
+ "11-63-415":{d:"2\" X 7\" X 1/4\" X 20'",ppf:14.0,len:20.0},
+ "11-63-230":{d:"1 X 1 X 3/16 X 20'",ppf:2.1,len:20.0},
+ "11-63-320":{d:"2 X 2 X 3/16 X 20'",ppf:4.4,len:20.0},
+ "11-63-325":{d:"2 X 2 X 1/4 X 20'",ppf:5.65,len:20.0},
+ "11-63-330":{d:"3 X 3 X 1/8 X 20'",ppf:4.5,len:20.0},
+ "50-03-214":{d:".080 X 60 X 120",ppf:260.0,len:1.0},
+ "50-03-600":{d:".080 X 72 X 120",ppf:306.0,len:1.0},
+ "50-03-630":{d:".080 X 72 X 144",ppf:365.0,len:1.0},
+ "50-03-129":{d:".090 X 48 X 96",ppf:185.0,len:1.0},
+ "88-00-240":{d:".090 X 60 X 144",ppf:365.0,len:1.0},
+ "50-03-173":{d:".125 X 48\" X 96\"",ppf:252.0,len:1.0},
+ "50-03-300":{d:".250\" X 48\" X 96\"",ppf:500.0,len:1.0}
+};
+
+function emsStick(sku){ const m=EMS[sku]; return m ? m.ppf*m.len : 0; }
+function emsLen(sku){ const m=EMS[sku]; return m ? m.len : 24; }
+function emsDesc(sku){ const m=EMS[sku]; return m ? m.d : '(not in price book)'; }
+
+/* ---- Canopy framing recipe — same members/SKUs as the Quote Builder ---- */
+const CM = {
+ pan6:   { sku:'56-63-015', cover:0.5 },
+ pan8:   { sku:'56-63-046', cover:0.667 },
+ fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
+ support14:{ sku:'20-63-235' },
+ tierod1:{ sku:'18-63-225' },
+ sleeve125:{ sku:'18-63-235' },
+ plate:{ sku:'10-63-350', plateLenIn:6, kerfIn:0.125 },
+ outrig22:{ sku:'11-63-320' },
+ downspout22:{ sku:'19-63-210' },
+ downspout23:{ sku:'20-63-275' },
+ cchannel:{ sku:'50-03-300', yieldFt:96 }
+};
+const CM_FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
+const CM_LABOR = { weldHrPerSqft:0.08, prepHrPerSqft:0.06, paintHrPerSqft:0.06, rate:65 };
+const CM_PAINTMAT = 4, CM_FREIGHT = 0.05;
+const DS_DROP_FT = 8, CM_KERF_FT = 1/12, CM_WASTE = 1.00;
+
+/* first-fit-decreasing nesting into whole sticks (1" kerf/cut) — purchasing reality */
+function ffd(pieces, stock){
+  pieces=[...pieces].sort((a,b)=>b-a); let bins=[];
+  for(const p of pieces){ let done=false;
+    for(let i=0;i<bins.length;i++){ if(bins[i]>=p+CM_KERF_FT){ bins[i]-=(p+CM_KERF_FT); done=true; break; } }
+    if(!done) bins.push(stock-p-CM_KERF_FT);
+  }
+  return bins.length;
+}
+
+/* Piece lists per SKU for one canopy line (all qty). Same geometry as the Quote Builder. */
+function piecesForSpec(s){
+  const face=+s.face||8, qty=+s.qty||1, W=+s.W||0, P=+s.P||0;
+  const out={};  // sku -> {role, pieces:[], eachCount:0}
+  const add=(sku,role,arr)=>{ if(!out[sku]) out[sku]={role,pieces:[]}; for(let k=0;k<qty;k++) out[sku].pieces.push(...arr); };
+  const pan=CM.pan6;                                    // 6" self-mating pans (standard)
+  const nPan=Math.max(1,Math.ceil(W/pan.cover));
+  add(pan.sku,'Roof pans (6″ self-mating)', Array(nPan).fill(P));
+  const fs=CM[CM_FAS[face]||'fascia8'];
+  add(fs.sku,`Gutter fascia ${face}″`, [W,P,P]);
+  add(CM.support14.sku,'1×4 front/rear support',[W,W]);
+  const pts=Math.ceil(W/2)+1;
+  if((s.attach||'tierod')==='tierod'){
+    const nRod=Math.ceil(W/4)+1;
+    add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
+    add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40)', Array(nRod).fill(1));
+  }
+  const dsN=(+s.ds||0);
+  if(dsN>0){
+    const dsSku=(face>=10)?CM.downspout23.sku:CM.downspout22.sku;
+    add(dsSku, face>=10?'Downspouts (2×3×⅛)':'Downspouts (2×2×⅛)', Array(dsN).fill(DS_DROP_FT));
+  }
+  const orN=(+s.outrig||0);
+  if(orN>0) add(CM.outrig22.sku,'Outriggers (2×2×3/16)', Array(orN).fill(P));
+  return { out, plates:pts*qty, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
+}
+
+/* Cost one canopy line — proportional lineal-ft, identical math to the Quote Builder margin. */
+function costSpec(s){
+  const {out, plates, anchors, ccFt} = piecesForSpec(s);
+  const DS_SKUS=[CM.downspout22.sku, CM.downspout23.sku];
+  let framing=0, dsCost=0;
+  Object.keys(out).forEach(sku=>{
+    if(DS_SKUS.includes(sku)){
+      // downspouts: straight drops — flat ft × $/ft, no kerf, outside the +3% (matches Quote Builder)
+      const lf=out[sku].pieces.reduce((a,p)=>a+p,0);
+      dsCost += lf*(emsStick(sku)/emsLen(sku));
+      return;
+    }
+    const lf=out[sku].pieces.reduce((a,p)=>a+p+CM_KERF_FT,0)*CM_WASTE;
+    framing += lf*(emsStick(sku)/emsLen(sku));
+  });
+  const platesPerBar=Math.max(1,Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
+  framing += plates*(emsStick(CM.plate.sku)/platesPerBar);
+  framing += anchors*8;
+  const ccCost = ccFt*(emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
+  const material = framing*1.03 + dsCost + ccCost;   // +3% fasteners/misc on framing only (matches Quote Builder)
+  const sqft=(+s.W||0)*(+s.P||0)*(+s.qty||1);
+  const labor=sqft*(CM_LABOR.weldHrPerSqft+CM_LABOR.prepHrPerSqft+CM_LABOR.paintHrPerSqft)*CM_LABOR.rate;
+  const finish=sqft*CM_PAINTMAT, freight=material*CM_FREIGHT;
+  return { material, full:material+labor+finish+freight, sqft };
+}
+
+/* ================= UI state ================= */
+let canopies=[];  // {label,W,P,face,qty,attach,ds,cc,outrig}
+let seq=1;
+const LSK='apmg_job_costing_v1';
+
+function addCanopy(pre){
+  canopies.push(Object.assign({id:seq++,label:'Canopy '+seq, W:20,P:4,face:8,qty:1,attach:'tierod',ds:0,cc:0,outrig:0}, pre||{}));
+  renderCanopies(); recalc();
+}
+function delCanopy(id){ canopies=canopies.filter(c=>c.id!==id); renderCanopies(); recalc(); }
+function upd(id,key,val){ const c=canopies.find(x=>x.id===id); if(!c) return; c[key]=(key==='label'||key==='attach')?val:(parseFloat(val)||0); recalc(); }
+
+function renderCanopies(){
+  const tb=document.getElementById('can-body');
+  if(!canopies.length){ tb.innerHTML='<tr><td colspan="11" class="empty">No canopies yet — hit ＋ Add Canopy.</td></tr>'; return; }
+  tb.innerHTML=canopies.map(c=>`<tr>
+    <td style="min-width:120px"><input value="${(c.label||'').replace(/"/g,'&quot;')}" oninput="upd(${c.id},'label',this.value)"></td>
+    <td style="width:80px"><input type="number" min="1" step="0.5" value="${c.W}" oninput="upd(${c.id},'W',this.value)"></td>
+    <td style="width:80px"><input type="number" min="1" step="0.5" value="${c.P}" oninput="upd(${c.id},'P',this.value)"></td>
+    <td style="width:90px"><select onchange="upd(${c.id},'face',this.value)">
+      ${[6,8,10,12].map(f=>`<option value="${f}" ${f==c.face?'selected':''}>${f}″</option>`).join('')}</select></td>
+    <td style="width:64px"><input type="number" min="1" step="1" value="${c.qty}" oninput="upd(${c.id},'qty',this.value)"></td>
+    <td style="width:110px"><select onchange="upd(${c.id},'attach',this.value)">
+      <option value="tierod" ${c.attach==='tierod'?'selected':''}>Tie-rod</option>
+      <option value="allthread" ${c.attach!=='tierod'?'selected':''}>All-thread</option></select></td>
+    <td style="width:70px"><input type="number" min="0" step="1" value="${c.ds}" oninput="upd(${c.id},'ds',this.value)"></td>
+    <td style="width:80px"><input type="number" min="0" step="1" value="${c.cc}" oninput="upd(${c.id},'cc',this.value)"></td>
+    <td style="width:70px"><input type="number" min="0" step="1" value="${c.outrig}" oninput="upd(${c.id},'outrig',this.value)"></td>
+    <td class="num" id="cm-${c.id}" style="font-weight:700;white-space:nowrap;">$0</td>
+    <td class="no-print"><button class="btn danger small" onclick="delCanopy(${c.id})">✕</button></td>
+  </tr>`).join('');
+}
+
+function money(n){ return '$'+Math.round(n).toLocaleString(); }
+
+function recalc(){
+  let mat=0, full=0, sqft=0;
+  canopies.forEach(c=>{ const r=costSpec(c); mat+=r.material; full+=r.full; sqft+=r.sqft;
+    const el=document.getElementById('cm-'+c.id); if(el) el.textContent=money(r.material); });
+  document.getElementById('k-mat').textContent=money(mat);
+  document.getElementById('k-full').textContent=money(full);
+  document.getElementById('k-book').textContent='#'+EMS_QUOTE.no;
+  document.getElementById('f-book').textContent='#'+EMS_QUOTE.no+' ('+EMS_QUOTE.date+')';
+  const sold=parseFloat(document.getElementById('j-sold').value)||0;
+  document.getElementById('k-sold').textContent= sold? money(sold) : '—';
+  const mEl=document.getElementById('k-margin'), xEl=document.getElementById('k-mult'), rl=document.getElementById('rules');
+  if(sold>0 && mat>0){
+    const margin=(sold-mat)/sold*100, mult=sold/mat;
+    mEl.textContent=margin.toFixed(1)+'%';
+    mEl.className='v '+(margin>=42.5?'ok':(margin>=35?'warn':'bad'));
+    xEl.textContent=mult.toFixed(2)+'×';
+    xEl.className='v '+(mult>=4?'ok':(mult>=3.5?'warn':'bad'));
+    const row=(m)=>{
+      const sx=mat*m, d=sold-sx, near=Math.abs(d)<=sx*0.02;
+      const cls=(near||d>0)?'ok':'bad';
+      const word=near?`right at ${m}×`:(d>0?`ABOVE ${m}×`:`BELOW ${m}×`);
+      return `<div><b>${m}×</b> = <b>${money(sx)}</b> — <b class="${cls}">${word}</b>${near?'':` by <b class="${cls}">${money(Math.abs(d))}</b>`}</div>`;
+    };
+    rl.innerHTML=`<b class="hdr">Pricing rules</b> <span class="muted">(sold = material × N · current ${mult.toFixed(2)}×)</span>${row(4)}${row(3.5)}
+      <div class="muted" style="margin-top:4px;">42.5% material-margin target ⇒ sold ≥ <b>${money(mat/(1-0.425))}</b></div>`;
+  } else {
+    mEl.textContent='—'; mEl.className='v'; xEl.textContent='—'; xEl.className='v';
+    rl.textContent='Enter the sold price to check it against the pricing rules.';
+  }
+  renderBOM(mat);
+  persist();
+}
+
+function buildBOM(){
+  const agg={};  // sku -> {role, pieces:[], lf}
+  let plates=0, anchors=0, ccFt=0;
+  canopies.forEach(c=>{
+    const r=piecesForSpec(c);
+    Object.keys(r.out).forEach(sku=>{
+      if(!agg[sku]) agg[sku]={role:r.out[sku].role, pieces:[]};
+      agg[sku].pieces.push(...r.out[sku].pieces);
+    });
+    plates+=r.plates; anchors+=r.anchors; ccFt+=r.ccFt;
+  });
+  const rows=[];
+  Object.keys(agg).forEach(sku=>{
+    const a=agg[sku];
+    const lf=a.pieces.reduce((s,p)=>s+p+CM_KERF_FT,0);
+    const sticks=ffd(a.pieces, emsLen(sku));
+    const per=emsStick(sku);
+    rows.push({ role:a.role, sku, desc:emsDesc(sku), pieces:a.pieces.length,
+      lf, sticks, per, buy:sticks*per, prop:lf*(per/emsLen(sku)) });
+  });
+  rows.sort((x,y)=>y.buy-x.buy);
+  const platesPerBar=Math.max(1,Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
+  if(plates>0){
+    const bars=Math.ceil(plates/platesPerBar), per=emsStick(CM.plate.sku);
+    rows.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
+      pieces:plates, lf:plates*0.5, sticks:bars, per, buy:bars*per, prop:plates*(per/platesPerBar) });
+  }
+  if(ccFt>0){
+    const sheets=Math.ceil(ccFt/CM.cchannel.yieldFt), per=emsStick(CM.cchannel.sku);
+    rows.push({ role:'C-channel (LED) — from ¼″ 4×8 plate', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku),
+      pieces:'—', lf:ccFt, sticks:sheets, per, buy:sheets*per, prop:ccFt*(per/CM.cchannel.yieldFt) });
+  }
+  if(anchors>0){
+    rows.push({ role:'Anchors / hardware (⅜″ all-thread)', sku:'—', desc:'~$8 per anchor point',
+      pieces:anchors, lf:null, sticks:null, per:8, buy:anchors*8, prop:anchors*8 });
+  }
+  return rows;
+}
+
+function renderBOM(matTotal){
+  const tb=document.getElementById('bom-body'), tf=document.getElementById('bom-foot');
+  if(!canopies.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Add a canopy to build the BOM.</td></tr>'; tf.innerHTML=''; document.getElementById('bom-count').textContent=''; return; }
+  const rows=buildBOM();
+  document.getElementById('bom-count').textContent=rows.length+' items';
+  tb.innerHTML=rows.map(r=>`<tr>
+    <td>${r.role}</td><td style="font-family:monospace;white-space:nowrap;">${r.sku}</td><td class="muted">${r.desc}</td>
+    <td class="num">${r.pieces??'—'}</td><td class="num">${r.lf==null?'—':r.lf.toFixed(1)}</td>
+    <td class="num" style="font-weight:700;">${r.sticks==null?'—':r.sticks}</td>
+    <td class="num">$${r.per.toFixed(2)}</td>
+    <td class="num">${money(r.buy)}</td><td class="num">${money(r.prop)}</td>
+  </tr>`).join('');
+  const buyT=rows.reduce((s,r)=>s+r.buy,0), propT=rows.reduce((s,r)=>s+r.prop,0);
+  const misc=(matTotal!=null)?Math.max(0,matTotal-propT):0;
+  tf.innerHTML=`
+    <tr><td colspan="7" style="text-align:right;color:var(--text-dim);">Fasteners / misc (+3% framing)</td><td class="num">—</td><td class="num">${money(misc)}</td></tr>
+    <tr style="font-weight:800;border-top:2px solid var(--line);">
+      <td colspan="7" style="text-align:right;">Totals</td>
+      <td class="num">${money(buyT)}</td><td class="num">${money(propT+misc)}</td></tr>
+    <tr><td colspan="9" class="muted" style="text-align:right;">Buy total = PO if every stick is bought fresh · Costed total = job cost used for margin (matches Material Cost above)</td></tr>`;
+}
+
+function exportCSV(){
+  const rows=buildBOM();
+  if(!rows.length){ alert('Add a canopy first.'); return; }
+  const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const lines=[['material','sku','description','pieces','lineal_ft','sticks_to_buy','price_per_stick','buy_cost','costed_proportional']];
+  rows.forEach(r=>lines.push([r.role,r.sku,r.desc,r.pieces??'',r.lf==null?'':r.lf.toFixed(2),r.sticks??'',r.per.toFixed(2),r.buy.toFixed(2),r.prop.toFixed(2)]));
+  const name=(document.getElementById('j-name').value||'job').replace(/[^\w\- ]+/g,'').trim().replace(/ +/g,'_');
+  const csv=lines.map(r=>r.map(esc).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`BOM_${name||'job'}.csv`; a.click();
+}
+
+function persist(){
+  try{ localStorage.setItem(LSK, JSON.stringify({
+    name:document.getElementById('j-name').value, no:document.getElementById('j-no').value,
+    designer:document.getElementById('j-designer').value, sold:document.getElementById('j-sold').value,
+    canopies, seq })); }catch(e){}
+}
+function restore(){
+  try{
+    const d=JSON.parse(localStorage.getItem(LSK)||'null'); if(!d) return false;
+    document.getElementById('j-name').value=d.name||''; document.getElementById('j-no').value=d.no||'';
+    document.getElementById('j-designer').value=d.designer||''; document.getElementById('j-sold').value=d.sold||'';
+    canopies=d.canopies||[]; seq=d.seq||canopies.length+1;
+    return true;
+  }catch(e){ return false; }
+}
+function clearJob(){
+  if(!confirm('Clear this job (all canopies + header)?')) return;
+  canopies=[]; seq=1;
+  ['j-name','j-no','j-designer','j-sold'].forEach(id=>document.getElementById(id).value='');
+  renderCanopies(); recalc();
+}
+
+/* URL-hash handoff (same format the Quote Builder sends the Drawing Builder):
+   #spec=<base64 JSON {job,cust,W,P,face,qty,attach,...}> — prefills one canopy. */
+(function init(){
+  let handed=false;
+  try{
+    const h=location.hash.match(/spec=([^&]+)/);
+    if(h){
+      const s=JSON.parse(atob(decodeURIComponent(h[1])));
+      document.getElementById('j-name').value=s.cust||'';
+      document.getElementById('j-no').value=s.job||'';
+      canopies=[]; seq=1;
+      addCanopy({label:(s.cust||'Canopy')+' 1', W:+s.W||20, P:+s.P||4, face:+s.face||8, qty:+s.qty||1,
+                 attach:(s.attach==='tierod'?'tierod':'allthread'), ds:0, cc:0, outrig:0});
+      handed=true;
+    }
+  }catch(e){}
+  if(!handed){ if(restore()){} }
+  renderCanopies(); recalc();
+})();
+</script>
+</body>
+</html>
