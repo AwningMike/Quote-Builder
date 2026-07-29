@@ -189,6 +189,9 @@
   #print-quote-doc{ display:none; }
 
   @media print{
+    /* Force the estimate to always print portrait US Letter, even if the browser
+       dialog is still remembering Landscape from a Full Drawing Set print. */
+    @page{ size:8.5in 11in; margin:0.5in; }
     body{ background:#fff; }
     .app{ display:none !important; }
     #print-quote-doc{ display:block; }
