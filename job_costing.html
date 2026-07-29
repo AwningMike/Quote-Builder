@@ -99,8 +99,11 @@
     </div>
     <div class="actions no-print">
       <button class="btn" onclick="addCanopy()">＋ Add Canopy</button>
-      <span class="muted" style="align-self:center;">Mitered/multi-leg canopies: enter each leg as its own line, or total W×P as one line for a close cost.</span>
+      <button class="btn secondary" onclick="document.getElementById('dxf-file').click()">📐 Upload DXF</button>
+      <input type="file" id="dxf-file" accept=".dxf" style="display:none" onchange="handleDXF(this.files[0]); this.value='';">
+      <span class="muted" style="align-self:center;">Upload an approval/shop DXF to auto-read qty, fascia, size &amp; downspouts — then verify. Mitered/multi-leg: one line per leg.</span>
     </div>
+    <div id="dxf-report" style="display:none;margin-top:12px;padding:11px 13px;background:#1b2433;border:1px solid #2c3c55;border-radius:8px;font-size:12.5px;line-height:1.65;"></div>
   </div>
 
   <div class="card">
@@ -490,6 +493,102 @@ function clearJob(){
   canopies=[]; seq=1;
   ['j-name','j-no','j-designer','j-sold'].forEach(id=>document.getElementById(id).value='');
   renderCanopies(); recalc();
+}
+
+/* ============== DXF upload — auto-read the job from an approval/shop drawing ==============
+   Reads the DXF as text and mines the TEXT/MTEXT entities:
+   - the scope block ("Manufacture N Metal Tech ... Canopy") → qty, fascia size (SKU), downspout size
+   - dimension strings (12'-6") → width & projection candidates by size/frequency
+   - tie-rod / C-channel / outrigger mentions
+   Everything lands as a prefilled canopy line + a report of what was found — designer verifies. */
+function handleDXF(file){
+  if(!file) return;
+  const rep=document.getElementById('dxf-report');
+  rep.style.display='block';
+  rep.innerHTML='Reading <b>'+file.name.replace(/</g,'&lt;')+'</b> ('+(file.size/1048576).toFixed(1)+' MB)…';
+  const rd=new FileReader();
+  rd.onerror=()=>{ rep.innerHTML='<span class="bad">Could not read that file.</span>'; };
+  rd.onload=()=>{ try{ parseDXF(String(rd.result), file.name); }catch(e){ rep.innerHTML='<span class="bad">Parse failed: '+String(e.message).replace(/</g,'&lt;')+'</span>'; } };
+  rd.readAsText(file);
+}
+function parseDXF(raw, fname){
+  // 1) pull every text entity value (group codes 1 and 3 hold the text)
+  const lines=raw.split(/\r?\n/);
+  const texts=[];
+  for(let i=0;i<lines.length-1;i++){
+    const code=lines[i].trim();
+    if(code==='1'||code==='3'){ const v=lines[i+1]; if(v && v.length<4000) texts.push(v); }
+  }
+  // strip MTEXT formatting: {\f...;} wrappers, \P newlines, inline codes
+  const clean=t=>t.replace(/\{\\f[^;]*;/g,'').replace(/[{}]/g,'').replace(/\\P/g,'\n')
+                 .replace(/\\[A-Za-z][^;\\]*;/g,'').replace(/\\\\/g,'\\');
+  const all=texts.map(clean).join('\n');
+
+  // 2) the scope block: "Manufacture N Metal Tech ... Canopy/Canopies"
+  const scopeM=all.match(/Manufacture\s+(\d+|_+)\s+(?:New\s+)?Metal\s*Tech[^\n]*Canop(?:y|ies)[\s\S]{0,400}/i);
+  const scope=scopeM?scopeM[0]:'';
+  let qty=1;
+  if(scopeM && /^\d+$/.test(scopeM[1])) qty=Math.max(1,parseInt(scopeM[1]));
+
+  // fascia: prefer the SKU (exact), else the N" Gutter Fascia callout — search scope first, then whole file
+  const skuFace={'56-63-033':6,'56-63-016':8,'56-63-039':8,'56-63-043':10,'56-63-045':10,'56-63-042':12};
+  let face=null, faceSrc='';
+  for(const src of [scope, all]){
+    if(face) break;
+    const skus=[...src.matchAll(/56-63-0(?:33|16|39|43|45|42)/g)].map(m=>m[0]);
+    if(skus.length){ face=skuFace[skus[0]]; faceSrc='SKU '+skus[0]; break; }
+    const g=src.match(/(\d{1,2})\s*(?:"|″|in)?\s*Gutter\s*Fascia/i);
+    if(g && skuFace!==null){ const f=parseInt(g[1]); if([6,8,10,12].includes(f)){ face=f; faceSrc='callout'; } }
+  }
+  if(!face){ face=8; faceSrc='default (not found)'; }
+
+  // 3) dimensions: every foot-inch string → decimal ft, ranked by frequency.
+  // TEMPLATE_DIMS: dims that live in APMG's standard-details/template sheets embedded in most
+  // drawings (calibrated across 22 real job DXFs) — their baseline counts are subtracted so
+  // template noise doesn't masquerade as the canopy size.
+  const TEMPLATE_DIMS={1.33:2,1.5:2,2.33:4,2.5:2,2.75:2,3.33:4,5.5:2,6:10,6.33:2,6.67:3,8.33:1,8.5:1,9.92:1,13.33:1,19.83:2,20.17:3,26.75:1,29.92:1};
+  const dimCount={};
+  for(const m of all.matchAll(/(\d{1,2})'-(\d{1,2})(?:\s(\d+)\/(\d+))?"/g)){
+    let ft=parseInt(m[1])+parseInt(m[2])/12;
+    if(m[3]&&m[4]) ft+=(parseInt(m[3])/parseInt(m[4]))/12;
+    ft=Math.round(ft*100)/100;
+    dimCount[ft]=(dimCount[ft]||0)+1;
+  }
+  Object.keys(dimCount).forEach(k=>{ const adj=dimCount[k]-(TEMPLATE_DIMS[k]||0); if(adj>0) dimCount[k]=adj; else delete dimCount[k]; });
+  const dims=Object.keys(dimCount).map(Number).sort((a,b)=>b-a);
+  const byFreq=arr=>arr.sort((a,b)=>(dimCount[b]-dimCount[a])||(b-a));
+  const wCands=byFreq(dims.filter(d=>d>=8&&d<=45));                    // widths: 8–45 ft
+  const pCands=byFreq(dims.filter(d=>d>=2.5&&d<8));                    // projections: 2.5–8 ft
+  const wFound=wCands.length>0, pFound=pCands.length>0;
+  const W=wCands[0]||20, P=pCands[0]||4;
+
+  // 4) accessories
+  const dsPhr=(all.match(/Straight\s+Downspout/gi)||[]).length;
+  const dsPl=all.match(/Downspout\s+Plate:\s*(\d+)/i);
+  const dsAs=(all.match(/Downspout\s+Assembly/gi)||[]).length;
+  let ds=Math.max(dsPhr, dsPl?parseInt(dsPl[1]):0, dsAs);
+  if(!ds && /downspout/i.test(all)) ds=1;
+  const hasTie=/tie-?rod/i.test(all);
+  // C-channel only on explicit callouts — bare "LED" text is often sign-cabinet scope (by others)
+  const hasCC=/c-?channel|13-63-230|light\s*strips?\b/i.test(all);
+  const hasOR=/out\s?rigger/i.test(all);
+  const perim=Math.round((W+2*P)*10)/10;
+  const cc=hasCC?perim:0;
+
+  // 5) prefill a canopy + report
+  const label=(fname||'DXF').replace(/\.dxf$/i,'').replace(/^[\d_]+/,'').replace(/_/g,' ').trim()||'From DXF';
+  addCanopy({label:label.slice(0,40), W, P, face, qty, attach:hasTie?'tierod':'allthread', ds, cc, outrig:0});
+  const fmt=f=>{ const ft=Math.floor(f), i=Math.round((f-ft)*12); return i? `${ft}'-${i}"` : `${ft}'`; };
+  const alts=(arr,n)=>arr.slice(1,1+n).map(d=>fmt(d)+' (×'+dimCount[d]+')').join(', ')||'—';
+  const rep=document.getElementById('dxf-report');
+  rep.innerHTML=`<b class="hdr" style="color:#8fb4e8">Read from ${String(fname).replace(/</g,'&lt;')}</b> — <span class="warn">verify before costing</span><br>
+    Qty <b>${qty}</b> · Fascia <b>${face}″</b> <span class="muted">(${faceSrc})</span> ·
+    Width ${wFound?`<b>${fmt(W)}</b> <span class="muted">(seen ×${dimCount[W]} — alternates: ${alts(wCands,3)})</span>`:`<b class="warn">not found — defaulted ${fmt(W)}, enter the real width</b>`} ·
+    Projection ${pFound?`<b>${fmt(P)}</b> <span class="muted">(alternates: ${alts(pCands,3)})</span>`:`<b class="warn">not found — defaulted ${fmt(P)}, enter the real projection</b>`}<br>
+    Downspouts <b>${ds}</b> · ${hasTie?'<span class="ok">tie-rod attach ✓</span>':'<span class="muted">no tie-rod text → all-thread</span>'} ·
+    ${hasCC?`<span class="ok">C-channel/LED found → prefilled perimeter ${perim} ft</span>`:'no C-channel'} ·
+    ${hasOR?'<span class="warn">outriggers mentioned — set qty if used</span>':'no outriggers'}<br>
+    <span class="muted">A canopy line was added with these values — adjust anything that reads wrong (dims are the drawing's most-repeated sizes, not a guarantee).</span>`;
 }
 
 /* URL-hash handoff (same format the Quote Builder sends the Drawing Builder):
