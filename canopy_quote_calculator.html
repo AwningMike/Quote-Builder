@@ -390,7 +390,7 @@
         <style>@media print{.margin-check{display:none!important}}</style>
         <div class="margin-check" id="margin-check" style="margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f7f9fc;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only (incl. downspouts &amp; C-channel) · internal — not on the customer quote</span></strong>
+            <strong style="font-size:13px;">Margin Check <span style="font-weight:400;color:#8a94a6;font-size:11px;">material only · proportional ft +12% waste · internal — not on the customer quote</span></strong>
             <span style="font-size:12px;">target <input id="mc-target" type="number" value="42.5" step="0.5" style="width:54px;padding:2px 4px;font-size:12px;" onchange="renderQuote()">%</span>
           </div>
           <div id="mc-body" style="font-size:12px;margin-top:8px;color:#555;">Add a canopy to see its margin against your true cost.</div>
@@ -2657,6 +2657,12 @@ const CM = {
  cchannel:{ sku:'50-03-300', yieldFt:96 }               // C-channel brake-formed from 1/4"x4'x8' plate (~96 lin ft/sheet)
 };
 const DS_DROP_FT = 8;   // feet of downspout tube per drop (editable — typical straight downspout)
+// Framing material costing method:
+//   'stick' = buy whole sticks (charge full stock length even if part is drop) — real PO cost.
+//   'prop'  = proportional / lineal-foot: charge only the feet consumed (+ kerf) × waste allowance.
+const CM_COST_MODE = 'prop';    // proportional lineal-foot costing (per Mike, 07/2026)
+const CM_KERF_FT   = 1/12;      // saw kerf per cut (~1")
+const CM_WASTE     = 1.12;      // drop/waste multiplier for 'prop' mode — +12% covers kerf & unusable drops
 // SKU -> role, for tagging which price-book items the canopy recipe actually uses.
 function _recipeSkuRoles(){
   const roles={
@@ -2726,7 +2732,8 @@ function _cmFfd(pieces, stock){
 }
 // True cost for one canopy line item (all qty). Also returns an itemized `lines` cut sheet
 // built from the SAME math, so the breakdown can never disagree with the margin number.
-function canopyTrueCost(spec){
+function canopyTrueCost(spec, mode){
+  mode = mode || CM_COST_MODE;   // 'stick' = whole-stick purchasing (default) · 'prop' = lineal-foot proportional
   if(!spec) return {material:0,labor:0,finish:0,freight:0,cost:0,sqft:0,lines:[],qty:1,framingPU:0,miscPU:0,dsPU:0,ccPU:0};
   const face = spec.face||8, qty = spec.qty||1;
   const legs = (spec.mitered && spec.legs && spec.legs.length)
@@ -2736,10 +2743,22 @@ function canopyTrueCost(spec){
   const pan = CM[spec.panKey||'pan6'];
   const fasc = CM[CM_FAS[face]||'fascia8'];
   const lines = [];
-  // helper: nest `pieces` into whole sticks of this SKU, record a line, return per-unit cost
+  // helper: price `pieces` of this SKU, record a line, return per-unit cost.
+  // 'stick' mode buys whole sticks (nest via FFD). 'prop' mode charges only the lineal feet
+  // consumed (incl. saw kerf) × a waste allowance — no charge for the leftover drop.
   // display counts are JOB TOTALS (× qty) so every row reconciles with its Cost column.
   const stick = (role, sku, pieces, note) => {
-    const s = _cmFfd(pieces, emsLen(sku)); const per = emsStick(sku); const c = s*per; const js=s*qty;
+    const per = emsStick(sku);
+    let c, qtyText;
+    if(mode==='prop'){
+      const lf = pieces.reduce((a,p)=>a+p+CM_KERF_FT,0) * CM_WASTE;   // feet used + kerf, padded for drop waste
+      const ppf = per / emsLen(sku);                                  // $/ft
+      c = lf*ppf;
+      qtyText = (lf*qty).toFixed(1)+' ft';
+      lines.push({ role, sku, desc:emsDesc(sku), note, qtyText, unitText:'$'+ppf.toFixed(2)+'/ft', costPU:c, cat:'framing' });
+      return c;
+    }
+    const s = _cmFfd(pieces, emsLen(sku)); c = s*per; const js=s*qty;
     lines.push({ role, sku, desc:emsDesc(sku), note, qtyText:js+' stick'+(js===1?'':'s'), unitText:'$'+per.toFixed(2)+'/stick', costPU:c, cat:'framing' });
     return c;
   };
