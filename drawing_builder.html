@@ -83,7 +83,7 @@ const M = {
  support14:{sku:"20-63-235",role:'1x4 front/rear support',profile:"1x4x.125",stock:24,perpc:175.2,conf:true},
  tierod1:{sku:"18-63-225",role:'Sch40 1" tie-rod',profile:'1" sch40',stock:20,perpc:60.0,conf:true},
  sleeve125:{sku:"18-63-235",role:'Sch40 1-1/2" sleeve',profile:'1.5" sch40',stock:20,perpc:93.0,conf:true},
- plate:{sku:"10-63-350",role:'6x6x1/4 wall plate (cut from 1/4x6 bar)',profile:"1/4x6 bar",stock:20,perpc:191.0,conf:true},
+ plate:{sku:"50-03-173",role:'6x6x.125 wall plate (cut from .125 4x8 sheet)',profile:".125 sheet",stock:24,perpc:252.0,conf:true,platesPerUnit:128},
  outrig22:{sku:"11-63-320",role:'2x2 outrigger',profile:"2x2x3/16",stock:20,perpc:88.0,conf:true},
 };
 const FASCIA={6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
@@ -126,10 +126,10 @@ function members(spec){
   if(attach==='tierod'||attach==='cantilever'){
     let tp=[]; legList.forEach(l=>{const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3);});
     addLinear(rows,M.tierod1,tp,`${attach==='cantilever'?'Cantilever':'Tie-rod'} — Sch40 1"`,`${tp.length} @ ~4' o.c.`,qty,'threaded');
-    addLinear(rows,M.sleeve125,tp.map(()=>1),'Sleeve pipe — Sch40 1.25"',`${tp.length} sleeves`,qty,'over tie-rod');
+    addLinear(rows,M.sleeve125,tp.map(()=>2),'Sleeve tube — Sch40 1-1/2" × 2\'',`${tp.length} sleeves`,qty,'over tie-rod');
   }
   // wall plates (cut 6" from bar) + anchors
-  addLinear(rows,M.plate,Array(pts).fill(0.5),'Wall plates — 6×6×1/4',`${pts} @ 24" o.c.`,qty,'3/8" all-thread into 2×8 blocking');
+  addCount(rows,{sku:M.plate.sku,role:'Wall plates — 6×6×.125',profile:M.plate.profile,conf:true,perpc:M.plate.perpc/M.plate.platesPerUnit},pts,`${pts} @ 24" o.c. · cut from .125 4×8 sheet (128/sheet)`,qty);
   addCount(rows,{sku:'(hardware)',role:'Anchors / hardware',profile:'3/8" all-thread',conf:true,perpc:8},pts,`${pts} points`,qty);
 
   // 5. OUTRIGGERS (optional)

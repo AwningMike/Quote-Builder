@@ -2651,7 +2651,7 @@ const CM = {
  support14:{ sku:'20-63-235' },
  tierod1:{ sku:'18-63-225' },
  sleeve125:{ sku:'18-63-235' },                         // 1-1/2" Sch40 sleeve over the 1" tie-rod
- plate:{ sku:'10-63-350', plateLenIn:6, kerfIn:0.125 }, // 6x6x1/4 plates cut from 1/4x6 bar (price per plate)
+ plate:{ sku:'50-03-173', platesPerUnit:128 },          // 6x6x.125 plates cut from .125" 4x8 sheet (128/sheet) — per drawings
  outrig22:{ sku:'11-63-320' },                          // 2x2x3/16 outrigger (optional / on request)
  downspout22:{ sku:'19-63-210' },                       // 2x2x1/8 square tube — downspout (default)
  downspout23:{ sku:'20-63-275' },                       // 2x3x1/8 tube — downspout on 10"+ fascia jobs
@@ -2774,13 +2774,13 @@ function canopyTrueCost(spec, mode){
   if((spec.attach||'')==='tierod'){
     let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3); });
     framingPU += stick('Tie-rods (1" Sch40)', CM.tierod1.sku, tp, `${tp.length*qty} rods @ ${(legs[0].p+3).toFixed(1)}′`);
-    framingPU += stick('Tie-rod sleeves', CM.sleeve125.sku, tp.map(()=>1), `${tp.length*qty} sleeves`);
+    framingPU += stick('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2), `${tp.length*qty} sleeves × 2′`);
   }
-  // Wall plates: 6" pieces cut many-per-bar → price PER PLATE, not per whole bar.
-  const platesPerBar = Math.max(1, Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
+  // Wall plates: 6x6x.125 cut 128-per-sheet from .125 4x8 plate → price PER PLATE.
+  const platesPerBar = CM.plate.platesPerUnit;
   const platePer = emsStick(CM.plate.sku)/platesPerBar;
   const plateCost = pts*platePer;
-  lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${pts*qty} plates · ${platesPerBar}/bar`, qtyText:(pts*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
+  lines.push({ role:'Wall plates (6×6×.125)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${pts*qty} plates · ${platesPerBar}/sheet`, qtyText:(pts*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
   framingPU += plateCost;
   const anchorCost = pts*8;
   lines.push({ role:'Anchors / hardware', sku:'—', desc:'3/8" all-thread + hardware', note:`${pts*qty} anchor points`, qtyText:(pts*qty)+' pts', unitText:'$8.00/pt', costPU:anchorCost, cat:'framing' });

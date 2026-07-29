@@ -257,7 +257,7 @@ const CM = {
  support14:{ sku:'20-63-235' },
  tierod1:{ sku:'18-63-225' },
  sleeve125:{ sku:'18-63-235' },
- plate:{ sku:'10-63-350', plateLenIn:6, kerfIn:0.125 },
+ plate:{ sku:'50-03-173', platesPerUnit:128 },   // 6x6x.125 plates from .125 4x8 sheet — per drawings
  outrig22:{ sku:'11-63-320' },
  downspout22:{ sku:'19-63-210' },
  downspout23:{ sku:'20-63-275' },
@@ -293,7 +293,7 @@ function piecesForSpec(s){
   if((s.attach||'tierod')==='tierod'){
     const nRod=Math.ceil(W/4)+1;
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
-    add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40)', Array(nRod).fill(1));
+    add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
   }
   const dsN=(+s.ds||0);
   if(dsN>0){
@@ -320,7 +320,7 @@ function costSpec(s){
     const lf=out[sku].pieces.reduce((a,p)=>a+p+CM_KERF_FT,0)*CM_WASTE;
     framing += lf*(emsStick(sku)/emsLen(sku));
   });
-  const platesPerBar=Math.max(1,Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
+  const platesPerBar=CM.plate.platesPerUnit;
   framing += plates*(emsStick(CM.plate.sku)/platesPerBar);
   framing += anchors*8;
   const ccCost = ccFt*(emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
@@ -420,11 +420,11 @@ function buildBOM(){
       lf, sticks, per, buy:sticks*per, prop:lf*(per/emsLen(sku)) });
   });
   rows.sort((x,y)=>y.buy-x.buy);
-  const platesPerBar=Math.max(1,Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
+  const platesPerBar=CM.plate.platesPerUnit;
   if(plates>0){
     const bars=Math.ceil(plates/platesPerBar), per=emsStick(CM.plate.sku);
-    rows.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
-      pieces:plates, lf:plates*0.5, sticks:bars, per, buy:bars*per, prop:plates*(per/platesPerBar) });
+    rows.push({ role:'Wall plates (6×6×.125) — from .125 4×8 sheet', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
+      pieces:plates, lf:null, sticks:bars, per, buy:bars*per, prop:plates*(per/platesPerBar) });
   }
   if(ccFt>0){
     const sheets=Math.ceil(ccFt/CM.cchannel.yieldFt), per=emsStick(CM.cchannel.sku);
