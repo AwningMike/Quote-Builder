@@ -403,6 +403,7 @@
         <button class="btn secondary" onclick="printFormalQuote()">Print / Export Quote (Estimate PDF)</button>
         <button class="btn secondary" onclick="showAllDrawingsModal()">📐 Full Drawing Set (all canopies)</button>
         <button class="btn secondary" onclick="window.open('price_watch.html','_blank')" title="See how supplier price changes hit margin on your typical builds">📈 Price Watch (supplier margin impact)</button>
+        <button class="btn secondary" onclick="openPriceBook()" title="Full supplier price book that feeds the margin calc">📋 Material Prices</button>
       </div>
     </div>
   </div>
@@ -2536,12 +2537,176 @@ function toggleGroup(gid){
    Material from the canopy framing recipe (BOM, nested into stock sticks) + labor (weld/paint prep/
    paint time) + paint materials + freight. Compared to the canopy SELL to show live margin.
    Members/pricing mirror the standalone Drawing Builder so the two never disagree. */
-const CM = {
- pan6:{cover:0.5,stock:24,perpc:140.4}, pan8:{cover:0.667,stock:24,perpc:174.0},
- fascia6:{stock:24,perpc:246.0}, fascia8:{stock:24,perpc:372.0}, fascia10:{stock:24,perpc:474.0}, fascia12:{stock:24,perpc:594.0},
- support14:{stock:24,perpc:175.2}, tierod1:{stock:20,perpc:60.0}, sleeve125:{stock:24,perpc:100.8},
- plate:{stock:24,perpc:14}, outrig22:{stock:24,perpc:14}
+/* ---- Full supplier price book — Eastern Metal Supply quote #584313 (05/19/26) ----
+   Every line item from the quote. perStick = ppf ($/ft) × len (ft). The canopy framing
+   recipe (CM) below references these by SKU, so THIS is the single source of truth for
+   material pricing. When a new supplier quote comes in, update prices here and the margin
+   re-prices automatically. Full list is also viewable in-app via the "Material Prices" button. */
+const EMS_QUOTE = { no:'584313', date:'05/19/26', supplier:'Eastern Metal Supply of MO' };
+const EMS = {
+ "60-00-200":{d:"MP-1 (.125\" WALL) X 24' (WHITE",ppf:2.8,len:24.0},
+ "60-00-205":{d:"MP-1A (.100\" WALL) X 24'",ppf:2.4,len:24.0},
+ "60-00-206":{d:"MP-1C (.063\" WALL) X 24'",ppf:1.9,len:24.0},
+ "60-00-225":{d:"MP-3 (1\" X 2\") X 24'",ppf:2.74,len:24.0},
+ "60-00-235":{d:"MP-3S(1\"X2\") X 24'",ppf:3.1,len:24.0},
+ "60-00-255":{d:"MP-3H (1\" X 2\") X 24'",ppf:4.75,len:24.0},
+ "60-00-221":{d:"MP-2 X 2 X 24'",ppf:6.25,len:24.0},
+ "60-00-215":{d:"MP-2A (1\" FLANGE) X 24'",ppf:2.7,len:24.0},
+ "60-00-220":{d:"MP-2B X 24'",ppf:2.55,len:24.0},
+ "60-00-226":{d:"MP-3A(1\" X 2\") X 24'",ppf:4.761,len:24.0},
+ "40-63-010":{d:"1\" SQ W/DOUBLE FLANGE X 24'",ppf:2.1,len:24.0},
+ "60-00-240":{d:"MP-4 (1\" X 4\") X 24'",ppf:7.6,len:24.0},
+ "56-63-015":{d:"3 X 6 X .065 X 24'",ppf:5.75,len:24.0},
+ "56-63-033":{d:"4 X 6 X .093 X 24'",ppf:10.25,len:24.0},
+ "56-63-016":{d:"4 X 8 X .125 X 24'",ppf:14.75,len:24.0},
+ "56-63-039":{d:"4 X 8 X 3 X .125 X 24'",ppf:14.35,len:24.0},
+ "56-63-043":{d:"4 X 10 X 4 X .140 X 24'",ppf:19.75,len:24.0},
+ "56-63-045":{d:"4 X 10 X 4 X .125 X 30'",ppf:19.75,len:30.0},
+ "56-63-042":{d:"4 X 12 X 5 X .160 X 24'",ppf:24.65,len:24.0},
+ "56-63-046":{d:"2 X 8 X 24'",ppf:7.25,len:24.0},
+ "19-63-345":{d:"1 X .093 X 24'",ppf:1.98,len:24.0},
+ "19-63-170":{d:"1-1/2\" SQ X 1/8\" X 24'",ppf:4.1,len:24.0},
+ "19-63-180":{d:"1 3/4 X .093 X 24'",ppf:3.65,len:24.0},
+ "19-61-205":{d:"2\" SQ X .093 X 26'(BLUE ENDS)",ppf:4.5,len:26.0},
+ "19-63-210":{d:"2\" SQ X 1/8\" X 24'",ppf:5.85,len:24.0},
+ "11-61-270":{d:"2 X 2 X 3/16 X 25'",ppf:4.5,len:25.0},
+ "19-61-212":{d:"2\" SQ X 1/4\" WALL X 24'",ppf:10.75,len:24.0},
+ "19-63-235":{d:"3\" SQ X 1/8\" WALL X 24'",ppf:8.8,len:24.0},
+ "11-63-335":{d:"3 X 3 X .250 X 20'",ppf:8.8,len:20.0},
+ "19-61-258":{d:"5 X 1/4 X 24'",ppf:29.0,len:24.0},
+ "19-61-260":{d:"6 X 1/4 X 24'",ppf:36.0,len:24.0},
+ "20-63-222":{d:"1 X 2 X .062 X 24' W/.125 RAD",ppf:2.15,len:24.0},
+ "20-63-227":{d:"1\" X 2\" X .093\" X 24'",ppf:3.15,len:24.0},
+ "20-63-225":{d:"1 X 2 X 1/8 X 24'",ppf:4.25,len:24.0},
+ "20-63-230":{d:"1 X 3 X 1/8 X 24'",ppf:5.75,len:24.0},
+ "20-63-235":{d:"1 X 4 X 1/8 X 24'",ppf:7.3,len:24.0},
+ "20-63-236":{d:"1 X 5 X 1/8 X 20'",ppf:8.76,len:20.0},
+ "20-63-237":{d:"1 X 6 X .125 X 24'",ppf:10.2,len:24.0},
+ "20-63-250":{d:"1 1/2 X 3 X 1/8 X 24'",ppf:6.5,len:24.0},
+ "20-63-272":{d:"2 X 3 X .093 X 24'",ppf:5.25,len:24.0},
+ "20-63-275":{d:"2 X 3 X 1/8 X 24'",ppf:7.2,len:24.0},
+ "52-61-194":{d:"2 X 3 X 1/4 X 24'",ppf:13.15,len:24.0},
+ "20-63-280":{d:"2 X 4 X 1/8 X 24'",ppf:8.75,len:24.0},
+ "20-61-281":{d:"2 X 4 X 1/4 X 24'",ppf:16.5,len:24.0},
+ "20-63-290":{d:"2 X 6 X 1/8 X 24'",ppf:11.5,len:24.0},
+ "20-63-285":{d:"2 X 5 X 1/8 X 24'",ppf:10.25,len:24.0},
+ "20-63-295":{d:"2 X 8 X 1/8 X 24'",ppf:15.0,len:24.0},
+ "20-63-400":{d:"2 X 10 X 1/8 X 24'",ppf:18.0,len:24.0},
+ "20-63-500":{d:"2 X 12 X .188 X 24'",ppf:32.0,len:24.0},
+ "20-63-300":{d:"3 X 4 X 1/8 X 24'",ppf:10.5,len:24.0},
+ "20-63-303":{d:"3 X 6 X 1/8 X 24'",ppf:13.2,len:24.0},
+ "20-63-499":{d:"4 X 10 X .188 X 24'",ppf:33.0,len:24.0},
+ "20-63-245":{d:"1 1/2 X 2 X 1/8 X 24'",ppf:4.95,len:24.0},
+ "20-63-240":{d:"1-1/4 X 2-1/2 X 1/8 X 24' (RED",ppf:5.4,len:24.0},
+ "10-61-215":{d:"1/8 X 1 X 12'",ppf:0.8,len:12.0},
+ "10-61-325":{d:"1/4 X 1 X 12'",ppf:1.55,len:12.0},
+ "10-61-340":{d:"1/4 X 2 X 12'",ppf:3.1,len:12.0},
+ "10-61-345":{d:"1/4\" X 2-1/2\" X 12'",ppf:3.85,len:12.0},
+ "10-61-350":{d:"1/4\" X 3\" X 12'",ppf:4.7,len:12.0},
+ "10-63-345":{d:"1/4 X 4 X 20'",ppf:6.0,len:20.0},
+ "10-61-360":{d:"1/4 X 5 X 12'",ppf:7.5,len:12.0},
+ "10-63-350":{d:"1/4 X 6 X 20'",ppf:9.55,len:20.0},
+ "10-63-280":{d:"3/16\" X 2\" X 20'",ppf:2.3,len:20.0},
+ "10-63-285":{d:"3/16\" X 3\" X 20'",ppf:3.65,len:20.0},
+ "10-61-370":{d:"1/4 X 8 X 12'",ppf:12.0,len:12.0},
+ "10-61-375":{d:"1/4\" X 10\" X 12'",ppf:15.0,len:12.0},
+ "33-61-100":{d:"1/4\" X 12\" X 12'",ppf:19.25,len:12.0},
+ "18-63-225":{d:"1\" SCH 40 X 20'",ppf:3.0,len:20.0},
+ "18-63-235":{d:"1-1/2\" SCH 40 X 20'",ppf:4.65,len:20.0},
+ "14-63-215":{d:"1/2\" DIA X 20'",ppf:1.25,len:20.0},
+ "11-63-269":{d:"1 X 1 1/2 X 1/8 X 20'",ppf:1.7,len:20.0},
+ "11-63-365":{d:"1 X 2 X 1/16 X 20'",ppf:1.1,len:20.0},
+ "11-63-370":{d:"1 X 2 X 1/8 X 20'",ppf:2.25,len:20.0},
+ "11-63-410":{d:"1 1/2 X 2 X 1/8 X 20'",ppf:2.75,len:20.0},
+ "11-63-375":{d:"1 X 3 X 1/8 X 20'",ppf:3.0,len:20.0},
+ "11-63-390":{d:"2 X 3 X 1/8 X 20'",ppf:4.0,len:20.0},
+ "11-63-395":{d:"2 X 4 X 1/8 X 20'",ppf:4.5,len:20.0},
+ "11-63-396":{d:"2 X 4 X 1/4 X 20'",ppf:9.0,len:20.0},
+ "11-63-405":{d:"2 X 5 X 1/8 X 20'",ppf:5.75,len:20.0},
+ "11-63-415":{d:"2\" X 7\" X 1/4\" X 20'",ppf:14.0,len:20.0},
+ "11-63-230":{d:"1 X 1 X 3/16 X 20'",ppf:2.1,len:20.0},
+ "11-63-320":{d:"2 X 2 X 3/16 X 20'",ppf:4.4,len:20.0},
+ "11-63-325":{d:"2 X 2 X 1/4 X 20'",ppf:5.65,len:20.0},
+ "11-63-330":{d:"3 X 3 X 1/8 X 20'",ppf:4.5,len:20.0},
+ "50-03-214":{d:".080 X 60 X 120",ppf:260.0,len:1.0},
+ "50-03-600":{d:".080 X 72 X 120",ppf:306.0,len:1.0},
+ "50-03-630":{d:".080 X 72 X 144",ppf:365.0,len:1.0},
+ "50-03-129":{d:".090 X 48 X 96",ppf:185.0,len:1.0},
+ "88-00-240":{d:".090 X 60 X 144",ppf:365.0,len:1.0},
+ "50-03-173":{d:".125 X 48\" X 96\"",ppf:252.0,len:1.0},
+ "50-03-300":{d:".250\" X 48\" X 96\"",ppf:500.0,len:1.0}
 };
+function emsStick(sku){ const m=EMS[sku]; return m ? m.ppf*m.len : 0; }   // $ per full stock length
+function emsLen(sku){ const m=EMS[sku]; return m ? m.len : 24; }          // stock length (ft)
+function emsDesc(sku){ const m=EMS[sku]; return m ? m.d : '(not in price book)'; }
+
+/* Canopy framing recipe — each member points at a real SKU in the price book above,
+   so pricing never drifts from the supplier quote. */
+const CM = {
+ pan6:   { sku:'56-63-015', cover:0.5 },
+ pan8:   { sku:'56-63-046', cover:0.667 },
+ fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
+ support14:{ sku:'20-63-235' },
+ tierod1:{ sku:'18-63-225' },
+ sleeve125:{ sku:'18-63-235' },                         // 1-1/2" Sch40 sleeve over the 1" tie-rod
+ plate:{ sku:'10-63-350', plateLenIn:6, kerfIn:0.125 }, // 6x6x1/4 plates cut from 1/4x6 bar (price per plate)
+ outrig22:{ sku:'11-63-320' }                           // 2x2x3/16 outrigger (optional / on request)
+};
+// SKU -> role, for tagging which price-book items the canopy recipe actually uses.
+function _recipeSkuRoles(){
+  const roles={
+    pan6:'Roof pan 6"', pan8:'Roof pan 8"', fascia6:'Fascia 6"', fascia8:'Fascia 8"',
+    fascia10:'Fascia 10"', fascia12:'Fascia 12"', support14:'1×4 support',
+    tierod1:'Tie-rod', sleeve125:'Tie-rod sleeve', plate:'Wall plate', outrig22:'Outrigger'
+  };
+  const map={};
+  Object.keys(CM).forEach(k=>{ if(CM[k] && CM[k].sku) map[CM[k].sku]=roles[k]||k; });
+  return map;
+}
+function openPriceBook(){
+  if(document.getElementById('pricebook-backdrop')) return;
+  const back=document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='pricebook-backdrop';
+  back.addEventListener('click',e=>{ if(e.target===back) back.remove(); });
+  back.innerHTML=`<div class="drawing-modal" style="max-width:760px">
+    <h3>Material Price Book</h3>
+    <div class="dm-sub">Eastern Metal Supply quote #${EMS_QUOTE.no} · ${EMS_QUOTE.date}. These prices feed the margin calc. Rows tagged <span style="color:#1a7f37;font-weight:700">● recipe</span> are the ones a canopy is built from.</div>
+    <input id="pb-search" type="text" placeholder="Search SKU or description… (e.g. fascia, 2x2, 18-63)" style="width:100%;padding:11px 12px;border:1px solid #bbb;border-radius:5px;font-size:15px;color:#1a1a1a;background:#fff;margin-bottom:10px"
+      oninput="renderPriceBook()">
+    <div id="pb-body" style="max-height:60vh;overflow:auto"></div>
+    <div class="dm-actions" style="margin-top:16px"><button class="dm-close" onclick="document.getElementById('pricebook-backdrop').remove()">Close</button></div>
+  </div>`;
+  document.body.appendChild(back);
+  renderPriceBook();
+}
+function renderPriceBook(){
+  const body=document.getElementById('pb-body'); if(!body) return;
+  const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const q=((document.getElementById('pb-search')||{}).value||'').trim().toLowerCase();
+  const roles=_recipeSkuRoles();
+  const skus=Object.keys(EMS).filter(sku=> !q || sku.toLowerCase().includes(q) || EMS[sku].d.toLowerCase().includes(q)
+                 || (roles[sku]&&roles[sku].toLowerCase().includes(q)));
+  // recipe rows first, then the rest
+  skus.sort((a,b)=> (roles[b]?1:0)-(roles[a]?1:0));
+  let rows=skus.map(sku=>{
+    const m=EMS[sku], stick=(m.ppf*m.len), r=roles[sku];
+    return `<tr style="${r?'background:#eef7ef;':''}border-bottom:1px solid #eee">
+      <td style="padding:6px 8px;font-family:monospace;white-space:nowrap">${r?'<span style="color:#1a7f37">●</span> ':''}${esc(sku)}</td>
+      <td style="padding:6px 8px">${esc(m.d)}${r?` <span style="color:#1a7f37;font-size:11px;font-weight:700">${esc(r)}</span>`:''}</td>
+      <td style="padding:6px 8px;text-align:right">$${m.ppf.toFixed(2)}</td>
+      <td style="padding:6px 8px;text-align:right">${m.len}′</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:600">$${stick.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  body.innerHTML=`<div style="font-size:12px;color:#666;margin-bottom:6px">${skus.length} of ${Object.keys(EMS).length} items</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;color:#1a1a1a">
+      <thead><tr style="text-align:left;border-bottom:2px solid #ccc;color:#555;font-size:11px;text-transform:uppercase">
+        <th style="padding:6px 8px">SKU</th><th style="padding:6px 8px">Description</th>
+        <th style="padding:6px 8px;text-align:right">$/ft</th><th style="padding:6px 8px;text-align:right">Length</th>
+        <th style="padding:6px 8px;text-align:right">$/stick</th></tr></thead>
+      <tbody>${rows||'<tr><td style="padding:10px;color:#888">No match.</td></tr>'}</tbody>
+    </table>`;
+}
 const CM_FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
 const CM_LABOR = { weldHrPerSqft:0.08, prepHrPerSqft:0.06, paintHrPerSqft:0.06, rate:65 };
 const CM_PAINTMAT = 4;   // $/sqft
@@ -2566,20 +2731,22 @@ function canopyTrueCost(spec){
   const fasc = CM[CM_FAS[face]||'fascia8'];
   let mat = 0;
   let pp=[]; legs.forEach(l=>{ const n=Math.max(1,Math.ceil(l.w/pan.cover)); for(let k=0;k<n;k++) pp.push(l.p); });
-  mat += _cmFfd(pp,pan.stock)*pan.perpc;
+  mat += _cmFfd(pp,emsLen(pan.sku))*emsStick(pan.sku);
   let fp=[]; legs.forEach(l=>fp.push(l.w)); fp.push(legs[0].p); fp.push(legs[N-1].p);
-  mat += _cmFfd(fp,fasc.stock)*fasc.perpc;
+  mat += _cmFfd(fp,emsLen(fasc.sku))*emsStick(fasc.sku);
   let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
-  mat += _cmFfd(sp,CM.support14.stock)*CM.support14.perpc;
+  mat += _cmFfd(sp,emsLen(CM.support14.sku))*emsStick(CM.support14.sku);
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
   if((spec.attach||'')==='tierod'){
     let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3); });
-    mat += _cmFfd(tp,CM.tierod1.stock)*CM.tierod1.perpc;
-    mat += _cmFfd(tp.map(()=>1),CM.sleeve125.stock)*CM.sleeve125.perpc;
+    mat += _cmFfd(tp,emsLen(CM.tierod1.sku))*emsStick(CM.tierod1.sku);
+    mat += _cmFfd(tp.map(()=>1),emsLen(CM.sleeve125.sku))*emsStick(CM.sleeve125.sku);
   }
-  mat += _cmFfd(Array(pts).fill(0.5),CM.plate.stock)*CM.plate.perpc;
-  mat += pts*8;
-  if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); mat += _cmFfd(op,CM.outrig22.stock)*CM.outrig22.perpc; }
+  // Wall plates are 6" pieces cut many-per-bar from 1/4x6 stock → price PER PLATE, not per whole bar.
+  const platesPerBar = Math.max(1, Math.floor((emsLen(CM.plate.sku)*12)/(CM.plate.plateLenIn+CM.plate.kerfIn)));
+  mat += pts * (emsStick(CM.plate.sku)/platesPerBar);
+  mat += pts*8;   // anchors / hardware — 3/8" all-thread, ~$8 per point (not a stock SKU)
+  if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); mat += _cmFfd(op,emsLen(CM.outrig22.sku))*emsStick(CM.outrig22.sku); }
   mat *= qty; mat *= 1.03; // fasteners / misc
   const sqft = legs.reduce((a,l)=>a+l.w*l.p,0)*qty;
   const labor = sqft*(CM_LABOR.weldHrPerSqft+CM_LABOR.prepHrPerSqft+CM_LABOR.paintHrPerSqft)*CM_LABOR.rate;
