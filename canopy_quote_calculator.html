@@ -2626,6 +2626,71 @@ function renderCalc(){
 function removeItem(id){ quoteItems = quoteItems.filter(i=>i.id!==id); renderQuote(); }
 function clearQuote(){ quoteItems = []; renderQuote(); }
 
+// ---- Edit a quote line item (from the breakdown / line list) ----
+// Edits the text and dollars on the line; totals, tax and margin check re-run instantly.
+// (Changing sizes/spec still means re-adding from the calculator — the spec drives drawings & margin.)
+function editItem(itemId){
+  const i = quoteItems.find(x=>x.id===itemId);
+  if(!i) return;
+  if(document.getElementById('edititem-backdrop')) return;
+  const back=document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='edititem-backdrop';
+  back.addEventListener('click',e=>{ if(e.target===back) back.remove(); });
+  const inp='width:100%;padding:9px 10px;border:1px solid #bbb;border-radius:5px;font-size:14px;color:#1a1a1a;background:#fff;box-sizing:border-box;';
+  const lab='display:block;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;margin:12px 0 4px;';
+  const isCanopy = i.type==='canopy';
+  back.innerHTML=`<div class="drawing-modal" style="max-width:540px">
+    <h3>Edit Line Item</h3>
+    <div class="dm-sub">Change the wording or dollars on this line — totals, tax and the margin check update as soon as you save. To change sizes or spec (width, face, tie-rods…), remove the line and re-add it from the calculator so the drawings and margin stay true.</div>
+    <label style="${lab}">Title</label><input id="ei-title" type="text" style="${inp}">
+    <label style="${lab}">Description (shown under the title)</label><input id="ei-sub" type="text" style="${inp}">
+    <label style="${lab}">Group <span style="font-weight:400;text-transform:none;">(lines with the same group combine into one line item — blank = its own line)</span></label><input id="ei-group" type="text" style="${inp}">
+    <div style="display:flex;gap:10px;">
+      <div style="flex:1;"><label style="${lab}">Amount ($)</label><input id="ei-amount" type="number" step="1" style="${inp}"></div>
+      <div style="flex:1;"><label style="${lab}">Labor ($) <span style="font-weight:400;text-transform:none;">→ Installation line</span></label><input id="ei-labor" type="number" step="1" style="${inp}"></div>
+    </div>
+    ${isCanopy?`<div style="display:flex;gap:10px;">
+      <div style="flex:1;"><label style="${lab}">Downspouts ($)${i.downspoutQty?` · ${i.downspoutQty}`:''}</label><input id="ei-ds" type="number" step="1" style="${inp}"></div>
+      <div style="flex:1;"><label style="${lab}">LEDs ($)${i.lightsQty?` · ${i.lightsQty}`:''}</label><input id="ei-lights" type="number" step="1" style="${inp}"></div>
+      <div style="flex:1;"><label style="${lab}">Posts ($)${i.postsQty?` · ${i.postsQty}`:''}</label><input id="ei-posts" type="number" step="1" style="${inp}"></div>
+    </div>`:''}
+    <div class="dm-actions" style="margin-top:18px">
+      <button class="dm-pdf" onclick="saveItemEdit(${i.id})">Save Changes</button>
+      <button class="dm-close" onclick="document.getElementById('edititem-backdrop').remove()">Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
+  // set values via JS so titles with quotes/special characters can't break the markup
+  document.getElementById('ei-title').value = i.title||'';
+  document.getElementById('ei-sub').value = i.sub||'';
+  document.getElementById('ei-group').value = i.group||'';
+  document.getElementById('ei-amount').value = Math.round(i.amount||0);
+  document.getElementById('ei-labor').value = Math.round(i.labor||0);
+  if(isCanopy){
+    document.getElementById('ei-ds').value = Math.round(i.downspoutCost||0);
+    document.getElementById('ei-lights').value = Math.round(i.lightsCost||0);
+    document.getElementById('ei-posts').value = Math.round(i.postsCost||0);
+  }
+}
+function saveItemEdit(itemId){
+  const i = quoteItems.find(x=>x.id===itemId);
+  if(!i) return;
+  const gv=(id)=>{ const el=document.getElementById(id); return el?el.value:null; };
+  const num=(id,d)=>{ const v=parseFloat(gv(id)); return isNaN(v)?d:v; };
+  const t=(gv('ei-title')||'').trim(); if(t) i.title=t;
+  i.sub=(gv('ei-sub')||'').trim();
+  i.group=(gv('ei-group')||'').trim();
+  i.amount=Math.round(num('ei-amount', i.amount||0));
+  i.labor=Math.round(num('ei-labor', i.labor||0));
+  if(i.type==='canopy'){
+    if(document.getElementById('ei-ds')) i.downspoutCost=Math.round(num('ei-ds', i.downspoutCost||0));
+    if(document.getElementById('ei-lights')) i.lightsCost=Math.round(num('ei-lights', i.lightsCost||0));
+    if(document.getElementById('ei-posts')) i.postsCost=Math.round(num('ei-posts', i.postsCost||0));
+  }
+  const el=document.getElementById('edititem-backdrop'); if(el) el.remove();
+  renderQuote();
+}
+
 // Start a fresh quote — clears line items, header fields, and job-level extras.
 function newQuote(){
   if(quoteItems.length && !confirm('Start a NEW quote? This clears all line items and the header (customer, project, address, etc.).')) return;
@@ -3318,7 +3383,7 @@ function renderQuote(){
             ${items.map(i=>`
               <div style="display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--text-dim); padding:3px 0;">
                 <span>${i.title} — <span style="color:var(--text-faint)">${i.sub}</span></span>
-                <span style="font-family:'IBM Plex Mono',monospace; white-space:nowrap;">${i.type==='canopy' ? `<button class="li-drawing" onclick="event.stopPropagation(); showDrawingModal(${i.id})" title="View / download auto-drawing">📐</button>` : ''}${fmt(i.amount)} <button class="li-remove" style="margin-left:4px;" onclick="removeItem(${i.id})">×</button></span>
+                <span style="font-family:'IBM Plex Mono',monospace; white-space:nowrap;">${i.type==='canopy' ? `<button class="li-drawing" onclick="event.stopPropagation(); showDrawingModal(${i.id})" title="View / download auto-drawing">📐</button>` : ''}<button class="li-drawing" onclick="event.stopPropagation(); editItem(${i.id})" title="Edit this line (title, group, dollars)">✎</button>${fmt(i.amount)} <button class="li-remove" style="margin-left:4px;" onclick="removeItem(${i.id})">×</button></span>
               </div>
             `).join('')}
           </div>
@@ -3331,6 +3396,7 @@ function renderQuote(){
           <div class="li-top"><span class="li-title">${i.title}</span><span class="li-amt copyable" onclick="copyAmount(${Math.ceil(i.amount)}, this)">${fmt(i.amount)}</span></div>
           <div class="li-sub">${i.sub}</div>
           ${i.type==='canopy' ? `<button class="li-drawing" onclick="showDrawingModal(${i.id})" title="View / download auto-drawing">📐 Drawing</button>` : ''}
+          <button class="li-drawing" onclick="editItem(${i.id})" title="Edit this line (title, group, dollars)">✎ Edit</button>
           <button class="li-remove" onclick="removeItem(${i.id})">remove</button>
         </div>
       `;
