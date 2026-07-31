@@ -1092,6 +1092,13 @@ function canopyFigure(item, baseY){
   }
   // rear mating-pan strip
   svg += `<rect x="${elevX0}" y="${plY0+plH-11}" width="${elevW}" height="11" fill="url(#pans)" stroke="#333" stroke-width="0.8"/>`;
+  // 12" tie-rod: 2x2x1/4 rod-support bar across the width, CL 8-1/2" from front (front = top edge of plan)
+  if(attach==='tierod' && faceIn>=12){
+    const rbY = plY0 + Math.max(6, Math.min(plH-16, (8.5/Math.max(projIn,1))*plH));
+    svg += `<line x1="${elevX0+2}" y1="${rbY}" x2="${elevX0+elevW-2}" y2="${rbY}" stroke="#555" stroke-width="2.4"/>`;
+    svg += `<line x1="${elevX0+2}" y1="${rbY}" x2="${elevX0+elevW-2}" y2="${rbY}" stroke="#fff" stroke-width="0.8" stroke-dasharray="6,4"/>`;
+    svg += `<text x="${elevX0+elevW-6}" y="${rbY-4}" font-size="8.5" fill="#555" text-anchor="end">2"x2"x1/4" Rod Support Bar — CL 8½" From Front</text>`;
+  }
   // structural joists (equal bays) hatched red, bottom black spacing string
   const bays = Math.max(3, Math.round(widthIn / 36));
   const bayPx = elevW / bays, segIn = widthIn / bays;
@@ -1155,6 +1162,7 @@ function canopyFigure(item, baseY){
     `${faceIn}" Gutter Fascia  ·  6" Self-Mating Pans`,
     attach==='tierod' ? `6"x6"x1/4" Wall Plates w/ Sch 40 Tie-Rods` : (attach==='cchannel' ? `1¼"x1¼" C-Channel Low Attachment` : `1/2" All Thread Into Blocking — Direct At Canopy`),
     dsN>0 ? `${dsN} Downspout${dsN>1?'s':''} per unit for drainage` : `Scuppers for drainage`,
+    (attach==='tierod' && faceIn>=12) ? `2"x2"x1/4" Rod Support Bar @ 8-1/2" From Front` : null,
     ltN>0 ? `${ltN} Recessed LED per unit` : null,
     mitered && s.widthSegments ? `Miter — wraps corner: ${s.widthSegments.join(' + ')}` : null,
     pf.painted ? `Canopy & all parts painted ${s.paint}` : `Mill finish — no paint`
@@ -1344,8 +1352,8 @@ function endViewSVG(item){
     svg += `<line x1="${slabX0+5}" y1="${topY+16}" x2="${footX+2}" y2="${footY+2.5}" stroke="#7a7f84" stroke-width="1.1"/>`;
     // top plate welded to pans (vertical plate at the landing)
     svg += `<rect x="${footX}" y="${footY}" width="8" height="${rise}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
-    // 8 1/2" rise dim just left of the top plate
-    svg += vDim(footX-8, footY, deckY, 8.5, {});
+    // 8 1/2" rise dim just left of the top plate (omitted on 12" — the rod-support bar sits there)
+    if(faceIn<12) svg += vDim(footX-8, footY, deckY, 8.5, {});
     // arm-height dim (vertical, left of the rod span)
     svg += vDim(slabX0-64, topY, deckY, armIn, {extTo:slabX0-8});
     // wall plates callout (top)
@@ -1355,7 +1363,13 @@ function endViewSVG(item){
     const midX=(slabX0+footX)/2, midY=(topY+footY)/2;
     svg += leader(midX+130, midY-16, midX+14, midY-2, 'SCH. 40 1" Tierods', 'start');
     // right-stacked callouts
-    svg += leader(footX+120, footY-26, footX+8, footY+3, `${faceIn<=8?'5"x6"':'2"x5"'}x1/4" Alum Top Plate — Bolted To ${faceIn<=8?'1"x2"':'1"x4"'} Support`, 'start');
+    svg += leader(footX+120, footY-26, footX+8, footY+3, `${faceIn<=8?'5"x6"':'2"x5"'}x1/4" Alum Top Plate — Bolted To ${faceIn<=8?'1"x2" Support':(faceIn>=12?'2"x2"x1/4" Bar':'1"x4" Support')}`, 'start');
+    // 12" canopies: 2x2x1/4 rod-support bar across the width, CL 8-1/2" from the front (per Mike)
+    if(faceIn>=12){
+      const barW=Math.max(10,Math.min(16,(2/projIn)*slabW*6)), barX=slabX0+slabW-(8.5/projIn)*slabW-barW/2;
+      svg += `<rect x="${barX}" y="${deckY-barW}" width="${barW}" height="${barW}" fill="#d3d8dc" stroke="#111" stroke-width="1.2"/>`;
+      svg += leader(slabX0+50, deckY-64, barX+barW/2, deckY-barW+2, `2"x2"x1/4" Rod Support Bar — CL 8½" From Front`, 'end');
+    }
     svg += leader(footX+120, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
     svg += leader(footX+120, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
     svg += leader(slabX0+40, deckY-26, slabX0+slabW*0.35, deckY+2, '6" Self Mating Pans', 'start');
@@ -1400,9 +1414,10 @@ function endViewSVG(item){
     `${faceIn}" Gutter Fascia · 6" Self-Mating Pans`,
     isTie ? `6"x6"x1/4" Wall Plates With 1" Sch 40 Tie-Rods` : `1/2" All Thread Into Blocking — Direct At Canopy`,
     isTie ? `(${_rods}) Tie-Rod Assemblies · (${_rods*2}) Sleeve + (${_rods*2}) Tab Nuts/Bolts` : `(${_pts}) 1/2" All-Thread Anchor Points`,
+    (isTie && faceIn>=12) ? `2"x2"x1/4" Rod Support Bar @ 8-1/2" From Front` : null,
     ((s0.downspoutPerUnit||0)>0) ? `(${(s0.downspoutPerUnit||0)*_qty}) Downspout Assemblies — Installed On Site` : `Scuppers for drainage`,
     (s0.paint && s0.paint.trim()) ? `Painted ${_esc(s0.paint.trim())} — all parts` : `Mill finish — no paint`
-  ]);
+  ].filter(Boolean));
   svg += '</svg>';
   return svg;
 }
@@ -1657,6 +1672,7 @@ function bomSheetSVG(item){
   if(attach==='tierod' && nRods>0){
     const tpM=(faceIn<=8)?CM.topplate56:CM.topplate25;
     rows.push({ role:`Canopy top plates (${faceIn<=8?'5×6×¼':'2×5×¼'})`, sku:tpM.sku, desc:emsDesc(tpM.sku), pcs:nRods, pull:nRods+' plates ('+(nRods/tpM.platesPerUnit).toFixed(2)+' bar)' });
+    if(faceIn>=12){ let rb=[]; legs.forEach(l=>rb.push(l.w)); addSticks('2×2×¼ tie-rod support bar', CM.rodbar22.sku, X(rb)); }
   }
   rows.push({ role:'Anchors / hardware', sku:'—', desc:'1/2" all-thread + nuts/lags', pcs:pts, pull:pts+' pts' });
   if(s0.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(s0.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); addSticks('Outriggers', CM.outrig22.sku, X(op)); }
@@ -2960,6 +2976,7 @@ const CM = {
  plate:{ sku:'10-63-350', platesPerUnit:40 },           // 6x6x1/4 wall plates sheared from 1/4"x6"x20' bar (40/bar) — STANDARD all canopies (per Mike)
  topplate56:{ sku:'10-63-350', platesPerUnit:48 },      // 5x6x1/4 canopy top plate (tie-rod) — 6" & 8" face (per Mike)
  topplate25:{ sku:'10-61-360', platesPerUnit:72 },      // 2x5x1/4 canopy top plate (tie-rod) — 10" & 12" face (per Mike)
+ rodbar22:{ sku:'19-61-212' },                          // 2x2x1/4 tie-rod support bar across width — 12" face only, 8.5" from front to CL (per Mike)
  outrig22:{ sku:'11-63-320' },                          // 2x2x3/16 outrigger (optional / on request)
  downspout22:{ sku:'19-63-210' },                       // 2x2x1/8 square tube — downspout (default)
  downspout23:{ sku:'20-63-275' },                       // 2x3x1/8 tube — downspout on 10"+ fascia jobs
@@ -2978,7 +2995,7 @@ function _recipeSkuRoles(){
     pan6:'Roof pan 6"', pan8:'Roof pan 8"', fascia6:'Fascia 6"', fascia8:'Fascia 8"',
     fascia10:'Fascia 10"', fascia12:'Fascia 12"', support14:'1×4 support', support12:'1×2 support',
     tierod1:'Tie-rod', sleeve125:'Tie-rod sleeve', plate:'Wall plate', outrig22:'Outrigger',
-    topplate56:'Top plate 5×6', topplate25:'Top plate 2×5'
+    topplate56:'Top plate 5×6', topplate25:'Top plate 2×5', rodbar22:'Rod support bar'
   };
   const map={};
   Object.keys(CM).forEach(k=>{ if(CM[k] && CM[k].sku) map[CM[k].sku]=roles[k]||k; });
@@ -3094,6 +3111,11 @@ function canopyTrueCost(spec, mode){
     const tpCost = tp.length*tpPer;
     lines.push({ role:`Canopy top plates (${tpSz})`, sku:tpM.sku, desc:emsDesc(tpM.sku), note:`${tp.length*qty} plates (1/rod) · ${tpM.platesPerUnit}/bar`, qtyText:(tp.length*qty)+' plates', unitText:'$'+tpPer.toFixed(2)+'/plate', costPU:tpCost, cat:'framing' });
     framingPU += tpCost;
+    // 12" canopies: 2×2×¼ bar across the width near the front (CL 8-1/2" from front) — carries the tie-rods (per Mike)
+    if(face>=12){
+      let rb=[]; legs.forEach(l=>rb.push(l.w));
+      framingPU += stick('2×2×¼ tie-rod support bar', CM.rodbar22.sku, rb, `${rb.length*qty} run${rb.length*qty>1?'s':''} across width · CL 8½" from front`);
+    }
   }
   // Wall plates: 6x6x1/4 STANDARD on all canopies (per Mike) — sheared from 1/4"x6"x20' bar, priced PER PLATE.
   const platesPerBar = CM.plate.platesPerUnit;

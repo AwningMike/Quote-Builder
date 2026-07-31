@@ -261,6 +261,7 @@ const CM = {
  plate:{ sku:'10-63-350', platesPerUnit:40 },   // 6x6x1/4 wall plates from 1/4"x6"x20' bar (40/bar) — STANDARD all canopies (per Mike)
  topplate56:{ sku:'10-63-350', platesPerUnit:48 },  // 5x6x1/4 top plate (tie-rod) — 6" & 8" face
  topplate25:{ sku:'10-61-360', platesPerUnit:72 },  // 2x5x1/4 top plate (tie-rod) — 10" & 12" face
+ rodbar22:{ sku:'19-61-212' },                  // 2x2x1/4 tie-rod support bar — 12" face only, CL 8.5" from front (per Mike)
  outrig22:{ sku:'11-63-320' },
  downspout22:{ sku:'19-63-210' },
  downspout23:{ sku:'20-63-275' },
@@ -299,6 +300,7 @@ function piecesForSpec(s){
     nRod=Math.ceil(W/4)+1;
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
     add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
+    if(face>=12) add(CM.rodbar22.sku,'2×2×¼ tie-rod support bar (CL 8½″ from front)',[W]);   // 12" face only (per Mike)
   }
   const dsN=(+s.ds||0);
   if(dsN>0){
