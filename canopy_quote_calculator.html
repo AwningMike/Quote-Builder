@@ -1363,7 +1363,10 @@ function endViewSVG(item){
     const midX=(slabX0+footX)/2, midY=(topY+footY)/2;
     svg += leader(midX+130, midY-16, midX+14, midY-2, 'SCH. 40 1" Tierods', 'start');
     // right-stacked callouts
-    svg += leader(footX+120, footY-26, footX+8, footY+3, `${faceIn<=8?'5"x6"':'2"x5"'}x1/4" Alum Top Plate — Bolted To ${faceIn<=8?'1"x2" Support':(faceIn>=12?'2"x2"x1/4" Bar':'1"x4" Support')}`, 'start');
+    // ≤8" face: top plate is WELDED TO THE PANS (not the front support) — tie plate bolts plate-to-plate (per Mike)
+    svg += leader(footX+120, footY-26, footX+8, footY+3, faceIn<=8
+      ? `5"x6"x1/4" Top Plate Welded To Pans — Tie Plate Bolts To Plate`
+      : (faceIn>=12 ? `2"x5"x1/4" Alum Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Alum Top Plate — Bolted To 1"x4" Support`), 'start');
     // 12" canopies: 2x2x1/4 rod-support bar across the width, CL 8-1/2" from the front (per Mike)
     if(faceIn>=12){
       const barW=Math.max(10,Math.min(16,(2/projIn)*slabW*6)), barX=slabX0+slabW-(8.5/projIn)*slabW-barW/2;
