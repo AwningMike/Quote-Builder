@@ -1061,6 +1061,15 @@ function canopyFigure(item, baseY){
   }
   // drainage scupper notch front-right
   svg += `<rect x="${elevX0+elevW-11}" y="${feY+faceBand}" width="11" height="4" fill="#333"/>`;
+  // downspout stubs under the fascia (drafted sheets show them with the GC tie-in note)
+  if(dsN > 0){
+    dsPos.forEach(fr=>{
+      const dx = elevX0 + elevW*fr;
+      svg += `<rect x="${dx-4}" y="${feY+faceBand}" width="8" height="16" fill="${pf.painted?pf.fill:'#eef0f2'}" stroke="#333" stroke-width="1"/>`;
+    });
+    const d0 = elevX0 + elevW*dsPos[0];
+    svg += leader(elevX0+2, feY+faceBand+34, d0-2, feY+faceBand+14, `${faceIn>=10?'2"x3"':'2"x2"'}x.125" Straight Downspout — Tie In By Other GC`, 'start');
+  }
   // face height dim on left
   svg += vDim(elevX0-16, feY, feY+faceBand, faceIn, {extTo: elevX0, inchOnly:true});
   // callouts
@@ -1302,6 +1311,8 @@ function endViewSVG(item){
   const attach = s0.attach || 'tierod';
   const armIn = (s0.armHeightIn!=null ? s0.armHeightIn : (projIn>50?98:65));
   const isTie = attach==='tierod';
+  const pf = paintFillFor(s0.paint);
+  const ltN = s0.lightsPerUnit || 0;
   let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
   svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
   svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
@@ -1313,9 +1324,15 @@ function endViewSVG(item){
   const rise = 26;                                          // 8 1/2" top-plate rise (schematic)
   const topY = isTie ? Math.max(92, deckY - Math.min(250, armIn*2.6)) : deckY-90;
   // slab: 6" mating pans hatch + front fascia block on the right end
-  svg += `<rect x="${slabX0}" y="${deckY}" width="${slabW}" height="${slabH}" fill="url(#pans)" stroke="#111" stroke-width="1.4"/>`;
+  svg += `<rect x="${slabX0}" y="${deckY}" width="${slabW}" height="${slabH}" fill="${pf.painted?pf.fill:'url(#pans)'}" stroke="#111" stroke-width="1.4"/>`;
+  if(pf.painted) svg += `<rect x="${slabX0}" y="${deckY}" width="${slabW}" height="${slabH}" fill="url(#pans)" opacity="0.25"/>`;
   const faceBand = Math.max(28, Math.min(46, faceIn*3.4));
-  svg += `<rect x="${slabX0+slabW}" y="${deckY-3}" width="10" height="${faceBand}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
+  svg += `<rect x="${slabX0+slabW}" y="${deckY-3}" width="10" height="${faceBand}" fill="${pf.painted?pf.fill:'#eef0f2'}" stroke="#111" stroke-width="1.2"/>`;
+  // recessed LEDs in the pan deck (drafted sheets carry a red band + callout)
+  if(ltN>0){
+    svg += `<rect x="${slabX0+14}" y="${deckY+2}" width="${slabW-40}" height="4" fill="#c8102e" opacity="0.85"/>`;
+    svg += leader(slabX0+slabW*0.32, deckY-44, slabX0+slabW*0.45, deckY+3, `${ltN} × 4" Recessed LEDs`, 'start');
+  }
   // scupper stub under the front
   svg += `<rect x="${slabX0+slabW-16}" y="${deckY+slabH}" width="11" height="6" fill="#eee" stroke="#111" stroke-width="0.9"/>`;
   if(isTie){
@@ -1323,7 +1340,7 @@ function endViewSVG(item){
     svg += `<rect x="${slabX0-6}" y="${topY-4}" width="12" height="22" fill="#dfe3e6" stroke="#111" stroke-width="1.3"/>`;
     // tie-rod: double line from wall plate down to the landing near the front
     const footX = slabX0+slabW-14, footY = deckY-rise;
-    svg += `<line x1="${slabX0+2}" y1="${topY+14}" x2="${footX}" y2="${footY}" stroke="#2a2d31" stroke-width="2.8"/>`;
+    svg += `<line x1="${slabX0+2}" y1="${topY+14}" x2="${footX}" y2="${footY}" stroke="${pf.painted?pf.fill:'#2a2d31'}" stroke-width="2.8"/>`;
     svg += `<line x1="${slabX0+5}" y1="${topY+16}" x2="${footX+2}" y2="${footY+2.5}" stroke="#7a7f84" stroke-width="1.1"/>`;
     // top plate welded to pans (vertical plate at the landing)
     svg += `<rect x="${footX}" y="${footY}" width="8" height="${rise}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
@@ -1338,7 +1355,7 @@ function endViewSVG(item){
     const midX=(slabX0+footX)/2, midY=(topY+footY)/2;
     svg += leader(midX+130, midY-16, midX+14, midY-2, 'SCH. 40 1" Tierods', 'start');
     // right-stacked callouts
-    svg += leader(footX+120, footY-26, footX+8, footY+3, 'Top Plate Welded To Pans', 'start');
+    svg += leader(footX+120, footY-26, footX+8, footY+3, `1"x4"x.125" Alum Top Plate Bolted To 1"x4"`, 'start');
     svg += leader(footX+120, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
     svg += leader(footX+120, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
     svg += leader(slabX0+40, deckY-26, slabX0+slabW*0.35, deckY+2, '6" Self Mating Pans', 'start');
@@ -1359,8 +1376,8 @@ function endViewSVG(item){
   }
   // downspout stub at the rear
   if((s0.downspoutPerUnit||0) > 0){
-    svg += `<rect x="${slabX0-6}" y="${deckY+slabH+2}" width="6" height="26" fill="#eee" stroke="#111" stroke-width="0.9"/>`;
-    svg += leader(slabX0-30, deckY+slabH+46, slabX0-4, deckY+slabH+16, `${faceIn>=10?'2"x3"':'2"x2"'} Downspout`, 'start');
+    svg += `<rect x="${slabX0-6}" y="${deckY+slabH+2}" width="6" height="26" fill="${pf.painted?pf.fill:'#eee'}" stroke="#111" stroke-width="0.9"/>`;
+    svg += leader(60, deckY+slabH+84, slabX0-4, deckY+slabH+20, `${faceIn>=10?'2"x3"':'2"x2"'}x.125" Rear Downspout — Installed On Site`, 'start');
   }
   // face dim (inches) left of slab · projection dim below
   svg += vDim(slabX0-26, deckY, deckY+faceBand-3, faceIn, {inchOnly:true});
@@ -1373,11 +1390,17 @@ function endViewSVG(item){
   // title under the figure
   svg += `<text x="${slabX0+slabW/2}" y="${deckY+slabH+96}" font-size="18" font-weight="700" fill="#111" text-anchor="middle">End View ${(item.title||'A').toString().replace(/[^A-Za-z0-9]/g,'').slice(-1).toUpperCase()||'A'}</text>`;
   const attLbl = isTie ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'All-Thread Direct');
+  // hardware counts (drafted sheets list these on the fab-details page)
+  const _qty = s0.qty||1;
+  const _legs = (s0.mitered && s0.legs && s0.legs.length) ? s0.legs.map(l=>l.wFt||0) : [s0.widthFt||0];
+  let _pts=0, _rods=0; _legs.forEach(w=>{ _pts+=Math.ceil(w/2)+1; _rods+=Math.ceil(w/4)+1; });
+  _pts*=_qty; _rods*=_qty;
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'END VIEW (SECTION)'}), [
     `${_esc(item.title)} — ${attLbl}`,
     `${faceIn}" Gutter Fascia · 6" Self-Mating Pans`,
     isTie ? `6"x6"x.125" Wall Plates With 1" Sch 40 Tie-Rods` : `1/2" All Thread Into Blocking — Direct At Canopy`,
-    `Scuppers for drainage`,
+    isTie ? `(${_rods}) Tie-Rod Assemblies · (${_rods*2}) Sleeve + (${_rods*2}) Tab Nuts/Bolts` : `(${_pts}) 1/2" All-Thread Anchor Points`,
+    ((s0.downspoutPerUnit||0)>0) ? `(${(s0.downspoutPerUnit||0)*_qty}) Downspout Assemblies — Installed On Site` : `Scuppers for drainage`,
     (s0.paint && s0.paint.trim()) ? `Painted ${_esc(s0.paint.trim())} — all parts` : `Mill finish — no paint`
   ]);
   svg += '</svg>';
@@ -1774,15 +1797,41 @@ function notesSheetSVG(item){
   return svg;
 }
 
+// CUSTOMER drawing set — the BOM pull-list sheet is intentionally NOT in here
+// (internal only — open it from the "Shop BOM" button; it never prints with the set).
 function canopyPages(item){
   const pages = [canopySVG(item), endViewSVG(item)];
   if((item.spec.downspoutPerUnit||0) > 0) pages.push(downspoutDetailSVG(item));
   pages.push(wallDetailSVG(item));
   const hw = hardwareDetailSVG(item);
   if(hw) pages.push(hw);
-  pages.push(bomSheetSVG(item));
   pages.push(notesSheetSVG(item));
   return pages;
+}
+// INTERNAL-ONLY: shop BOM sheet in its own modal, separate from the customer set.
+function showBOMModal(itemId){
+  const item = quoteItems.find(i=>i.id===itemId);
+  if(!item) return;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'drawing-modal-backdrop';
+  backdrop.id = 'bom-modal-backdrop';
+  backdrop.onclick = (e)=>{ if(e.target===backdrop) backdrop.remove(); };
+  backdrop.innerHTML = `
+    <div class="drawing-modal">
+      <h3>Shop BOM — ${item.title} <span style="font-size:11px;font-weight:600;color:#c8102e">INTERNAL — not part of the customer drawing set</span></h3>
+      <div class="dm-sub">Production pull list (whole sticks nested across the job). Print separately for the shop — the customer Export PDF never includes this sheet.</div>
+      ${bomSheetSVG(item)}
+      <div class="dm-actions">
+        <button class="dm-pdf" onclick="exportSheetsPDF([bomSheetSVG(quoteItems.find(i=>i.id===${item.id}))], '${(item.title||'Canopy').replace(/'/g,'')} - Shop BOM (internal)')">Print / PDF (shop copy)</button>
+        <button class="dm-close" onclick="document.getElementById('bom-modal-backdrop').remove()">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+}
+function exportAllBOMs(){
+  const cans = quoteItems.filter(i=>i.type==='canopy');
+  if(!cans.length){ alert('Add a canopy first.'); return; }
+  exportSheetsPDF(cans.map(i=>bomSheetSVG(i)), 'APMG Shop BOMs (internal)');
 }
 
 // True-to-scale DXF (inches, Y-up) — opens directly in AutoCAD. Three views
@@ -2137,9 +2186,10 @@ function showDrawingModal(itemId){
         <button class="dm-pdf" onclick="exportCanopyPDF(${item.id})">Export PDF</button>
         <button class="dm-download" onclick="downloadCanopyDXF(${item.id})">Download DXF (AutoCAD)</button>
         <button class="dm-download" style="background:#1f6b33" onclick="openDrawingBuilder(${item.id})" title="Open this canopy in the standalone Drawing Builder for a detailed shop drawing + metal cut sheet">🔧 Shop Drawing + Cut Sheet</button>
+        <button class="dm-download" style="background:#5b3b8c" onclick="showBOMModal(${item.id})" title="Internal pull-list sheet — kept OUT of the customer drawing set / Export PDF">🏭 Shop BOM (internal)</button>
         <button class="dm-close" onclick="closeDrawingModal()">Close</button>
       </div>
-      <div class="dm-note">APMG-format reference drawing — dimensions shown in feet-inches with total inches in [brackets]. Views are schematic (fascia height exaggerated for readability, as on the shop sheets); all labels are exact. Joist layout is generic from the accessory counts. The downloaded DXF is drawn to true scale in inches with all three views, border and title block — a starting point for the drafter, not a finished shop drawing (no hardware, joinery, or mounting detail).</div>
+      <div class="dm-note">Export PDF = the customer/architect set (BOM excluded — use 🏭 Shop BOM for the internal pull list). APMG-format reference drawing — dimensions shown in feet-inches with total inches in [brackets]. Views are schematic (fascia height exaggerated for readability, as on the shop sheets); all labels are exact. Joist layout is generic from the accessory counts. The downloaded DXF is drawn to true scale in inches with all three views, border and title block — a starting point for the drafter, not a finished shop drawing (no hardware, joinery, or mounting detail).</div>
     </div>
   `;
   document.body.appendChild(backdrop);
@@ -2185,6 +2235,7 @@ function showAllDrawingsModal(){
          <button class="dm-pdf" onclick="exportAllCanopyPDF()">Export PDF Set</button>
          <button class="dm-download" onclick="downloadAllCanopyDXF()">Download DXF Set (AutoCAD)</button>
          <button class="dm-download" onclick="downloadFinishedSetDXF()" title="Full finished set: main views + downspout, blocking & hardware detail sheets, each with title block">⭐ Generate Finished Drawing Set (DXF)</button>
+         <button class="dm-download" style="background:#5b3b8c" onclick="exportAllBOMs()" title="Internal pull-list sheets for every canopy — never part of the customer set">🏭 Shop BOMs (internal)</button>
          <button class="dm-close" onclick="closeDrawingModal()">Close</button>
        </div>
        <div class="dm-note">All ${cans.length} canop${cans.length>1?'ies':'y'} on this quote, each drawn as its own figure on one sheet. Views are schematic (fascia exaggerated for readability); all labels are exact. <b>Generate Finished Drawing Set</b> exports the complete sheet set for every canopy — main views plus downspout, attachment/blocking, and hardware detail pages, each framed with a title block — tiled true-to-scale in one DXF for AutoCAD.</div>`
