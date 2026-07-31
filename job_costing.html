@@ -262,6 +262,7 @@ const CM = {
  topplate56:{ sku:'10-63-350', platesPerUnit:48 },  // 5x6x1/4 top plate (tie-rod) — 6" & 8" face
  topplate25:{ sku:'10-61-360', platesPerUnit:72 },  // 2x5x1/4 top plate (tie-rod) — 10" & 12" face
  rodbar22:{ sku:'19-61-212' },                  // 2x2x1/4 tie-rod support bar — 12" face only, CL 8.5" from front (per Mike)
+ angle33:{ sku:'11-63-330' },                   // 3x3x1/8 angle — scupper brackets, (3) 4"-long per downspout (per DXF corpus)
  outrig22:{ sku:'11-63-320' },
  downspout22:{ sku:'19-63-210' },
  downspout23:{ sku:'20-63-275' },
@@ -306,16 +307,18 @@ function piecesForSpec(s){
   if(dsN>0){
     const dsSku=(face>=10)?CM.downspout23.sku:CM.downspout22.sku;
     add(dsSku, face>=10?'Downspouts (2×3×⅛)':'Downspouts (2×2×⅛)', Array(dsN).fill(DS_DROP_FT));
+    add(CM.angle33.sku,'Scupper angle brackets (3×3×⅛ × 4″, 3/drop)', Array(dsN*3).fill(1/3));   // per DXF corpus
   }
   const orN=(+s.outrig||0);
   if(orN>0) add(CM.outrig22.sku,'Outriggers (2×2×3/16)', Array(orN).fill(P));
-  return { out, panLf, panSku:pan.sku, plates:pts*qty, topPlates:nRod*qty, face, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
+  // wall plates: 1/rod on tie-rod jobs (per DXF corpus); none purchased on all-thread (anchors direct into blocking)
+  return { out, panLf, panSku:pan.sku, plates:nRod*qty, topPlates:nRod*qty, face, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
 }
 
 /* Cost one canopy line — proportional lineal-ft, identical math to the Quote Builder margin. */
 function costSpec(s){
   const {out, panLf, panSku, plates, topPlates, face, anchors, ccFt} = piecesForSpec(s);
-  const DS_SKUS=[CM.downspout22.sku, CM.downspout23.sku];
+  const DS_SKUS=[CM.downspout22.sku, CM.downspout23.sku, CM.angle33.sku];   // flat ft, outside the +3% (with downspouts)
   let framing=0, dsCost=0;
   Object.keys(out).forEach(sku=>{
     if(DS_SKUS.includes(sku)){

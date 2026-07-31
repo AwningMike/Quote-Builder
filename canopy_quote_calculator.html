@@ -1671,9 +1671,10 @@ function bomSheetSVG(item){
     addSticks('Tie-rods (1" Sch40)', CM.tierod1.sku, tp);
     addSticks('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2));
   }
-  // wall plates — 6×6×1/4 standard, per plate from the 1/4×6×20' bar (fractional bar OK)
+  // wall plates — 6×6×¼, ONE PER ROD on tie-rod jobs (per DXF corpus); all-thread jobs anchor direct, no plates
   const platesPerSheet = CM.plate.platesPerUnit;
-  rows.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), pcs:pts, pull:pts+' plates ('+(pts/platesPerSheet).toFixed(2)+' bar)' });
+  if(attach==='tierod' && nRods>0)
+    rows.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), pcs:nRods, pull:nRods+' plates ('+(nRods/platesPerSheet).toFixed(2)+' bar)' });
   if(attach==='tierod' && nRods>0){
     const tpM=(faceIn<=8)?CM.topplate56:CM.topplate25;
     rows.push({ role:`Canopy top plates (${faceIn<=8?'5×6×¼':'2×5×¼'})`, sku:tpM.sku, desc:emsDesc(tpM.sku), pcs:nRods, pull:nRods+' plates ('+(nRods/tpM.platesPerUnit).toFixed(2)+' bar)' });
@@ -1683,7 +1684,10 @@ function bomSheetSVG(item){
   if(s0.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(s0.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); addSticks('Outriggers', CM.outrig22.sku, X(op)); }
   // downspouts + c-channel
   const dsN=(s0.downspoutPerUnit||0)*qty;
-  if(dsN>0){ const dsSku=(faceIn>=10)?CM.downspout23.sku:CM.downspout22.sku; addSticks('Downspouts', dsSku, Array(dsN).fill(DS_DROP_FT)); }
+  if(dsN>0){
+    const dsSku=(faceIn>=10)?CM.downspout23.sku:CM.downspout22.sku; addSticks('Downspouts', dsSku, Array(dsN).fill(DS_DROP_FT));
+    rows.push({ role:'Scupper angle brackets (3×3×⅛ × 4″)', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), pcs:dsN*3, pull:(dsN*1)+' ft ('+(dsN/emsLen(CM.angle33.sku)).toFixed(2)+' stick)' });
+  }
   const ccFt=(s0.cchannelPerUnit||0)*qty;
   if(ccFt>0) rows.push({ role:'C-channel (LED)', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku), pcs:'—', pull:ccFt.toFixed(1)+' ft ('+(ccFt/CM.cchannel.yieldFt).toFixed(2)+' sheet)' });
 
@@ -1772,6 +1776,7 @@ function notesSheetSVG(item){
     ]],
     ['ATTACHMENT', [
       attachNote,
+      'Anchors: all-thread with toggle bolts — 2" minimum embedment in wood blocking (PVC/EIFS spacer where wall system requires).',
       'Solid wood blocking in the wall BY OTHERS, sized to carry canopy loads at anchor rows.',
       'Verify all field dimensions and wall conditions prior to fabrication.'
     ]],
@@ -3047,6 +3052,7 @@ const CM = {
  topplate56:{ sku:'10-63-350', platesPerUnit:48 },      // 5x6x1/4 canopy top plate (tie-rod) — 6" & 8" face (per Mike)
  topplate25:{ sku:'10-61-360', platesPerUnit:72 },      // 2x5x1/4 canopy top plate (tie-rod) — 10" & 12" face (per Mike)
  rodbar22:{ sku:'19-61-212' },                          // 2x2x1/4 tie-rod support bar across width — 12" face only, 8.5" from front to CL (per Mike)
+ angle33:{ sku:'11-63-330' },                           // 3x3x1/8 angle — scupper brackets, (3) 4"-long per downspout (per DXF corpus)
  outrig22:{ sku:'11-63-320' },                          // 2x2x3/16 outrigger (optional / on request)
  downspout22:{ sku:'19-63-210' },                       // 2x2x1/8 square tube — downspout (default)
  downspout23:{ sku:'20-63-275' },                       // 2x3x1/8 tube — downspout on 10"+ fascia jobs
@@ -3065,7 +3071,7 @@ function _recipeSkuRoles(){
     pan6:'Roof pan 6"', pan8:'Roof pan 8"', fascia6:'Fascia 6"', fascia8:'Fascia 8"',
     fascia10:'Fascia 10"', fascia12:'Fascia 12"', support14:'1×4 support', support12:'1×2 support',
     tierod1:'Tie-rod', sleeve125:'Tie-rod sleeve', plate:'Wall plate', outrig22:'Outrigger',
-    topplate56:'Top plate 5×6', topplate25:'Top plate 2×5', rodbar22:'Rod support bar'
+    topplate56:'Top plate 5×6', topplate25:'Top plate 2×5', rodbar22:'Rod support bar', angle33:'Scupper angle'
   };
   const map={};
   Object.keys(CM).forEach(k=>{ if(CM[k] && CM[k].sku) map[CM[k].sku]=roles[k]||k; });
@@ -3195,12 +3201,17 @@ function canopyTrueCost(spec, mode){
       framingPU += stick('2×2×¼ tie-rod support bar', CM.rodbar22.sku, rb, `${rb.length*qty} run${rb.length*qty>1?'s':''} across width · CL 8½" from front`);
     }
   }
-  // Wall plates: 6x6x1/4 STANDARD on all canopies (per Mike) — sheared from 1/4"x6"x20' bar, priced PER PLATE.
+  // Wall plates: 6x6x1/4 standard spec (per Mike). COUNT per the DXF corpus + shop PTLs:
+  // tie-rod jobs = ONE PER ROD (13 rods → 13 wall plates on 4006; 21→21 on 3770; 3→3 on 4136);
+  // all-thread jobs anchor straight into blocking — no wall plates bought (3903/3943 PTLs).
   const platesPerBar = CM.plate.platesPerUnit;
   const platePer = emsStick(CM.plate.sku)/platesPerBar;
-  const plateCost = pts*platePer;
-  lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${pts*qty} plates · ${platesPerBar}/bar`, qtyText:(pts*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
-  framingPU += plateCost;
+  const plateN = (spec.attach||'')==='tierod' ? (Math.ceil(legs.reduce((a,l)=>a+Math.ceil(l.w/4)+1,0))) : 0;
+  if(plateN>0){
+    const plateCost = plateN*platePer;
+    lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${plateN*qty} plates (1/rod) · ${platesPerBar}/bar`, qtyText:(plateN*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
+    framingPU += plateCost;
+  }
   // Anchors/hardware EXCLUDED from margin for now (no real pricing yet — Mike to supply).
   // Count still shown as a $0 line so the cut sheet documents the points.
   lines.push({ role:'Anchors / hardware', sku:'—', desc:'1/2" all-thread + nuts/lags — NOT COSTED yet', note:`${pts*qty} anchor points · excluded from margin`, qtyText:(pts*qty)+' pts', unitText:'—', costPU:0, cat:'framing' });
@@ -3210,8 +3221,15 @@ function canopyTrueCost(spec, mode){
   const dsSku = (face>=10) ? CM.downspout23.sku : CM.downspout22.sku;
   const dsN = (spec.downspoutPerUnit||0);
   const dsPpf = EMS[dsSku] ? EMS[dsSku].ppf : 0;
-  const dsPU = dsN * (dsPpf * DS_DROP_FT);
-  if(dsN>0) lines.push({ role:'Downspouts', sku:dsSku, desc:emsDesc(dsSku), note:`${dsN*qty} drops × ${DS_DROP_FT}′`, qtyText:(dsN*DS_DROP_FT*qty).toFixed(0)+' ft', unitText:'$'+dsPpf.toFixed(2)+'/ft', costPU:dsPU, cat:'acc' });
+  let dsPU = dsN * (dsPpf * DS_DROP_FT);
+  if(dsN>0){
+    lines.push({ role:'Downspouts', sku:dsSku, desc:emsDesc(dsSku), note:`${dsN*qty} drops × ${DS_DROP_FT}′`, qtyText:(dsN*DS_DROP_FT*qty).toFixed(0)+' ft', unitText:'$'+dsPpf.toFixed(2)+'/ft', costPU:dsPU, cat:'acc' });
+    // scupper brackets: (3) 4"-long 3×3×⅛ angle per downspout = 1 ft/drop (per DXF corpus: 11-63-330 "3 per downspout")
+    const angPpf = emsStick(CM.angle33.sku)/emsLen(CM.angle33.sku);
+    const angPU = dsN * 1 * angPpf;
+    lines.push({ role:'Scupper angle brackets', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), note:`${dsN*3*qty} pcs @ 4″ (3/drop) · per drawings`, qtyText:(dsN*qty).toFixed(0)+' ft', unitText:'$'+angPpf.toFixed(2)+'/ft', costPU:angPU, cat:'acc' });
+    dsPU += angPU;
+  }
   const ccFt = (spec.cchannelPerUnit||0);
   const ccPerFt = emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt;
   const ccPU = ccFt*ccPerFt;

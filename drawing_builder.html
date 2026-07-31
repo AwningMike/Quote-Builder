@@ -88,6 +88,7 @@ const M = {
  topplate56:{sku:"10-63-350",role:'5x6x1/4 canopy top plate (6"/8" tie-rod)',profile:"1/4x6 bar",stock:20,perpc:191.0,conf:true,platesPerUnit:48},
  topplate25:{sku:"10-61-360",role:'2x5x1/4 canopy top plate (10"/12" tie-rod)',profile:"1/4x5 bar",stock:12,perpc:90.0,conf:true,platesPerUnit:72},
  rodbar22:{sku:"19-61-212",role:'2x2x1/4 tie-rod support bar (12" face)',profile:'2"sq x 1/4 wall',stock:24,perpc:258.0,conf:true},
+ angle33:{sku:"11-63-330",role:'3x3x1/8 scupper angle (3 per downspout)',profile:"3x3x1/8",stock:20,perpc:90.0,conf:true},
  outrig22:{sku:"11-63-320",role:'2x2 outrigger',profile:"2x2x3/16",stock:20,perpc:88.0,conf:true},
 };
 const FASCIA={6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
@@ -142,8 +143,11 @@ function members(spec){
     if(face>=12){ let rb=[]; legList.forEach(l=>rb.push(l.w));
       addLinear(rows,M.rodbar22,rb,'2×2×¼ tie-rod support bar','across width · CL 8½" from front',qty,'carries tie-rods at canopy'); }
   }
-  // wall plates (6×6×¼ standard, sheared from bar) + anchors
-  addCount(rows,{sku:M.plate.sku,role:'Wall plates — 6×6×1/4',profile:M.plate.profile,conf:true,perpc:M.plate.perpc/M.plate.platesPerUnit},pts,`${pts} @ 24" o.c. · from 1/4×6×20 bar (40/bar)`,qty);
+  // wall plates — 1/rod on tie-rod jobs (per DXF corpus); all-thread anchors direct, no plates
+  if(attach==='tierod'||attach==='cantilever'){
+    let nR=0; legList.forEach(l=>nR+=Math.ceil(l.w/4)+1);
+    addCount(rows,{sku:M.plate.sku,role:'Wall plates — 6×6×1/4',profile:M.plate.profile,conf:true,perpc:M.plate.perpc/M.plate.platesPerUnit},nR,`${nR} (1/rod) · from 1/4×6×20 bar (40/bar)`,qty);
+  }
   addCount(rows,{sku:'(hardware)',role:'Anchors / hardware',profile:'3/8" all-thread',conf:true,perpc:8},pts,`${pts} points`,qty);
 
   // 5. OUTRIGGERS (optional)
