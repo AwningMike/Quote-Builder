@@ -266,7 +266,7 @@ const CM = {
 const CM_FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
 const CM_LABOR = { weldHrPerSqft:0.08, prepHrPerSqft:0.06, paintHrPerSqft:0.06, rate:65 };
 const CM_PAINTMAT = 4, CM_FREIGHT = 0.05;
-const DS_DROP_FT = 8, CM_KERF_FT = 1/12, CM_WASTE = 1.00;
+const DS_DROP_FT = 8, CM_KERF_FT = 1/12, CM_WASTE = 1.05;   // +5% waste (owner-confirmed, 07/2026)
 
 /* first-fit-decreasing nesting into whole sticks (1" kerf/cut) — purchasing reality */
 function ffd(pieces, stock){
@@ -389,7 +389,7 @@ function recalc(){
       const word=near?`right at ${m}×`:(d>0?`ABOVE ${m}×`:`BELOW ${m}×`);
       return `<div><b>${m}×</b> = <b>${money(sx)}</b> — <b class="${cls}">${word}</b>${near?'':` by <b class="${cls}">${money(Math.abs(d))}</b>`}</div>`;
     };
-    rl.innerHTML=`<b class="hdr">Pricing rules</b> <span class="muted">(sold = material × N · current ${mult.toFixed(2)}×)</span>${row(4)}${row(3.5)}
+    rl.innerHTML=`<b class="hdr">Pricing rules</b> <span class="muted">(sold = material × N · current ${mult.toFixed(2)}×)</span>${row(4)}${row(3.5)}${row(3.25)}
       <div class="muted" style="margin-top:4px;">42.5% material-margin target ⇒ sold ≥ <b>${money(mat/(1-0.425))}</b></div>`;
   } else {
     mEl.textContent='—'; mEl.className='v'; xEl.textContent='—'; xEl.className='v';
