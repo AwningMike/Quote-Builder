@@ -1647,9 +1647,11 @@ function bomSheetSVG(item){
     const n = _cmFfd(pieces, emsLen(sku));
     rows.push({ role, sku, desc:emsDesc(sku), pcs:pieces.length, pull:n+' stick'+(n===1?'':'s') });
   };
-  // pans
-  let pp=[]; legs.forEach(l=>{ const n=Math.max(1,Math.ceil(l.w/pan.cover)); for(let k=0;k<n;k++) pp.push(l.p); });
-  addSticks('Roof pans', pan.sku, X(pp));
+  // pans (per Mike): W×P×2 lineal ft (+5% drop) ÷ 24' = sticks
+  const panLfB = legs.reduce((a,l)=>a+l.w*l.p,0)/(pan.cover||0.5)*qty*1.05;
+  const panStk = Math.ceil(panLfB/emsLen(pan.sku));
+  const panPcs = legs.reduce((a,l)=>a+Math.max(1,Math.ceil(l.w/(pan.cover||0.5))),0)*qty;
+  rows.push({ role:'Roof pans', sku:pan.sku, desc:emsDesc(pan.sku), pcs:panPcs, pull:panStk+' stick'+(panStk===1?'':'s') });
   // fascia — full perimeter
   let fp=[]; legs.forEach(l=>{ fp.push(l.w); fp.push(l.w); }); fp.push(legs[0].p); fp.push(legs[N-1].p);
   addSticks(`Gutter fascia ${faceIn}"`, fasc.sku, X(fp));
@@ -3155,8 +3157,16 @@ function canopyTrueCost(spec, mode){
     return c;
   };
   let framingPU = 0;
-  let pp=[]; legs.forEach(l=>{ const n=Math.max(1,Math.ceil(l.w/pan.cover)); for(let k=0;k<n;k++) pp.push(l.p); });
-  framingPU += stick('Roof pans', pan.sku, pp, `${pp.length*qty} pans @ ${legs[0].p.toFixed(1)}′`);
+  // Pans (per Mike, 07/2026): W × P × 2 = total lineal ft of 6" pan (area ÷ pan cover),
+  // + the 5% drop rule, ÷ 24' stock for stick count. No per-piece kerf/roundup.
+  const panArea = legs.reduce((a,l)=>a+l.w*l.p,0);
+  const panLf0 = panArea/(pan.cover||0.5);              // = W×P×2 on 6" pans
+  const panLf  = panLf0*CM_WASTE;                        // +5% drop
+  const panPpf = emsStick(pan.sku)/emsLen(pan.sku);
+  const panSticks = Math.ceil((panLf*qty)/emsLen(pan.sku));
+  const panCost = panLf*panPpf;
+  lines.push({ role:'Roof pans', sku:pan.sku, desc:emsDesc(pan.sku), note:`W×P×2 = ${(panLf0*qty).toFixed(1)} ft + 5% drop ÷ ${emsLen(pan.sku)}′ = ${panSticks} sticks`, qtyText:(panLf*qty).toFixed(1)+' ft', unitText:'$'+panPpf.toFixed(2)+'/ft', costPU:panCost, cat:'framing' });
+  framingPU += panCost;
   // fascia wraps the FULL perimeter: front + rear runs on every leg, plus the two exposed ends
   let fp=[]; legs.forEach(l=>{ fp.push(l.w); fp.push(l.w); }); fp.push(legs[0].p); fp.push(legs[N-1].p);
   framingPU += stick(`Gutter fascia ${face}"`, fasc.sku, fp, `${fp.length*qty} pcs · full perimeter · mitred corners`);

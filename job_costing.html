@@ -288,8 +288,8 @@ function piecesForSpec(s){
   const out={};  // sku -> {role, pieces:[], eachCount:0}
   const add=(sku,role,arr)=>{ if(!out[sku]) out[sku]={role,pieces:[]}; for(let k=0;k<qty;k++) out[sku].pieces.push(...arr); };
   const pan=CM.pan6;                                    // 6" self-mating pans (standard)
-  const nPan=Math.max(1,Math.ceil(W/pan.cover));
-  add(pan.sku,'Roof pans (6″ self-mating)', Array(nPan).fill(P));
+  // pans (per Mike): W × P × 2 lineal ft — costed by area, not per-piece (5% drop added in costSpec)
+  const panLf = (W*P/(pan.cover||0.5))*qty;
   const fs=CM[CM_FAS[face]||'fascia8'];
   add(fs.sku,`Gutter fascia ${face}″`, [W,W,P,P]);   // full perimeter: front + rear + both ends
   const supSku=(face<=8)?CM.support12.sku:CM.support14.sku;   // 1×2 on 6"/8", 1×4 on 10"/12" (per Mike)
@@ -309,12 +309,12 @@ function piecesForSpec(s){
   }
   const orN=(+s.outrig||0);
   if(orN>0) add(CM.outrig22.sku,'Outriggers (2×2×3/16)', Array(orN).fill(P));
-  return { out, plates:pts*qty, topPlates:nRod*qty, face, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
+  return { out, panLf, panSku:pan.sku, plates:pts*qty, topPlates:nRod*qty, face, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
 }
 
 /* Cost one canopy line — proportional lineal-ft, identical math to the Quote Builder margin. */
 function costSpec(s){
-  const {out, plates, topPlates, face, anchors, ccFt} = piecesForSpec(s);
+  const {out, panLf, panSku, plates, topPlates, face, anchors, ccFt} = piecesForSpec(s);
   const DS_SKUS=[CM.downspout22.sku, CM.downspout23.sku];
   let framing=0, dsCost=0;
   Object.keys(out).forEach(sku=>{
@@ -327,6 +327,8 @@ function costSpec(s){
     const lf=out[sku].pieces.reduce((a,p)=>a+p+CM_KERF_FT,0)*CM_WASTE;
     framing += lf*(emsStick(sku)/emsLen(sku));
   });
+  // pans (per Mike): W×P×2 lineal ft × 1.05 drop × $/ft — no per-piece kerf
+  framing += panLf*CM_WASTE*(emsStick(panSku)/emsLen(panSku));
   const platesPerBar=CM.plate.platesPerUnit;
   framing += plates*(emsStick(CM.plate.sku)/platesPerBar);
   // canopy top plates — one per tie-rod (per Mike): 5×6×¼ on 6"/8" face, 2×5×¼ on 10"/12"
@@ -410,7 +412,7 @@ function recalc(){
 
 function buildBOM(){
   const agg={};  // sku -> {role, pieces:[], lf}
-  let plates=0, anchors=0, ccFt=0, tp56=0, tp25=0;
+  let plates=0, anchors=0, ccFt=0, tp56=0, tp25=0, panLfT=0, panSku=null;
   canopies.forEach(c=>{
     const r=piecesForSpec(c);
     Object.keys(r.out).forEach(sku=>{
@@ -418,6 +420,7 @@ function buildBOM(){
       agg[sku].pieces.push(...r.out[sku].pieces);
     });
     plates+=r.plates; anchors+=r.anchors; ccFt+=r.ccFt;
+    panLfT+=r.panLf; panSku=r.panSku;
     if(r.topPlates>0){ if(r.face<=8) tp56+=r.topPlates; else tp25+=r.topPlates; }
   });
   const rows=[];
@@ -429,6 +432,11 @@ function buildBOM(){
     rows.push({ role:a.role, sku, desc:emsDesc(sku), pieces:a.pieces.length,
       lf, sticks, per, buy:sticks*per, prop:lf*(per/emsLen(sku)) });
   });
+  if(panLfT>0 && panSku){
+    const lf=panLfT*CM_WASTE, per=emsStick(panSku), stock=emsLen(panSku), sticks=Math.ceil(lf/stock);
+    rows.push({ role:'Roof pans (6″) — W×P×2 + 5% drop', sku:panSku, desc:emsDesc(panSku),
+      pieces:'—', lf, sticks, per, buy:sticks*per, prop:lf*(per/stock) });
+  }
   rows.sort((x,y)=>y.buy-x.buy);
   const platesPerBar=CM.plate.platesPerUnit;
   if(plates>0){

@@ -110,10 +110,14 @@ function members(spec){
   const N=legList.length;
   const totW=legList.reduce((a,l)=>a+l.w,0);
 
-  // 1. ROOF PANS — width ÷ cover, each = projection (per leg)
-  let panPieces=[],panNote=[];
-  legList.forEach((l,i)=>{const n=Math.max(1,Math.ceil(l.w/panM.cover));panPieces.push(...Array(n).fill(l.p));panNote.push(`leg ${i+1}: ${n}×${ftin(l.p)}`);});
-  addLinear(rows,panM,panPieces,`Roof pan — ${panM.role.split(' ')[0]} self-mating`, N>1?panNote.join(' · '):`${panPieces.length} pans × ${ftin(P)}`,qty,'seats in fascia; top plate welded');
+  // 1. ROOF PANS (per Mike, 07/2026): W × P × 2 lineal ft (area ÷ cover) + 5% drop, ÷ stock for sticks
+  const panArea = legList.reduce((a,l)=>a+l.w*l.p,0);
+  const panLf = panArea/(panM.cover||0.5)*1.05;
+  const panSticks = Math.ceil(panLf*qty/(panM.stock||24));
+  const panPcs = legList.reduce((a,l)=>a+Math.max(1,Math.ceil(l.w/(panM.cover||0.5))),0);
+  rows.push({role:`Roof pan — ${panM.role.split(' ')[0]} self-mating`,sku:panM.sku,profile:panM.profile,
+    detail:`W×P×2 = ${(panLf/1.05*qty).toFixed(1)}′ + 5% drop (${panPcs*qty} pans)`,lineal:panLf*qty,sticks:panSticks,angle:'seats in fascia; top plate welded',
+    cost:panSticks*(panM.perpc||0),conf:panM.conf!==false,cutlist:[{len:P,q:panPcs*qty,angle:'seats in fascia'}]});
 
   // 2. GUTTER FASCIA — FULL PERIMETER (front + rear per leg + 2 exposed ends), mitred corners
   const fM=M[fasciaKey];
