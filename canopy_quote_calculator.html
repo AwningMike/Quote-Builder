@@ -891,7 +891,8 @@ function bracketStr(totalIn){
   const sx = Math.round(totalIn * 16);
   const whole = Math.floor(sx / 16);
   const [n, d] = _reduceFrac(sx - whole * 16, 16);
-  return '[' + whole + _fracGlyph(n, d) + ']';
+  const fg = _fracGlyph(n, d);
+  return '[' + whole + (fg ? ' ' + fg : '') + ']';
 }
 // horizontal dimension line with arrowheads + dual label. side: 'above' | 'below'
 function hDim(x1, x2, y, totalIn, opts){
@@ -929,7 +930,8 @@ function vDim(x, y1, y2, totalIn, opts){
   s += `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${c}" stroke-width="1"/>`;
   s += `<path d="M${x},${y1} l-${ah*0.75},${ah*1.7} l${ah*1.5},0 z" fill="${c}"/>`;
   s += `<path d="M${x},${y2} l-${ah*0.75},-${ah*1.7} l${ah*1.5},0 z" fill="${c}"/>`;
-  s += `<text x="${x-7}" y="${cy-1}" font-size="12" text-anchor="end" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${ftInStr(totalIn)}</text>`;
+  const lbl = opts.inchOnly ? (Math.round(totalIn*16)/16)+'"' : ftInStr(totalIn);
+  s += `<text x="${x-7}" y="${cy-1}" font-size="12" text-anchor="end" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${lbl}</text>`;
   s += `<text x="${x-7}" y="${cy+12}" font-size="12" text-anchor="end" fill="${c}" font-weight="600" font-family="Arial,'Inter',sans-serif">${bracketStr(totalIn)}</text>`;
   return s;
 }
@@ -1047,12 +1049,12 @@ function canopyFigure(item, baseY){
   // drainage scupper notch front-right
   svg += `<rect x="${elevX0+elevW-11}" y="${feY+faceBand}" width="11" height="4" fill="#333"/>`;
   // face height dim on left
-  svg += vDim(elevX0-16, feY, feY+faceBand, faceIn, {extTo: elevX0});
+  svg += vDim(elevX0-16, feY, feY+faceBand, faceIn, {extTo: elevX0, inchOnly:true});
   // callouts
   if(pf.painted){
     svg += leader(elevX0+elevW*0.30, feY+faceBand+18, elevX0+elevW*0.42, feY+faceBand, `Painted ${_esc(s.paint)} — all parts`, 'start');
   } else {
-    svg += leader(elevX0+elevW*0.40, feY+faceBand+18, elevX0+elevW*0.52, feY+faceBand, `${faceIn}" Smooth Gutter Fascia — mill`, 'start');
+    svg += leader(elevX0+elevW*0.40, feY+faceBand+18, elevX0+elevW*0.52, feY+faceBand, `${faceIn}" Flat Gutter Fascia`, 'start');
   }
   svg += leader(elevX0+elevW-64, feY+faceBand+30, elevX0+elevW-4, feY+faceBand+4, 'Drainage Scupper', 'start');
 
@@ -1108,7 +1110,7 @@ function canopyFigure(item, baseY){
   if(dsN > 0) svg += `<rect x="${evX0-5}" y="${evY+evBand+2}" width="5" height="22" fill="#eee" stroke="#333" stroke-width="1"/>`;
   // dims + common callouts (fascia label supplied per-branch above)
   svg += hDim(evX0, evX0+evW, evY+evBand+40, projIn, {extFrom: evY+evBand, side:'below'});
-  svg += vDim(evX0-24, evY, evY+evBand, faceIn, {});
+  svg += vDim(evX0-24, evY, evY+evBand, faceIn, {inchOnly:true});
   if(attach !== 'tierod') svg += leader(evX0+evW+8, evY+evBand/2, evX0+evW+3, evY+evBand/2, `${faceIn}" Flat Gutter Fascia`, 'start');
 
   // ================= PLAN VIEW =================
@@ -1175,13 +1177,13 @@ function canopyFigure(item, baseY){
     svg += `<line x1="${xb}" y1="${plY0+plH}" x2="${xb}" y2="${strY}" stroke="#8a8a8a" stroke-width="0.5"/>`;
   }
   svg += `<line x1="${elevX0}" y1="${plY0+plH}" x2="${elevX0}" y2="${strY}" stroke="#8a8a8a" stroke-width="0.5"/>`;
-  const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'Top-Support Flat');
+  const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'All-Thread Direct');
   const label = `${item.title} · ${faceIn}" FACE · ${attachLabel}${mitered?' · MITER':''} · QTY: ${qty}`;
   svg += `<text x="${elevX0+elevW/2}" y="${strY+50}" font-size="13" font-weight="700" fill="#111" text-anchor="middle">${_esc(label)}</text>`;
 
   const notes = [
     `Manufacture ${qty} Metal-Tech Aluminum ${attach==='tierod'?'Hanging ':''}Canop${qty>1?'ies':'y'}`,
-    `${faceIn}" ${faceIn<=8?'Low ':'Flat '}Gutter Fascia  ·  6" Self-Mating Pans`,
+    `${faceIn}" Gutter Fascia  ·  6" Self-Mating Pans`,
     attach==='tierod' ? `6"x6"x.125" Wall Plates w/ Sch 40 Tie-Rods` : (attach==='cchannel' ? `1¼"x1¼" C-Channel Low Attachment` : `1/2" All Thread Into Blocking — Direct At Canopy`),
     dsN>0 ? `${dsN} Downspout${dsN>1?'s':''} per unit for drainage` : `Scuppers for drainage`,
     ltN>0 ? `${ltN} Recessed LED per unit` : null,
@@ -1267,6 +1269,7 @@ function allCanopiesSVG(items){
 // Downspout detail page — matches APMG standard (Morris/Courtyards approval sheets):
 // Downspout Assemblies (front+side w/ 68° kick), Downspout Plate With Nub, 3x3 Angle.
 function downspoutDetailFigure(item, baseY){
+  const dsProf = ((item.spec&&item.spec.face)>=10) ? '2"x3"' : '2"x2"';   // 2x3 tube on 10"+ fascia jobs
   let s = '';
   const dsN = (item.spec.downspoutPerUnit||0) * (item.spec.qty||1);
   // interior divider lines like the real sheet (left = assembly, right split top/bottom)
@@ -1294,8 +1297,8 @@ function downspoutDetailFigure(item, baseY){
   s += `<text x="${sx+30}" y="${sbot+6}" font-size="9" fill="#111">5 1/16"</text>`;
   s += `<text x="${sx+30}" y="${sbot+18}" font-size="9" fill="#111">4 1/4"</text>`;
   s += `<text x="360" y="${sbot+34}" font-size="12" font-weight="700" fill="#111" text-anchor="middle">SIDE VIEW</text>`;
-  s += leader(190, baseY+160, sx, stop+70, '2"x2"x.093" Downspout', 'start');
-  s += leader(40, baseY+250, fx-1, ftop+120, '2"x2" W/Bottom Sleeve Cut On Site To Match Height', 'start');
+  s += leader(190, baseY+160, sx, stop+70, dsProf+'x.125" Straight Downspout', 'start');
+  s += leader(40, baseY+250, fx-1, ftop+120, dsProf+' W/Bottom Sleeve Cut On Site To Match Height', 'start');
 
   // ===== TOP-RIGHT: Downspout Plate With Nub =====
   const px = 640, py = baseY+70, pS = 84;
@@ -1307,7 +1310,7 @@ function downspoutDetailFigure(item, baseY){
   s += `<rect x="${px+pS/2-12}" y="${py+pS/2-12}" width="24" height="24" fill="url(#pans)" stroke="#8f1a17" stroke-width="1"/>`;
   [[px+12,py+12],[px+pS-12,py+12],[px+12,py+pS-12],[px+pS-12,py+pS-12]].forEach(([hx,hy])=>{ s += `<circle cx="${hx}" cy="${hy}" r="2.4" fill="none" stroke="#333" stroke-width="0.9"/>`; });
   s += hDim(px, px+pS, py+pS+18, 4, {extFrom:py+pS, side:'below'});
-  s += leader(px-8, py+pS/2, px+pS/2-16, py+pS/2, '2"x2"x.125" Outer DS', 'end');
+  s += leader(px-8, py+pS/2, px+pS/2-16, py+pS/2, dsProf+'x.125" Outer DS', 'end');
   s += leader(px+pS+8, py+pS-6, px+pS/2, py+pS/2+12, '4" Nub', 'start');
   // side profile (right of plan)
   const qx = px+pS+40;
@@ -1339,8 +1342,8 @@ function downspoutDetailSVG(item){
   svg += downspoutDetailFigure(item, 40);
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'DOWNSPOUT DETAIL'}), [
     `${dsTotal} downspout${dsTotal!==1?'s':''} total for ${_esc(item.title)}`,
-    `2"x2"x.093" Downspout · Top Plate With Sleeve`,
-    `2"x2" W/Bottom Sleeve Cut On Site To Match Height`,
+    `${((item.spec&&item.spec.face)>=10)?'2"x3"':'2"x2"'}x.125" Straight Downspout · Top Plate With Sleeve`,
+    `${((item.spec&&item.spec.face)>=10)?'2"x3"':'2"x2"'} W/Bottom Sleeve Cut On Site To Match Height`,
     `Downspout Plate With Nub (4" Nub) · 3"x3"x.125" Angle 4"L`,
     `Bottom kick 68° · .125" Holes On Site`
   ]);
@@ -1456,7 +1459,7 @@ function hardwareDetailFigure(item, baseY){
   const widthIn = (s0.widthFt||0)*12;
   const qty = s0.qty||1;
   const attach = s0.attach || 'tierod';
-  const hgN = attach==='tierod' ? Math.max(2, Math.round(widthIn/72)) : Math.max(2, Math.round(widthIn/72));
+  const hgN = attach==='tierod' ? (Math.ceil(widthIn/48)+1) : Math.max(2, Math.round(widthIn/72));   // tie-rods @ 4' o.c. — matches cost engine
   const rods = hgN*qty, wallPlates = hgN*qty, topPlates = hgN*qty, tabs = 2*hgN*qty, soSmall = hgN*qty, soNorm = hgN*qty;
   let s = '';
   // divider (top = tierod, bottom = block library)
@@ -1471,8 +1474,8 @@ function hardwareDetailFigure(item, baseY){
   // 12" sleeve pipe (overlap), right of center
   const slx = (tx0+tx1)/2+60;
   s += `<rect x="${slx}" y="${ty-8}" width="120" height="16" fill="#eef1f3" stroke="#111" stroke-width="1.1"/>`;
-  s += hDim(slx, slx+120, ty-26, 12, {side:'above'});
-  s += leader(560, baseY+40, (tx0+tx1)/2+30, ty-6, 'SCH. 40 1.25" Round Aluminum Pipe', 'start');
+  s += hDim(slx, slx+120, ty-26, 24, {side:'above'});
+  s += leader(560, baseY+40, (tx0+tx1)/2+30, ty-6, 'SCH. 40 1" Round Aluminum Pipe', 'start');
   s += `<text x="${slx+150}" y="${ty+40}" font-size="18" font-weight="700" fill="#111">Sleeve Pipe</text>`;
   s += `<line x1="${slx+145}" y1="${ty+34}" x2="${slx+60}" y2="${ty+8}" stroke="#111" stroke-width="0.7"/>`;
   s += `<text x="${tx0+70}" y="${ty+40}" font-size="12" font-weight="700" fill="#111">Adjustable Tierod  QTY: ${rods}  (cut to length per canopy)</text>`;
@@ -1481,7 +1484,7 @@ function hardwareDetailFigure(item, baseY){
   // .25 Alum Wall Plates (6x6) + side profile
   s += _hwPart(120, by0, 64, 64, [[14,14],[50,14],[14,50],[50,50]], true);
   s += `<rect x="98" y="${by0}" width="6" height="64" fill="#eef1f3" stroke="#111" stroke-width="1"/>`; // side profile
-  s += `<text x="152" y="${by0+82}" font-size="10" fill="#111" text-anchor="middle">.25" Alum.</text>`;
+  s += `<text x="152" y="${by0+82}" font-size="10" fill="#111" text-anchor="middle">.125" Alum.</text>`;
   s += `<text x="152" y="${by0+94}" font-size="10" fill="#111" text-anchor="middle">Wall Plates</text>`;
   s += `<text x="152" y="${by0+106}" font-size="10" font-weight="700" fill="#111" text-anchor="middle">QTY: ${wallPlates}</text>`;
   s += hDim(120, 184, by0-8, 6, {side:'above'});
@@ -1523,8 +1526,8 @@ function hardwareDetailSVG(item){
   svg += hardwareDetailFigure(item, 40);
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'STANDARD HARDWARE'}), [
     `${_esc(item.title)} — Tie-Rod hardware package`,
-    `Adjustable Tierod: SCH. 40 1.25" Round Aluminum Pipe + 12" Sleeve Pipe`,
-    `.25" Alum. Wall Plates 6"x6" · Canopy Top Plates 6"x5"`,
+    `Adjustable Tierod: SCH. 40 1" Round Aluminum Pipe + 1-1/2" Sch 40 Sleeve 2'-0"`,
+    `.125" Alum. Wall Plates 6"x6" · Canopy Top Plates 6"x5"`,
     `Stand Off's Small/Normal · TABS 2½"`
   ]);
   svg += `</svg>`;
@@ -1559,7 +1562,7 @@ function canopyDXFParts(item){
   const gc = gv('hdr-gc');
   const attach = s.attach || 'tierod';
   const paint = s.paint || '';
-  const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'Top-Support Flat');
+  const attachLabel = attach==='tierod' ? 'Tie-Rod Hung' : (attach==='cchannel' ? 'C-Channel Low Attach' : 'All-Thread Direct');
   const mSegs = s.widthSegIn && s.widthSegIn.length>=2 ? s.widthSegIn : null;
   const mitered = !!(s.mitered && mSegs && mSegs.some(v=>v>0));
   let mB=[]; if(mitered){ const tot=mSegs.reduce((a,v)=>a+v,0)||1; let acc=0; mB=[0]; mSegs.forEach(v=>{acc+=v; mB.push(acc/tot);}); }
@@ -1731,7 +1734,7 @@ function _specBom(item){
   const s=item.spec, dsN=s.downspoutPerUnit||0, attach=s.attach||'tierod';
   const spec=[`Manufacture ${s.qty||1} Metal Tech Aluminum Hanging Canop${(s.qty||1)>1?'ies':'y'}`,
     `${s.face||0}" Gutter Fascia · ${s.face>=8?'8':'6'}" Mating Pans`,
-    attach==='tierod'?'6"x6"x.125" Wall Plates w/ 1" Sch 40 Tie-Rods':(attach==='cchannel'?'1-1/4" C-Channel Low Attach':'Top-Support Flat'),
+    attach==='tierod'?'6"x6"x.125" Wall Plates w/ 1" Sch 40 Tie-Rods':(attach==='cchannel'?'1-1/4" C-Channel Low Attach':'1/2" All Thread Direct At Canopy'),
     dsN>0?`${dsN} Downspout(s) per unit for drainage`:'Scuppers for drainage',
     s.paint?`Painted ${s.paint}`:'Mill finish'];
   const bom = attach==='tierod'?['Tie Rod Assemblies','Sleeve Nuts/Bolts','Tab Nuts/Bolts','Wall Plates','Canopy Top Plates']:['Standard Hardware Package'];
@@ -1749,7 +1752,7 @@ function downspoutDXFParts(item){
   k.rect(ax-0.6,atop-4,4.2,1.6,1); // red sleeve band
   k.vdim(ax-6,abot,atop,87,7);
   k.text(ax-2,abot-5,3,'FRONT VIEW',7);
-  k.text(ax-14,(atop+abot)/2,2.6,'2"x2"x.093" Downspout',7);
+  k.text(ax-14,(atop+abot)/2,2.6,(((item.spec.face||8)>=10)?'2"x3"':'2"x2"')+'x.125" Straight Downspout',7);
   // side view w/ 68 kick
   const sx=W*0.30;
   k.rect(sx,abot+6,3,atop-abot-6,7);
@@ -1814,7 +1817,7 @@ function hardwareDXFParts(item){
   k.hdim(slx,slx+20,ty+5,12,7);
   k.text(W*0.18,ty+10,4.5,'Adjustable Tierod',7);
   k.text(slx+24,ty-4,3.4,'Sleeve Pipe',7);
-  k.text(W*0.30,ty+18,2.8,'SCH. 40 1.25" Round Aluminum Pipe',7);
+  k.text(W*0.30,ty+18,2.8,'SCH. 40 1" Round Aluminum Pipe',7);
   k.text(x0+18,ty-8,2.8,'Adjustable Tierod  QTY: '+rods+'  (cut to length per canopy)',7);
   // block library
   const by=H*0.16, bx=W*0.10;
