@@ -322,7 +322,7 @@ function costSpec(s){
   });
   const platesPerBar=CM.plate.platesPerUnit;
   framing += plates*(emsStick(CM.plate.sku)/platesPerBar);
-  framing += anchors*8;
+  // anchors/hardware excluded from cost (no real pricing yet — count still appears in the BOM at $0)
   const ccCost = ccFt*(emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
   const material = framing*1.03 + dsCost + ccCost;   // +3% fasteners/misc on framing only (matches Quote Builder)
   const sqft=(+s.W||0)*(+s.P||0)*(+s.qty||1);
@@ -432,8 +432,8 @@ function buildBOM(){
       pieces:'—', lf:ccFt, sticks:sheets, per, buy:sheets*per, prop:ccFt*(per/CM.cchannel.yieldFt) });
   }
   if(anchors>0){
-    rows.push({ role:'Anchors / hardware (⅜″ all-thread)', sku:'—', desc:'~$8 per anchor point',
-      pieces:anchors, lf:null, sticks:null, per:8, buy:anchors*8, prop:anchors*8 });
+    rows.push({ role:'Anchors / hardware (½″ all-thread)', sku:'—', desc:'NOT COSTED — real pricing pending',
+      pieces:anchors, lf:null, sticks:null, per:0, buy:0, prop:0 });
   }
   return rows;
 }

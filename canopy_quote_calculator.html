@@ -2830,9 +2830,9 @@ function canopyTrueCost(spec, mode){
   const plateCost = pts*platePer;
   lines.push({ role:'Wall plates (6×6×.125)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${pts*qty} plates · ${platesPerBar}/sheet`, qtyText:(pts*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
   framingPU += plateCost;
-  const anchorCost = pts*8;
-  lines.push({ role:'Anchors / hardware', sku:'—', desc:'3/8" all-thread + hardware', note:`${pts*qty} anchor points`, qtyText:(pts*qty)+' pts', unitText:'$8.00/pt', costPU:anchorCost, cat:'framing' });
-  framingPU += anchorCost;
+  // Anchors/hardware EXCLUDED from margin for now (no real pricing yet — Mike to supply).
+  // Count still shown as a $0 line so the cut sheet documents the points.
+  lines.push({ role:'Anchors / hardware', sku:'—', desc:'1/2" all-thread + nuts/lags — NOT COSTED yet', note:`${pts*qty} anchor points · excluded from margin`, qtyText:(pts*qty)+' pts', unitText:'—', costPU:0, cat:'framing' });
   if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); framingPU += stick('Outriggers', CM.outrig22.sku, op, `${op.length*qty} pcs`); }
   const miscPU = framingPU*0.03;   // fasteners / misc, +3% on framing
   // Downspouts & C-channel — material only, sized from real SKUs in the price book.
@@ -2943,7 +2943,7 @@ function renderCostSheet(){
     <div><div style="font-size:10.5px;opacity:.8;text-transform:uppercase">Blended margin</div><div style="font-size:16px;font-weight:700;color:${gMargin>=42.5?'#7be3a0':'#ffd27a'}">${gMargin.toFixed(1)}%</div></div>
   </div>`;
   body.innerHTML = banner + html +
-    `<div style="font-size:11px;color:#888;line-height:1.5;margin-top:4px">● = downspouts / C-channel (added to material &amp; sell). Excludes shop labor, paint, and freight (margin is material-only). Lights &amp; posts are billed as separate lines and aren't in this margin.</div>`;
+    `<div style="font-size:11px;color:#888;line-height:1.5;margin-top:4px">● = downspouts / C-channel (added to material &amp; sell). Excludes shop labor, paint, freight, and anchor hardware (pending real pricing). Lights &amp; posts are billed as separate lines and aren't in this margin.</div>`;
 }
 function updateMarginCheck(){
   const el = document.getElementById('mc-body'); if(!el) return;
