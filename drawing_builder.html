@@ -111,9 +111,9 @@ function members(spec){
   legList.forEach((l,i)=>{const n=Math.max(1,Math.ceil(l.w/panM.cover));panPieces.push(...Array(n).fill(l.p));panNote.push(`leg ${i+1}: ${n}×${ftin(l.p)}`);});
   addLinear(rows,panM,panPieces,`Roof pan — ${panM.role.split(' ')[0]} self-mating`, N>1?panNote.join(' · '):`${panPieces.length} pans × ${ftin(P)}`,qty,'seats in fascia; top plate welded');
 
-  // 2. GUTTER FASCIA — front(s) + 2 ends, mitred corners
+  // 2. GUTTER FASCIA — FULL PERIMETER (front + rear per leg + 2 exposed ends), mitred corners
   const fM=M[fasciaKey];
-  let fpieces=[]; legList.forEach(l=>fpieces.push(l.w)); fpieces.push(legList[0].p); fpieces.push(legList[N-1].p);
+  let fpieces=[]; legList.forEach(l=>{ fpieces.push(l.w); fpieces.push(l.w); }); fpieces.push(legList[0].p); fpieces.push(legList[N-1].p);   // full perimeter
   const welds=(N-1)+2;
   addLinear(rows,fM,fpieces,`Gutter fascia — ${face}" (wraps ${N} leg${N>1?'s':''})`,`${welds} mitred+welded corners`,qty,`45° mitre corners${face==8?' · 1"×3/16" C detail':face==12?' · 4"×2" angle ext':''}`);
 

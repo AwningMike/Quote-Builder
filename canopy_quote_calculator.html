@@ -2813,8 +2813,9 @@ function canopyTrueCost(spec, mode){
   let framingPU = 0;
   let pp=[]; legs.forEach(l=>{ const n=Math.max(1,Math.ceil(l.w/pan.cover)); for(let k=0;k<n;k++) pp.push(l.p); });
   framingPU += stick('Roof pans', pan.sku, pp, `${pp.length*qty} pans @ ${legs[0].p.toFixed(1)}′`);
-  let fp=[]; legs.forEach(l=>fp.push(l.w)); fp.push(legs[0].p); fp.push(legs[N-1].p);
-  framingPU += stick(`Gutter fascia ${face}"`, fasc.sku, fp, `${fp.length*qty} pcs · mitred corners`);
+  // fascia wraps the FULL perimeter: front + rear runs on every leg, plus the two exposed ends
+  let fp=[]; legs.forEach(l=>{ fp.push(l.w); fp.push(l.w); }); fp.push(legs[0].p); fp.push(legs[N-1].p);
+  framingPU += stick(`Gutter fascia ${face}"`, fasc.sku, fp, `${fp.length*qty} pcs · full perimeter · mitred corners`);
   let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
   framingPU += stick('1×4 front/rear support', CM.support14.sku, sp, `${sp.length*qty} pcs`);
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);

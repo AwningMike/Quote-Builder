@@ -287,7 +287,7 @@ function piecesForSpec(s){
   const nPan=Math.max(1,Math.ceil(W/pan.cover));
   add(pan.sku,'Roof pans (6″ self-mating)', Array(nPan).fill(P));
   const fs=CM[CM_FAS[face]||'fascia8'];
-  add(fs.sku,`Gutter fascia ${face}″`, [W,P,P]);
+  add(fs.sku,`Gutter fascia ${face}″`, [W,W,P,P]);   // full perimeter: front + rear + both ends
   add(CM.support14.sku,'1×4 front/rear support',[W,W]);
   const pts=Math.ceil(W/2)+1;
   if((s.attach||'tierod')==='tierod'){
