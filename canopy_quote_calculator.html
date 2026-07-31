@@ -1033,7 +1033,7 @@ function canopyFigure(item, baseY){
 
   let svg = '';
   // hanger positions (tie-rod) & downspout positions
-  const hgN = attach === 'tierod' ? Math.max(2, Math.round(widthIn / 72)) : 0;
+  const hgN = attach === 'tierod' ? (Math.ceil(widthIn/48)+1) : 0;   // rods @ 4' o.c. +1 — matches engine & BOM counts
   const hgFrac = i => (hgN === 1 ? 0.5 : (0.5 + i) / hgN);
   const dsPos = [];
   if(dsN > 0){ const sp = 1 / dsN; for(let i=0;i<dsN;i++) dsPos.push(sp*0.5 + i*sp); }
