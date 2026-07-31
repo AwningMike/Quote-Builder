@@ -109,7 +109,7 @@
   <div class="card">
     <h2>Job Cost &amp; Margin</h2>
     <div class="kpis">
-      <div class="kpi"><div class="l">Material Cost</div><div class="v" id="k-mat">$0</div><div class="d">whole sticks · job-nested · EMS <span id="k-book"></span></div></div>
+      <div class="kpi"><div class="l">Material Cost</div><div class="v" id="k-mat">$0</div><div class="d">proportional lineal-ft · EMS <span id="k-book"></span></div></div>
       <div class="kpi"><div class="l">Sold Price</div><div class="v" id="k-sold">—</div><div class="d">canopy scope</div></div>
       <div class="kpi"><div class="l">Material Margin</div><div class="v" id="k-margin">—</div><div class="d">(sold − material) ÷ sold</div></div>
       <div class="kpi"><div class="l">Multiple</div><div class="v" id="k-mult">—</div><div class="d">sold ÷ material</div></div>
@@ -125,7 +125,7 @@
       <thead><tr>
         <th>Material</th><th>SKU</th><th>Description</th>
         <th class="num">Pieces</th><th class="num">Lineal ft</th><th class="num">Sticks to buy</th>
-        <th class="num">$/stick</th><th class="num">Job PO (nested)</th><th class="num">Costed</th>
+        <th class="num">$/stick</th><th class="num">Buy cost</th><th class="num">Costed (prop.)</th>
       </tr></thead>
       <tbody id="bom-body"><tr><td colspan="9" class="empty">Add a canopy to build the BOM.</td></tr></tbody>
       <tfoot id="bom-foot"></tfoot>
@@ -133,7 +133,7 @@
     </div>
     <div class="muted" style="margin-top:8px;">
       <b>Sticks to buy</b> = whole stock lengths after nesting all cuts across the whole job (what purchasing orders — includes drop).
-      <b>Costed</b> = whole sticks nested per canopy line — what the margin uses (matches the shop's Materials PTL). <b>Job PO (nested)</b> = sticks if all lines are cut from one pull; buy this if the job ships together.
+      <b>Costed (prop.)</b> = the feet this job actually consumes at $/ft — what the margin uses. The difference is drop that carries to the next job.
     </div>
     <div class="actions no-print">
       <button class="btn secondary" onclick="exportCSV()">⬇ Export BOM (CSV)</button>
@@ -221,7 +221,6 @@ const EMS = {
  "33-61-100":{d:"1/4\" X 12\" X 12'",ppf:19.25,len:12.0},
  "18-63-225":{d:"1\" SCH 40 X 20'",ppf:3.0,len:20.0},
  "18-63-235":{d:"1-1/2\" SCH 40 X 20'",ppf:4.65,len:20.0},
- "SLV-1OD":{d:"1\" OD SLEEVE PIPE X 20' (shop stock)",ppf:2.4,len:20.0},
  "14-63-215":{d:"1/2\" DIA X 20'",ppf:1.25,len:20.0},
  "11-63-269":{d:"1 X 1 1/2 X 1/8 X 20'",ppf:1.7,len:20.0},
  "11-63-365":{d:"1 X 2 X 1/16 X 20'",ppf:1.1,len:20.0},
@@ -255,16 +254,13 @@ const CM = {
  pan6:   { sku:'56-63-015', cover:0.5 },
  pan8:   { sku:'56-63-046', cover:0.667 },
  fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
- support14:{ sku:'20-63-235' },                 // 1×4 support — 8"+ face (per shop PTLs)
- support13:{ sku:'20-63-230' },                 // 1×3 support — 6" face jobs (per shop PTLs)
+ support14:{ sku:'20-63-235' },
  tierod1:{ sku:'18-63-225' },
- sleeve1od:{ sku:'SLV-1OD' },                   // 1" OD sleeve pipe, $2.40/ft shop stock (per PTLs)
- plate:{ sku:'10-63-350', platesPerUnit:39 },   // 6x6 plates from 1/4"x6"x20' flat bar (~39/bar) — per shop PTLs
+ sleeve125:{ sku:'18-63-235' },
+ plate:{ sku:'50-03-173', platesPerUnit:128 },   // 6x6x.125 plates from .125 4x8 sheet — per drawings
  outrig22:{ sku:'11-63-320' },
  downspout22:{ sku:'19-63-210' },
  downspout23:{ sku:'20-63-275' },
- angle33:{ sku:'11-63-330' },                   // 3x3x1/8 angle — scupper brackets on downspout jobs (per PTLs)
- ledger34:{ sku:'20-63-300' },                  // 3x4x1/8 wall receiver — all-thread jobs (per PTLs 3903/3943)
  cchannel:{ sku:'50-03-300', yieldFt:96 }
 };
 const CM_FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
@@ -292,43 +288,40 @@ function piecesForSpec(s){
   add(pan.sku,'Roof pans (6″ self-mating)', Array(nPan).fill(P));
   const fs=CM[CM_FAS[face]||'fascia8'];
   add(fs.sku,`Gutter fascia ${face}″`, [W,W,P,P]);   // full perimeter: front + rear + both ends
-  const supSku=(face<=6)?CM.support13.sku:CM.support14.sku;   // shop uses 1×3 on 6" jobs (per PTLs)
-  add(supSku,(face<=6?'1×3':'1×4')+' front/rear support',[W,W]);
+  add(CM.support14.sku,'1×4 front/rear support',[W,W]);
   const pts=Math.ceil(W/2)+1;
-  let nRod=0;
   if((s.attach||'tierod')==='tierod'){
-    nRod=Math.ceil(W/4)+1;
+    const nRod=Math.ceil(W/4)+1;
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
-    // sleeves cut at 23"+kerf = clean 2' slots → 10/stick (matches PTL 3905)
-    add(CM.sleeve1od.sku,'Tie-rod sleeves (1″ OD pipe × 2′)', Array(nRod).fill(2-CM_KERF_FT));
-  } else {
-    // 3×4 wall receiver at the attachment — on both real all-thread PTLs (3903/3943)
-    add(CM.ledger34.sku,'3×4 wall receiver (all-thread attach)',[W]);
+    add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
   }
   const dsN=(+s.ds||0);
   if(dsN>0){
     const dsSku=(face>=10)?CM.downspout23.sku:CM.downspout22.sku;
     add(dsSku, face>=10?'Downspouts (2×3×⅛)':'Downspouts (2×2×⅛)', Array(dsN).fill(DS_DROP_FT));
-    add(CM.angle33.sku,'Scupper/collector angle (3×3×⅛)', Array(dsN).fill(1.5));   // per shop PTLs
   }
   const orN=(+s.outrig||0);
   if(orN>0) add(CM.outrig22.sku,'Outriggers (2×2×3/16)', Array(orN).fill(P));
-  // wall plates: TIE-ROD jobs only, one per rod (per PTLs — all-thread jobs buy none)
-  return { out, plates:nRod*qty, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
+  return { out, plates:pts*qty, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
 }
 
-/* Cost one canopy line — WHOLE STICKS nested across the line's full qty (first-fit-decreasing,
-   1" kerf), exactly how the shop's real Materials PTLs buy. Identical math to the Quote Builder. */
+/* Cost one canopy line — proportional lineal-ft, identical math to the Quote Builder margin. */
 function costSpec(s){
   const {out, plates, anchors, ccFt} = piecesForSpec(s);
-  const ACC_SKUS=[CM.downspout22.sku, CM.downspout23.sku, CM.angle33.sku];
+  const DS_SKUS=[CM.downspout22.sku, CM.downspout23.sku];
   let framing=0, dsCost=0;
   Object.keys(out).forEach(sku=>{
-    const cost = ffd(out[sku].pieces, emsLen(sku)) * emsStick(sku);   // whole sticks — matches shop PTLs
-    if(ACC_SKUS.includes(sku)) dsCost += cost; else framing += cost;
+    if(DS_SKUS.includes(sku)){
+      // downspouts: straight drops — flat ft × $/ft, no kerf, outside the +3% (matches Quote Builder)
+      const lf=out[sku].pieces.reduce((a,p)=>a+p,0);
+      dsCost += lf*(emsStick(sku)/emsLen(sku));
+      return;
+    }
+    const lf=out[sku].pieces.reduce((a,p)=>a+p+CM_KERF_FT,0)*CM_WASTE;
+    framing += lf*(emsStick(sku)/emsLen(sku));
   });
-  // wall plates priced PER PLATE from the 1/4"x6"x20' bar — shop buys fractional bars (PTL QTY 0.25)
-  framing += plates*(emsStick(CM.plate.sku)/CM.plate.platesPerUnit);
+  const platesPerBar=CM.plate.platesPerUnit;
+  framing += plates*(emsStick(CM.plate.sku)/platesPerBar);
   // anchors/hardware excluded from cost (no real pricing yet — count still appears in the BOM at $0)
   const ccCost = ccFt*(emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
   const material = framing*1.03 + dsCost + ccCost;   // +3% fasteners/misc on framing only (matches Quote Builder)
@@ -412,9 +405,8 @@ function buildBOM(){
   canopies.forEach(c=>{
     const r=piecesForSpec(c);
     Object.keys(r.out).forEach(sku=>{
-      if(!agg[sku]) agg[sku]={role:r.out[sku].role, pieces:[], costSticks:0};
+      if(!agg[sku]) agg[sku]={role:r.out[sku].role, pieces:[]};
       agg[sku].pieces.push(...r.out[sku].pieces);
-      agg[sku].costSticks += ffd(r.out[sku].pieces, emsLen(sku));   // per-line nesting — what the margin charges
     });
     plates+=r.plates; anchors+=r.anchors; ccFt+=r.ccFt;
   });
@@ -422,22 +414,22 @@ function buildBOM(){
   Object.keys(agg).forEach(sku=>{
     const a=agg[sku];
     const lf=a.pieces.reduce((s,p)=>s+p+CM_KERF_FT,0);
-    const sticks=ffd(a.pieces, emsLen(sku));   // nested across ALL canopy lines — true job PO
+    const sticks=ffd(a.pieces, emsLen(sku));
     const per=emsStick(sku);
     rows.push({ role:a.role, sku, desc:emsDesc(sku), pieces:a.pieces.length,
-      lf, sticks, per, buy:sticks*per, prop:a.costSticks*per });
+      lf, sticks, per, buy:sticks*per, prop:lf*(per/emsLen(sku)) });
   });
   rows.sort((x,y)=>y.buy-x.buy);
   const platesPerBar=CM.plate.platesPerUnit;
   if(plates>0){
-    const perPlate=emsStick(CM.plate.sku)/platesPerBar, bars=+(plates/platesPerBar).toFixed(2);
-    rows.push({ role:'Wall plates (6×6×¼) — from ¼″×6″×20′ bar', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
-      pieces:plates, lf:null, sticks:bars, per:emsStick(CM.plate.sku), buy:plates*perPlate, prop:plates*perPlate });
+    const bars=Math.ceil(plates/platesPerBar), per=emsStick(CM.plate.sku);
+    rows.push({ role:'Wall plates (6×6×.125) — from .125 4×8 sheet', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
+      pieces:plates, lf:null, sticks:bars, per, buy:bars*per, prop:plates*(per/platesPerBar) });
   }
   if(ccFt>0){
-    const perFt=emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt, sheets=+(ccFt/CM.cchannel.yieldFt).toFixed(2);
+    const sheets=Math.ceil(ccFt/CM.cchannel.yieldFt), per=emsStick(CM.cchannel.sku);
     rows.push({ role:'C-channel (LED) — from ¼″ 4×8 plate', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku),
-      pieces:'—', lf:ccFt, sticks:sheets, per:emsStick(CM.cchannel.sku), buy:ccFt*perFt, prop:ccFt*perFt });
+      pieces:'—', lf:ccFt, sticks:sheets, per, buy:sheets*per, prop:ccFt*(per/CM.cchannel.yieldFt) });
   }
   if(anchors>0){
     rows.push({ role:'Anchors / hardware (½″ all-thread)', sku:'—', desc:'NOT COSTED — real pricing pending',
@@ -465,14 +457,14 @@ function renderBOM(matTotal){
     <tr style="font-weight:800;border-top:2px solid var(--line);">
       <td colspan="7" style="text-align:right;">Totals</td>
       <td class="num">${money(buyT)}</td><td class="num">${money(propT+misc)}</td></tr>
-    <tr><td colspan="9" class="muted" style="text-align:right;">Job PO = sticks nested across every canopy line together · Costed total = job cost used for margin (matches Material Cost above)</td></tr>`;
+    <tr><td colspan="9" class="muted" style="text-align:right;">Buy total = PO if every stick is bought fresh · Costed total = job cost used for margin (matches Material Cost above)</td></tr>`;
 }
 
 function exportCSV(){
   const rows=buildBOM();
   if(!rows.length){ alert('Add a canopy first.'); return; }
   const esc=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const lines=[['material','sku','description','pieces','lineal_ft','sticks_to_buy','price_per_stick','job_po_cost','costed']];
+  const lines=[['material','sku','description','pieces','lineal_ft','sticks_to_buy','price_per_stick','buy_cost','costed_proportional']];
   rows.forEach(r=>lines.push([r.role,r.sku,r.desc,r.pieces??'',r.lf==null?'':r.lf.toFixed(2),r.sticks??'',r.per.toFixed(2),r.buy.toFixed(2),r.prop.toFixed(2)]));
   const name=(document.getElementById('j-name').value||'job').replace(/[^\w\- ]+/g,'').trim().replace(/ +/g,'_');
   const csv=lines.map(r=>r.map(esc).join(',')).join('\n');
