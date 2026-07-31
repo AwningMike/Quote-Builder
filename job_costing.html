@@ -254,10 +254,13 @@ const CM = {
  pan6:   { sku:'56-63-015', cover:0.5 },
  pan8:   { sku:'56-63-046', cover:0.667 },
  fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
- support14:{ sku:'20-63-235' },
+ support14:{ sku:'20-63-235' },                 // 1x4 support — 10" & 12" face (per Mike, 07/2026)
+ support12:{ sku:'20-63-225' },                 // 1x2 support — 6" & 8" face (per Mike, 07/2026)
  tierod1:{ sku:'18-63-225' },
  sleeve125:{ sku:'18-63-235' },
- plate:{ sku:'50-03-173', platesPerUnit:128 },   // 6x6x.125 plates from .125 4x8 sheet — per drawings
+ plate:{ sku:'10-63-350', platesPerUnit:40 },   // 6x6x1/4 wall plates from 1/4"x6"x20' bar (40/bar) — STANDARD all canopies (per Mike)
+ topplate56:{ sku:'10-63-350', platesPerUnit:48 },  // 5x6x1/4 top plate (tie-rod) — 6" & 8" face
+ topplate25:{ sku:'10-61-360', platesPerUnit:72 },  // 2x5x1/4 top plate (tie-rod) — 10" & 12" face
  outrig22:{ sku:'11-63-320' },
  downspout22:{ sku:'19-63-210' },
  downspout23:{ sku:'20-63-275' },
@@ -288,10 +291,12 @@ function piecesForSpec(s){
   add(pan.sku,'Roof pans (6″ self-mating)', Array(nPan).fill(P));
   const fs=CM[CM_FAS[face]||'fascia8'];
   add(fs.sku,`Gutter fascia ${face}″`, [W,W,P,P]);   // full perimeter: front + rear + both ends
-  add(CM.support14.sku,'1×4 front/rear support',[W,W]);
+  const supSku=(face<=8)?CM.support12.sku:CM.support14.sku;   // 1×2 on 6"/8", 1×4 on 10"/12" (per Mike)
+  add(supSku,(face<=8?'1×2':'1×4')+' front/rear support',[W,W]);
   const pts=Math.ceil(W/2)+1;
+  let nRod=0;
   if((s.attach||'tierod')==='tierod'){
-    const nRod=Math.ceil(W/4)+1;
+    nRod=Math.ceil(W/4)+1;
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
     add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
   }
@@ -302,12 +307,12 @@ function piecesForSpec(s){
   }
   const orN=(+s.outrig||0);
   if(orN>0) add(CM.outrig22.sku,'Outriggers (2×2×3/16)', Array(orN).fill(P));
-  return { out, plates:pts*qty, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
+  return { out, plates:pts*qty, topPlates:nRod*qty, face, anchors:pts*qty, ccFt:(+s.cc||0)*qty };
 }
 
 /* Cost one canopy line — proportional lineal-ft, identical math to the Quote Builder margin. */
 function costSpec(s){
-  const {out, plates, anchors, ccFt} = piecesForSpec(s);
+  const {out, plates, topPlates, face, anchors, ccFt} = piecesForSpec(s);
   const DS_SKUS=[CM.downspout22.sku, CM.downspout23.sku];
   let framing=0, dsCost=0;
   Object.keys(out).forEach(sku=>{
@@ -322,6 +327,8 @@ function costSpec(s){
   });
   const platesPerBar=CM.plate.platesPerUnit;
   framing += plates*(emsStick(CM.plate.sku)/platesPerBar);
+  // canopy top plates — one per tie-rod (per Mike): 5×6×¼ on 6"/8" face, 2×5×¼ on 10"/12"
+  if(topPlates>0){ const tpM=(face<=8)?CM.topplate56:CM.topplate25; framing += topPlates*(emsStick(tpM.sku)/tpM.platesPerUnit); }
   // anchors/hardware excluded from cost (no real pricing yet — count still appears in the BOM at $0)
   const ccCost = ccFt*(emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt);
   const material = framing*1.03 + dsCost + ccCost;   // +3% fasteners/misc on framing only (matches Quote Builder)
@@ -401,7 +408,7 @@ function recalc(){
 
 function buildBOM(){
   const agg={};  // sku -> {role, pieces:[], lf}
-  let plates=0, anchors=0, ccFt=0;
+  let plates=0, anchors=0, ccFt=0, tp56=0, tp25=0;
   canopies.forEach(c=>{
     const r=piecesForSpec(c);
     Object.keys(r.out).forEach(sku=>{
@@ -409,6 +416,7 @@ function buildBOM(){
       agg[sku].pieces.push(...r.out[sku].pieces);
     });
     plates+=r.plates; anchors+=r.anchors; ccFt+=r.ccFt;
+    if(r.topPlates>0){ if(r.face<=8) tp56+=r.topPlates; else tp25+=r.topPlates; }
   });
   const rows=[];
   Object.keys(agg).forEach(sku=>{
@@ -423,9 +431,15 @@ function buildBOM(){
   const platesPerBar=CM.plate.platesPerUnit;
   if(plates>0){
     const bars=Math.ceil(plates/platesPerBar), per=emsStick(CM.plate.sku);
-    rows.push({ role:'Wall plates (6×6×.125) — from .125 4×8 sheet', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
+    rows.push({ role:'Wall plates (6×6×¼) — from ¼×6×20′ bar', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku),
       pieces:plates, lf:null, sticks:bars, per, buy:bars*per, prop:plates*(per/platesPerBar) });
   }
+  if(tp56>0){ const per=emsStick(CM.topplate56.sku), n=CM.topplate56.platesPerUnit;
+    rows.push({ role:'Canopy top plates (5×6×¼) — 1/rod', sku:CM.topplate56.sku, desc:emsDesc(CM.topplate56.sku),
+      pieces:tp56, lf:null, sticks:Math.ceil(tp56/n), per, buy:Math.ceil(tp56/n)*per, prop:tp56*(per/n) }); }
+  if(tp25>0){ const per=emsStick(CM.topplate25.sku), n=CM.topplate25.platesPerUnit;
+    rows.push({ role:'Canopy top plates (2×5×¼) — 1/rod', sku:CM.topplate25.sku, desc:emsDesc(CM.topplate25.sku),
+      pieces:tp25, lf:null, sticks:Math.ceil(tp25/n), per, buy:Math.ceil(tp25/n)*per, prop:tp25*(per/n) }); }
   if(ccFt>0){
     const sheets=Math.ceil(ccFt/CM.cchannel.yieldFt), per=emsStick(CM.cchannel.sku);
     rows.push({ role:'C-channel (LED) — from ¼″ 4×8 plate', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku),
