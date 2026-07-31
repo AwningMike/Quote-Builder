@@ -671,7 +671,7 @@ function renderCanopySection(sectionKey, faceLabel){
               <select id="c-attach">
                 <option value="tierod">Tie-Rod (hung)</option>
                 <option value="cchannel">C-Channel (low attach)</option>
-                <option value="topsupport">Top Support (flat)</option>
+                <option value="topsupport">All-thread — direct at canopy (no tie-rods)</option>
               </select>
             </div>
             <div class="field"><label>Finish / Paint <span style="text-transform:none;font-weight:400;">(blank = mill)</span></label><input type="text" id="c-paint" placeholder="e.g. Regal Red MP15394"></div>
@@ -1098,10 +1098,10 @@ function canopyFigure(item, baseY){
     svg += leader(evX0-30, evY+evBand+26, evX0-5, evY+evBand-2, '1¼" C-Channel Low Attach', 'start');
     svg += leader(evX0+8, evY-16, evX0+2, evY-4, 'Outrigger Sleeve', 'start');
     svg += leader(evX0+evW-40, evY+evBand+28, evX0+evW-6, evY+evBand+3, 'Scuppers On Front', 'start');
-  } else { // topsupport
-    svg += `<rect x="${evX0+evW*0.3}" y="${evY-8}" width="${evW*0.4}" height="7" fill="#eee" stroke="#333" stroke-width="1"/>`;
+  } else { // all-thread direct (no tie-rods) — matches real drawings: no top support member
+    svg += `<rect x="${evX0+2}" y="${evY-6}" width="7" height="6" fill="#eee" stroke="#333" stroke-width="1"/>`;
     svg += `<rect x="${evX0+evW-2}" y="${evY-1}" width="6" height="${evBand+2}" fill="#eee" stroke="#333" stroke-width="1"/>`;
-    svg += leader(evX0+4, evY-16, evX0+evW*0.45, evY-7, '2"x3" Top Support', 'start');
+    svg += leader(evX0+4, evY-18, evX0+5, evY-5, '1/2" All Thread Into Blocking', 'start');
     svg += leader(evX0+evW-4, evY-30, evX0+evW+2, evY-2, '1"x4" Alum Tube', 'end');
   }
   // downspout stub (rear)
@@ -1182,7 +1182,7 @@ function canopyFigure(item, baseY){
   const notes = [
     `Manufacture ${qty} Metal-Tech Aluminum ${attach==='tierod'?'Hanging ':''}Canop${qty>1?'ies':'y'}`,
     `${faceIn}" ${faceIn<=8?'Low ':'Flat '}Gutter Fascia  ·  6" Self-Mating Pans`,
-    attach==='tierod' ? `6"x6"x.125" Wall Plates w/ Sch 40 Tie-Rods` : (attach==='cchannel' ? `1¼"x1¼" C-Channel Low Attachment` : `2"x3" Top Welded Support`),
+    attach==='tierod' ? `6"x6"x.125" Wall Plates w/ Sch 40 Tie-Rods` : (attach==='cchannel' ? `1¼"x1¼" C-Channel Low Attachment` : `1/2" All Thread Into Blocking — Direct At Canopy`),
     dsN>0 ? `${dsN} Downspout${dsN>1?'s':''} per unit for drainage` : `Scuppers for drainage`,
     ltN>0 ? `${ltN} Recessed LED per unit` : null,
     mitered && s.widthSegments ? `Miter — wraps corner: ${s.widthSegments.join(' + ')}` : null,
@@ -1375,16 +1375,16 @@ function wallDetailFigure(item, baseY, label){
   const deckY = baseY+360, deckH = 26, deckOut = projIn*3.4;
   s += `<rect x="${wsX2}" y="${deckY}" width="${deckOut}" height="${deckH}" fill="url(#pans)" stroke="#111" stroke-width="1.3"/>`;
   s += `<rect x="${wsX2+deckOut-6}" y="${deckY-1}" width="6" height="${deckH+2}" fill="#eee" stroke="#111" stroke-width="1"/>`; // front fascia edge
-  // blocking blocks (red X-hatch) — top behind wall plate, bottom behind lower framing.
-  // Top-blocking / wall-plate height is driven by the canopy's arm height (bottom of canopy
-  // to top of plate). Default 5'5" (65") — matches the old hardcoded value.
+  // blocking blocks (red X-hatch). TIE-ROD jobs get TWO blocking runs: top behind the wall
+  // plate (at arm height) + bottom behind the canopy framing. NO-TIE-ROD jobs get blocking
+  // ONLY at the canopy — no upper blocking, no tie-rod triangle (matches real drawings).
+  const isTie = (attach === 'tierod');
   const armIn = (s0.armHeightIn!=null ? s0.armHeightIn : (projIn>50?98:65));
   const spanPx = Math.max(60, Math.min(deckY-(wTop+10), armIn*3.0)); // scale ~3px/in, clamped to wall
   const topBlkY = Math.max(wTop+10, deckY - spanPx), botBlkY = deckY-2;
-  s += _blkBlock(wsX-10, topBlkY, 12, 34);       // top blocking
-  s += _blkBlock(wsX-10, botBlkY, 12, 20);       // bottom blocking (7")
-  // tie-rod triangle: wall plate (top) -> top plate at canopy end
-  if(attach !== 'topsupport'){
+  if(isTie) s += _blkBlock(wsX-10, topBlkY, 12, 34);   // top blocking — tie-rod wall plate only
+  s += _blkBlock(wsX-10, botBlkY, 12, 20);             // canopy blocking (7")
+  if(isTie){
     // wall plate at top blocking
     s += `<rect x="${wsX2-1}" y="${topBlkY+8}" width="6" height="14" fill="#dfe3e6" stroke="#111" stroke-width="1"/>`;
     // diagonal tie-rod down to canopy front-top
@@ -1393,7 +1393,9 @@ function wallDetailFigure(item, baseY, label){
     s += `<rect x="${wsX2-1}" y="${botBlkY+4}" width="8" height="6" fill="#2a2d31"/>`;
     s += `<line x1="${wsX2+7}" y1="${botBlkY+7}" x2="${wsX2+18}" y2="${deckY+4}" stroke="#2a2d31" stroke-width="1.6"/>`;
   } else {
+    // all-thread bolts straight through the rear bar into the canopy blocking
     s += `<rect x="${wsX2-1}" y="${deckY-6}" width="8" height="10" fill="#2a2d31"/>`;
+    s += `<line x1="${wsX-14}" y1="${deckY+6}" x2="${wsX2+6}" y2="${deckY+6}" stroke="#2a2d31" stroke-width="2"/>`;
   }
   // ===== labels =====
   s += `<text x="560" y="${baseY+70}" font-size="18" font-weight="700" fill="#111" text-anchor="middle">Attachment ${label||'A'}</text>`;
@@ -1405,13 +1407,13 @@ function wallDetailFigure(item, baseY, label){
    'Added Behind Siding In Between Studs.',
    'Blocking Runs Continuous With All Canopies.'
   ].forEach((ln,i)=>{ s += `<text x="${noteX}" y="${noteY+i*15}" font-size="11" fill="#111">${_esc(ln)}</text>`; });
-  // leader lines from note to the two blocking blocks
-  s += `<line x1="${noteX}" y1="${noteY-4}" x2="${wsX+2}" y2="${topBlkY+16}" stroke="#111" stroke-width="0.6"/>`;
+  // leader lines from note to the blocking block(s)
+  s += `<line x1="${noteX}" y1="${noteY-4}" x2="${wsX+2}" y2="${(isTie?topBlkY:botBlkY)+16}" stroke="#111" stroke-width="0.6"/>`;
   s += `<line x1="${noteX}" y1="${noteY+40}" x2="${wsX2+deckOut-10}" y2="${deckY}" stroke="#111" stroke-width="0.6"/>`;
   // Standard 2" EIFs callout
   s += leader(430, baseY+250, wsX-2, baseY+250, 'Standard 2" EIFs', 'start');
-  // dims: wall-attach span (vertical, = arm height) + 7" bottom blocking
-  s += vDim(wsX-40, topBlkY, deckY, armIn, {extTo:wsX-10});
+  // dims: arm-height span only applies on tie-rod jobs; canopy blocking dim always
+  if(isTie) s += vDim(wsX-40, topBlkY, deckY, armIn, {extTo:wsX-10});
   s += vDim(wsX-14, botBlkY, deckY, 7, {extTo:wsX2});
   // Bottom of Canopies AFF TBD
   s += `<text x="${wsX2+deckOut/2}" y="${deckY+deckH+26}" font-size="13" font-weight="600" fill="#111" text-anchor="middle">Bottom of Canopies</text>`;
@@ -1423,7 +1425,7 @@ function wallDetailSVG(item){
   const info = _headerInfo();
   const W = 1000, H = 620, bx = 8, by = 8, bw = W-16, bh = H-16;
   const attach = item.spec.attach || 'tierod';
-  const attLabel = attach==='tierod' ? 'Tie-rod hung — into wood blocking' : (attach==='cchannel' ? 'C-channel low attach' : 'Top-support flat');
+  const attLabel = attach==='tierod' ? 'Tie-rod hung — into wood blocking' : (attach==='cchannel' ? 'C-channel low attach' : '1/2\" all-thread — direct at canopy (no tie-rods)');
   let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
   svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
   svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
@@ -1622,8 +1624,8 @@ function canopyDXFParts(item){
     rect(evX-4, 0, 4, faceIn, 7);                         // rear C-channel
     text(evX-4, faceIn+18, 3.5, '1-1/4" C-Channel Low Attach', 7);
   } else {
-    rect(evX+projIn*0.3, faceIn, projIn*0.4, 3, 7);       // top support
-    text(evX+projIn*0.2, faceIn+16, 3.5, '2"x3" Top Support', 7);
+    rect(evX-3, faceIn-8, 3, 8, 1);                        // rear attach point into blocking
+    text(evX+2, faceIn+16, 3.5, '1/2" All Thread Into Blocking', 7);
   }
   if(dsN>0) rect(evX-2.5, -14, 2.5, 12, 7);               // rear downspout stub
   hdim(evX,evX+projIn,-22,projIn,true);
