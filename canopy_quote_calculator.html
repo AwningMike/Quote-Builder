@@ -449,7 +449,7 @@ let RATES = {
     ]
   },
   standingSeam: { mfgPerFt:195, endsRate:150, valancePerFt:15, laborPerFt:45 },
-  fabric:        { mfgPerFt:85, laborPerFt:45 },
+  fabric:        { mfgPerFt:75, laborPerFt:45 },   // $75 per lineal ft of WIDTH (confirmed 07/2026)
   sunshade:      { mfgPerSqft:95, laborPerFt:65 },
   recover: {
     fabrics: {
@@ -2111,10 +2111,10 @@ function computeFabric(){
   const materialsTotal = widthFt*cfg.mfgPerFt*qty;
   const labor = widthFt*cfg.laborPerFt*qty; // fabric labor $45/ft
   document.getElementById('fb-breakdown').innerHTML = `
-    <div class="row"><span>MFG (${widthFt.toFixed(2)}ft × $75 × ${qty})</span>${fmtCopy(materialsTotal)}</div>
+    <div class="row"><span>MFG (${widthFt.toFixed(2)}ft × $${cfg.mfgPerFt} × ${qty})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row total"><span>Materials Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
     ${posts>0 ? `<div class="row"><span>Posts (${posts} × $650) — separate line item</span>${fmtCopy(postsCost)}</div>` : ''}
-    <div class="row" style="margin-top:8px;"><span>Labor (${widthFt.toFixed(2)}ft × $45 × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
+    <div class="row" style="margin-top:8px;"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
   return { materialsTotal, labor, widthFt, qty, postsCost, postsQty: posts };
 }
