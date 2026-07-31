@@ -3459,7 +3459,7 @@ function renderQuote(){
   const ohioRate = parseFloat(document.getElementById('extra-ohio-county').value)||0;
   const taxOn = document.getElementById('extra-tax').checked || ohioRate>0;
   const taxRatePercent = ohioRate>0 ? ohioRate : 7;
-  const tax = taxOn ? Math.ceil(taxableMaterials*(taxRatePercent/100)) : 0; // tax applies to materials (canopy+downspouts+lights) only
+  const tax = taxOn ? Math.ceil(taxableMaterials*(taxRatePercent/100)) : 0; // tax on ALL product materials (canopies, standing seam, fabric, downspouts, lights, posts) — not labor/extras
   const total = taxableMaterials + installation + survey + lift + stamped + tax; // sum of already-rounded parts — always reconciles
 
   document.getElementById('q-downspouts-row').style.display = downspoutsTotal>0 ? 'flex' : 'none';
@@ -4142,12 +4142,12 @@ function buildActivityRows(s, color, height){
     if(groupHasCanopy && document.getElementById('extra-scupper').checked) desc += `Scupper(s): included\n`;
     if(groupHasSS && document.getElementById('extra-shopdrawings').checked) desc += `Shop drawings to be approved by customer\n`;
     if(groupHasCanopy) desc += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
-    rows.push({ label: gName, desc: desc.trim(), amt: fmtDecimal(groupTotal), taxed: groupHasCanopy });
+    rows.push({ label: gName, desc: desc.trim(), amt: fmtDecimal(groupTotal), taxed: true });   // ALL product groups taxable (canopies, standing seam, fabric — per Mike)
   });
 
   s.groups.standalone.forEach(i=>{
     const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
-    rows.push({ label: i.title, desc: specLines.join('\n'), amt: fmtDecimal(i.amount), taxed: i.type==='canopy' });
+    rows.push({ label: i.title, desc: specLines.join('\n'), amt: fmtDecimal(i.amount), taxed: true });   // ALL product lines taxable (per Mike)
   });
 
   if(s.downspoutsTotal>0){
