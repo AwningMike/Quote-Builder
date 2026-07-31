@@ -612,6 +612,15 @@ function renderCanopySection(sectionKey, faceLabel){
     <div class="card inputs">
       <h2>${faceLabel} Canopy</h2>
       <div class="sub">Enter width and projection — tier and MFG rate auto-select. Delivery mileage is entered once for the whole job in the Quote panel, not per item.</div>
+      <div class="grid2" style="margin-bottom:6px;">
+        <div class="field"><label>Fascia face size <span style="text-transform:none;font-weight:400;">(same sell pricing — flows to quote &amp; drawings)</span></label>
+          <select id="c-facesize">
+            ${faceInches===8
+              ? '<option value="8" selected>8&quot; face</option><option value="6">6&quot; face</option>'
+              : '<option value="12" selected>12&quot; face</option><option value="10">10&quot; face</option>'}
+          </select>
+        </div>
+      </div>
       <div class="checkline">
         <input type="checkbox" id="c-mitered-toggle">
         <label for="c-mitered-toggle">Mitered — wraps corner(s): L / U / multi-leg, each leg its own width + projection</label>
@@ -811,6 +820,10 @@ function computeCanopy(sectionKey){
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   const r = computeCanopy(sectionKey);
+  // face-size picker: 8" tab can drop to 6", 12" tab to 10" — SAME sell pricing (tab rate);
+  // the chosen size flows to the estimate, drawings, cut sheet & margin (real fascia SKU).
+  const pick = parseInt((document.getElementById('c-facesize')||{}).value) || faceInches;
+  if(pick !== faceInches){ faceInches = pick; faceLabel = pick + '" Face'; }
   // custom / large fascia size overrides the section's fixed face
   const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
