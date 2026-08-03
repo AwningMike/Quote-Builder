@@ -298,7 +298,7 @@ function piecesForSpec(s){
   const pts=Math.ceil(W/2)+1;
   let nRod=0;
   if((s.attach||'tierod')==='tierod'){
-    nRod=Math.ceil(W/4)+1;
+    nRod=Math.ceil(W/6)+1;   // arms @ 5'-6' o.c. (per Mike)
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
     add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
     if(face>=12) add(CM.rodbar22.sku,'2×2×¼ tie-rod support bar (CL 8½″ from front)',[W]);   // 12" face only (per Mike)

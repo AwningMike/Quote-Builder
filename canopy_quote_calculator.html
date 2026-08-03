@@ -1033,7 +1033,7 @@ function canopyFigure(item, baseY){
 
   let svg = '';
   // hanger positions (tie-rod) & downspout positions
-  const hgN = attach === 'tierod' ? (Math.ceil(widthIn/48)+1) : 0;   // rods @ 4' o.c. +1 — matches engine & BOM counts
+  const hgN = attach === 'tierod' ? (Math.ceil(widthIn/72)+1) : 0;   // arms @ 5'-6' o.c. +1 (per Mike) — matches engine & BOM counts
   const hgFrac = i => (hgN === 1 ? 0.5 : (0.5 + i) / hgN);
   const dsPos = [];
   if(dsN > 0){ const sp = 1 / dsN; for(let i=0;i<dsN;i++) dsPos.push(sp*0.5 + i*sp); }
@@ -1410,7 +1410,7 @@ function endViewSVG(item){
   // hardware counts (drafted sheets list these on the fab-details page)
   const _qty = s0.qty||1;
   const _legs = (s0.mitered && s0.legs && s0.legs.length) ? s0.legs.map(l=>l.wFt||0) : [s0.widthFt||0];
-  let _pts=0, _rods=0; _legs.forEach(w=>{ _pts+=Math.ceil(w/2)+1; _rods+=Math.ceil(w/4)+1; });
+  let _pts=0, _rods=0; _legs.forEach(w=>{ _pts+=Math.ceil(w/2)+1; _rods+=Math.ceil(w/6)+1; });   // arms @ 5'-6' o.c.
   _pts*=_qty; _rods*=_qty;
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'END VIEW (SECTION)'}), [
     `${_esc(item.title)} — ${attLbl}`,
@@ -1553,7 +1553,7 @@ function hardwareDetailFigure(item, baseY){
   const widthIn = (s0.widthFt||0)*12;
   const qty = s0.qty||1;
   const attach = s0.attach || 'tierod';
-  const hgN = attach==='tierod' ? (Math.ceil(widthIn/48)+1) : Math.max(2, Math.round(widthIn/72));   // tie-rods @ 4' o.c. — matches cost engine
+  const hgN = attach==='tierod' ? (Math.ceil(widthIn/72)+1) : Math.max(2, Math.round(widthIn/72));   // arms @ 5'-6' o.c. (per Mike) — matches cost engine
   const rods = hgN*qty, wallPlates = hgN*qty, topPlates = hgN*qty, tabs = 2*hgN*qty, soSmall = hgN*qty, soNorm = hgN*qty;
   let s = '';
   // divider (top = tierod, bottom = block library)
@@ -1666,7 +1666,7 @@ function bomSheetSVG(item){
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1); pts*=qty;
   let nRods=0;
   if(attach==='tierod'){
-    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3); });
+    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/6)+1; for(let k=0;k<n;k++) tp.push(l.p+3); /* arms @ 5'-6' o.c. per Mike */ });
     tp = X(tp); nRods = tp.length;
     addSticks('Tie-rods (1" Sch40)', CM.tierod1.sku, tp);
     addSticks('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2));
@@ -3185,7 +3185,7 @@ function canopyTrueCost(spec, mode){
   framingPU += stick((face<=8?'1×2':'1×4')+' front/rear support', sup.sku, sp, `${sp.length*qty} pcs`);
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
   if((spec.attach||'')==='tierod'){
-    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3); });
+    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/6)+1; for(let k=0;k<n;k++) tp.push(l.p+3); /* arms @ 5'-6' o.c. per Mike */ });
     framingPU += stick('Tie-rods (1" Sch40)', CM.tierod1.sku, tp, `${tp.length*qty} rods @ ${(legs[0].p+3).toFixed(1)}′`);
     framingPU += stick('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2), `${tp.length*qty} sleeves × 2′`);
     // canopy top plates — one per rod (per Mike): 5×6×¼ on 6"/8" face · 2×5×¼ on 10"/12"
@@ -3206,7 +3206,7 @@ function canopyTrueCost(spec, mode){
   // all-thread jobs anchor straight into blocking — no wall plates bought (3903/3943 PTLs).
   const platesPerBar = CM.plate.platesPerUnit;
   const platePer = emsStick(CM.plate.sku)/platesPerBar;
-  const plateN = (spec.attach||'')==='tierod' ? (Math.ceil(legs.reduce((a,l)=>a+Math.ceil(l.w/4)+1,0))) : 0;
+  const plateN = (spec.attach||'')==='tierod' ? (Math.ceil(legs.reduce((a,l)=>a+Math.ceil(l.w/6)+1,0))) : 0;
   if(plateN>0){
     const plateCost = plateN*platePer;
     lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${plateN*qty} plates (1/rod) · ${platesPerBar}/bar`, qtyText:(plateN*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });

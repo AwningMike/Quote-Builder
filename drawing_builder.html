@@ -134,8 +134,8 @@ function members(spec){
   // 4. ATTACHMENT
   let pts=0; legList.forEach(l=>pts+=Math.ceil(l.w/2)+1); // anchors @ 24" o.c.
   if(attach==='tierod'||attach==='cantilever'){
-    let tp=[]; legList.forEach(l=>{const n=Math.ceil(l.w/4)+1; for(let k=0;k<n;k++) tp.push(l.p+3);});
-    addLinear(rows,M.tierod1,tp,`${attach==='cantilever'?'Cantilever':'Tie-rod'} — Sch40 1"`,`${tp.length} @ ~4' o.c.`,qty,'threaded');
+    let tp=[]; legList.forEach(l=>{const n=Math.ceil(l.w/6)+1; for(let k=0;k<n;k++) tp.push(l.p+3);});
+    addLinear(rows,M.tierod1,tp,`${attach==='cantilever'?'Cantilever':'Tie-rod'} — Sch40 1"`,`${tp.length} @ 5'-6' o.c.`,qty,'threaded');
     addLinear(rows,M.sleeve125,tp.map(()=>2),'Sleeve tube — Sch40 1-1/2" × 2\'',`${tp.length} sleeves`,qty,'over tie-rod');
     // canopy top plates — one per rod (per Mike): 5×6×¼ on 6"/8", 2×5×¼ on 10"/12"
     const tpM=(face<=8)?M.topplate56:M.topplate25;
@@ -145,7 +145,7 @@ function members(spec){
   }
   // wall plates — 1/rod on tie-rod jobs (per DXF corpus); all-thread anchors direct, no plates
   if(attach==='tierod'||attach==='cantilever'){
-    let nR=0; legList.forEach(l=>nR+=Math.ceil(l.w/4)+1);
+    let nR=0; legList.forEach(l=>nR+=Math.ceil(l.w/6)+1);
     addCount(rows,{sku:M.plate.sku,role:'Wall plates — 6×6×1/4',profile:M.plate.profile,conf:true,perpc:M.plate.perpc/M.plate.platesPerUnit},nR,`${nR} (1/rod) · from 1/4×6×20 bar (40/bar)`,qty);
   }
   addCount(rows,{sku:'(hardware)',role:'Anchors / hardware',profile:'3/8" all-thread',conf:true,perpc:8},pts,`${pts} points`,qty);
