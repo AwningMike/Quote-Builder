@@ -1033,7 +1033,7 @@ function canopyFigure(item, baseY){
 
   let svg = '';
   // hanger positions (tie-rod) & downspout positions
-  const hgN = attach === 'tierod' ? (Math.ceil(widthIn/72)+1) : 0;   // arms @ 5'-6' o.c. +1 (per Mike) — matches engine & BOM counts
+  const hgN = attach === 'tierod' ? (Math.ceil(widthIn/60)+1) : 0;   // arms @ 4'-5' o.c. +1 (per Mike) — matches engine & BOM counts
   const hgFrac = i => (hgN === 1 ? 0.5 : (0.5 + i) / hgN);
   const dsPos = [];
   if(dsN > 0){ const sp = 1 / dsN; for(let i=0;i<dsN;i++) dsPos.push(sp*0.5 + i*sp); }
@@ -1092,12 +1092,14 @@ function canopyFigure(item, baseY){
   }
   // rear mating-pan strip
   svg += `<rect x="${elevX0}" y="${plY0+plH-11}" width="${elevW}" height="11" fill="url(#pans)" stroke="#333" stroke-width="0.8"/>`;
-  // 12" tie-rod: 2x2x1/4 rod-support bar across the width, CL 8-1/2" from front (front = top edge of plan)
+  // 12" tie-rod: 2x2x1/4 bars — ONE PER ROD, running front-to-back (vertical in plan)
   if(attach==='tierod' && faceIn>=12){
-    const rbY = plY0 + Math.max(6, Math.min(plH-16, (8.5/Math.max(projIn,1))*plH));
-    svg += `<line x1="${elevX0+2}" y1="${rbY}" x2="${elevX0+elevW-2}" y2="${rbY}" stroke="#555" stroke-width="2.4"/>`;
-    svg += `<line x1="${elevX0+2}" y1="${rbY}" x2="${elevX0+elevW-2}" y2="${rbY}" stroke="#fff" stroke-width="0.8" stroke-dasharray="6,4"/>`;
-    svg += `<text x="${elevX0+elevW-6}" y="${rbY-4}" font-size="8.5" fill="#555" text-anchor="end">2"x2"x1/4" Rod Support Bar — CL 8½" From Front</text>`;
+    for(let i=0;i<hgN;i++){
+      const rx = elevX0 + elevW*hgFrac(i);
+      svg += `<line x1="${rx}" y1="${plY0+3}" x2="${rx}" y2="${plY0+plH-13}" stroke="#555" stroke-width="2.2"/>`;
+      svg += `<line x1="${rx}" y1="${plY0+3}" x2="${rx}" y2="${plY0+plH-13}" stroke="#fff" stroke-width="0.7" stroke-dasharray="5,4"/>`;
+    }
+    svg += `<text x="${elevX0+elevW-6}" y="${plY0+12}" font-size="8.5" fill="#555" text-anchor="end">2"x2"x1/4" Rod Support Bars — 1/rod, front-to-back</text>`;
   }
   // structural joists (equal bays) hatched red, bottom black spacing string
   const bays = Math.max(3, Math.round(widthIn / 36));
@@ -1352,8 +1354,8 @@ function endViewSVG(item){
     svg += `<line x1="${slabX0+5}" y1="${topY+16}" x2="${footX+2}" y2="${footY+2.5}" stroke="#7a7f84" stroke-width="1.1"/>`;
     // top plate welded to pans (vertical plate at the landing)
     svg += `<rect x="${footX}" y="${footY}" width="8" height="${rise}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
-    // 8 1/2" rise dim just left of the top plate (omitted on 12" — the rod-support bar sits there)
-    if(faceIn<12) svg += vDim(footX-8, footY, deckY, 8.5, {});
+    // 8 1/2" rise dim just left of the top plate
+    svg += vDim(footX-8, footY, deckY, 8.5, {});
     // arm-height dim (vertical, left of the rod span)
     svg += vDim(slabX0-64, topY, deckY, armIn, {extTo:slabX0-8});
     // wall plates callout (top)
@@ -1367,11 +1369,11 @@ function endViewSVG(item){
     svg += leader(footX+120, footY-26, footX+8, footY+3, faceIn<=8
       ? `5"x6"x1/4" Top Plate Welded To Pans — Tie Plate Bolts To Plate`
       : (faceIn>=12 ? `2"x5"x1/4" Alum Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Alum Top Plate — Bolted To 1"x4" Support`), 'start');
-    // 12" canopies: 2x2x1/4 rod-support bar across the width, CL 8-1/2" from the front (per Mike)
+    // 12" canopies: 2x2x1/4 bars run FRONT TO BACK, one per tie rod — in section the bar
+    // shows as a strip along the deck from wall to front (per Mike, 08/2026)
     if(faceIn>=12){
-      const barW=Math.max(10,Math.min(16,(2/projIn)*slabW*6)), barX=slabX0+slabW-(8.5/projIn)*slabW-barW/2;
-      svg += `<rect x="${barX}" y="${deckY-barW}" width="${barW}" height="${barW}" fill="#d3d8dc" stroke="#111" stroke-width="1.2"/>`;
-      svg += leader(slabX0+50, deckY-64, barX+barW/2, deckY-barW+2, `2"x2"x1/4" Rod Support Bar — CL 8½" From Front`, 'end');
+      svg += `<rect x="${slabX0+3}" y="${deckY-7}" width="${slabW-32}" height="7" fill="#d3d8dc" stroke="#111" stroke-width="1.1"/>`;
+      svg += leader(slabX0+30, deckY-56, slabX0+slabW*0.3, deckY-7, `2"x2"x1/4" Rod Support Bars — 1 Per Tie Rod, Front To Back`, 'end');
     }
     svg += leader(footX+120, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
     svg += leader(footX+120, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
@@ -1410,14 +1412,14 @@ function endViewSVG(item){
   // hardware counts (drafted sheets list these on the fab-details page)
   const _qty = s0.qty||1;
   const _legs = (s0.mitered && s0.legs && s0.legs.length) ? s0.legs.map(l=>l.wFt||0) : [s0.widthFt||0];
-  let _pts=0, _rods=0; _legs.forEach(w=>{ _pts+=Math.ceil(w/2)+1; _rods+=Math.ceil(w/6)+1; });   // arms @ 5'-6' o.c.
+  let _pts=0, _rods=0; _legs.forEach(w=>{ _pts+=Math.ceil(w/2)+1; _rods+=Math.ceil(w/5)+1; });   // arms @ 4'-5' o.c.
   _pts*=_qty; _rods*=_qty;
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'END VIEW (SECTION)'}), [
     `${_esc(item.title)} — ${attLbl}`,
     `${faceIn}" Gutter Fascia · 6" Self-Mating Pans`,
     isTie ? `6"x6"x1/4" Wall Plates With 1" Sch 40 Tie-Rods` : `1/2" All Thread Into Blocking — Direct At Canopy`,
     isTie ? `(${_rods}) Tie-Rod Assemblies · (${_rods*2}) Sleeve + (${_rods*2}) Tab Nuts/Bolts` : `(${_pts}) 1/2" All-Thread Anchor Points`,
-    (isTie && faceIn>=12) ? `2"x2"x1/4" Rod Support Bar @ 8-1/2" From Front` : null,
+    (isTie && faceIn>=12) ? `2"x2"x1/4" Rod Support Bars — 1 Per Rod, Front To Back` : null,
     ((s0.downspoutPerUnit||0)>0) ? `(${(s0.downspoutPerUnit||0)*_qty}) Downspout Assemblies — Installed On Site` : `Scuppers for drainage`,
     (s0.paint && s0.paint.trim()) ? `Painted ${_esc(s0.paint.trim())} — all parts` : `Mill finish — no paint`
   ].filter(Boolean));
@@ -1553,7 +1555,7 @@ function hardwareDetailFigure(item, baseY){
   const widthIn = (s0.widthFt||0)*12;
   const qty = s0.qty||1;
   const attach = s0.attach || 'tierod';
-  const hgN = attach==='tierod' ? (Math.ceil(widthIn/72)+1) : Math.max(2, Math.round(widthIn/72));   // arms @ 5'-6' o.c. (per Mike) — matches cost engine
+  const hgN = attach==='tierod' ? (Math.ceil(widthIn/60)+1) : Math.max(2, Math.round(widthIn/72));   // arms @ 4'-5' o.c. (per Mike) — matches cost engine
   const rods = hgN*qty, wallPlates = hgN*qty, topPlates = hgN*qty, tabs = 2*hgN*qty, soSmall = hgN*qty, soNorm = hgN*qty;
   let s = '';
   // divider (top = tierod, bottom = block library)
@@ -1658,16 +1660,21 @@ function bomSheetSVG(item){
   // fascia — full perimeter
   let fp=[]; legs.forEach(l=>{ fp.push(l.w); fp.push(l.w); }); fp.push(legs[0].p); fp.push(legs[N-1].p);
   addSticks(`Gutter fascia ${faceIn}"`, fasc.sku, X(fp));
-  // supports per Mike: 1×2 on 6"/8" face · 1×4 on 10"/12"
-  const supM = (faceIn<=8) ? CM.support12 : CM.support14;
-  let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
-  addSticks((faceIn<=8?'1×2':'1×4')+' front/rear support', supM.sku, X(sp));
+  // supports per Mike: 1×2 (6"/8") · 1×4 (10") · 12" = 1×4 front + 1×6 rear
+  if(faceIn>=12){
+    let spF=[]; legs.forEach(l=>spF.push(l.w)); addSticks('1×4 front support', CM.support14.sku, X(spF));
+    let spR=[]; legs.forEach(l=>spR.push(l.w)); addSticks('1×6 rear support', CM.support16.sku, X(spR));
+  } else {
+    const supM = (faceIn<=8) ? CM.support12 : CM.support14;
+    let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
+    addSticks((faceIn<=8?'1×2':'1×4')+' front/rear support', supM.sku, X(sp));
+  }
   // tie-rod package
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1); pts*=qty;
-  let nRods=0;
+  let nRods=0, rbB=[];
   if(attach==='tierod'){
-    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/6)+1; for(let k=0;k<n;k++) tp.push(l.p+3); /* arms @ 5'-6' o.c. per Mike */ });
-    tp = X(tp); nRods = tp.length;
+    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/5)+1; for(let k=0;k<n;k++){ tp.push(l.p+3); rbB.push(l.p); } /* arms @ 4'-5' o.c. per Mike */ });
+    tp = X(tp); rbB = X(rbB); nRods = tp.length;
     addSticks('Tie-rods (1" Sch40)', CM.tierod1.sku, tp);
     addSticks('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2));
   }
@@ -1678,7 +1685,7 @@ function bomSheetSVG(item){
   if(attach==='tierod' && nRods>0){
     const tpM=(faceIn<=8)?CM.topplate56:CM.topplate25;
     rows.push({ role:`Canopy top plates (${faceIn<=8?'5×6×¼':'2×5×¼'})`, sku:tpM.sku, desc:emsDesc(tpM.sku), pcs:nRods, pull:nRods+' plates ('+(nRods/tpM.platesPerUnit).toFixed(2)+' bar)' });
-    if(faceIn>=12){ let rb=[]; legs.forEach(l=>rb.push(l.w)); addSticks('2×2×¼ tie-rod support bar', CM.rodbar22.sku, X(rb)); }
+    if(faceIn>=12) addSticks('2×2×¼ rod support bars (1/rod, front-to-back)', CM.rodbar22.sku, rbB);
   }
   rows.push({ role:'Anchors / hardware', sku:'—', desc:'1/2" all-thread + nuts/lags', pcs:pts, pull:pts+' pts' });
   if(s0.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(s0.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); addSticks('Outriggers', CM.outrig22.sku, X(op)); }
@@ -3046,6 +3053,7 @@ const CM = {
  fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
  support14:{ sku:'20-63-235' },                         // 1x4 front/rear support — 10" & 12" face (per Mike, 07/2026)
  support12:{ sku:'20-63-225' },                         // 1x2 front/rear support — 6" & 8" face (per Mike, 07/2026)
+ support16:{ sku:'20-63-237' },                         // 1x6x.125 REAR support — 12" face (per Mike, 08/2026)
  tierod1:{ sku:'18-63-225' },
  sleeve125:{ sku:'18-63-235' },                         // 1-1/2" Sch40 sleeve over the 1" tie-rod
  plate:{ sku:'10-63-350', platesPerUnit:40 },           // 6x6x1/4 wall plates sheared from 1/4"x6"x20' bar (40/bar) — STANDARD all canopies (per Mike)
@@ -3069,7 +3077,7 @@ const CM_WASTE     = 1.05;      // drop/waste multiplier for 'prop' mode — +5%
 function _recipeSkuRoles(){
   const roles={
     pan6:'Roof pan 6"', pan8:'Roof pan 8"', fascia6:'Fascia 6"', fascia8:'Fascia 8"',
-    fascia10:'Fascia 10"', fascia12:'Fascia 12"', support14:'1×4 support', support12:'1×2 support',
+    fascia10:'Fascia 10"', fascia12:'Fascia 12"', support14:'1×4 support', support12:'1×2 support', support16:'1×6 rear support',
     tierod1:'Tie-rod', sleeve125:'Tie-rod sleeve', plate:'Wall plate', outrig22:'Outrigger',
     topplate56:'Top plate 5×6', topplate25:'Top plate 2×5', rodbar22:'Rod support bar', angle33:'Scupper angle'
   };
@@ -3179,13 +3187,21 @@ function canopyTrueCost(spec, mode){
   // fascia wraps the FULL perimeter: front + rear runs on every leg, plus the two exposed ends
   let fp=[]; legs.forEach(l=>{ fp.push(l.w); fp.push(l.w); }); fp.push(legs[0].p); fp.push(legs[N-1].p);
   framingPU += stick(`Gutter fascia ${face}"`, fasc.sku, fp, `${fp.length*qty} pcs · full perimeter · mitred corners`);
-  // supports per Mike (07/2026): 6" & 8" face use 1×2 · 10" & 12" use 1×4
-  const sup = (face<=8) ? CM.support12 : CM.support14;
-  let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
-  framingPU += stick((face<=8?'1×2':'1×4')+' front/rear support', sup.sku, sp, `${sp.length*qty} pcs`);
+  // supports per Mike: 6"/8" face = 1×2 front & rear · 10" = 1×4 front & rear ·
+  // 12" = 1×4 FRONT + 1×6 REAR (20-63-237)
+  if(face>=12){
+    let spF=[]; legs.forEach(l=>spF.push(l.w));
+    framingPU += stick('1×4 front support', CM.support14.sku, spF, `${spF.length*qty} pcs`);
+    let spR=[]; legs.forEach(l=>spR.push(l.w));
+    framingPU += stick('1×6 rear support', CM.support16.sku, spR, `${spR.length*qty} pcs`);
+  } else {
+    const sup = (face<=8) ? CM.support12 : CM.support14;
+    let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
+    framingPU += stick((face<=8?'1×2':'1×4')+' front/rear support', sup.sku, sp, `${sp.length*qty} pcs`);
+  }
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
   if((spec.attach||'')==='tierod'){
-    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/6)+1; for(let k=0;k<n;k++) tp.push(l.p+3); /* arms @ 5'-6' o.c. per Mike */ });
+    let tp=[], rbAll=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/5)+1; for(let k=0;k<n;k++){ tp.push(l.p+3); rbAll.push(l.p); } /* arms @ 4'-5' o.c. per Mike */ });
     framingPU += stick('Tie-rods (1" Sch40)', CM.tierod1.sku, tp, `${tp.length*qty} rods @ ${(legs[0].p+3).toFixed(1)}′`);
     framingPU += stick('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2), `${tp.length*qty} sleeves × 2′`);
     // canopy top plates — one per rod (per Mike): 5×6×¼ on 6"/8" face · 2×5×¼ on 10"/12"
@@ -3195,10 +3211,9 @@ function canopyTrueCost(spec, mode){
     const tpCost = tp.length*tpPer;
     lines.push({ role:`Canopy top plates (${tpSz})`, sku:tpM.sku, desc:emsDesc(tpM.sku), note:`${tp.length*qty} plates (1/rod) · ${tpM.platesPerUnit}/bar`, qtyText:(tp.length*qty)+' plates', unitText:'$'+tpPer.toFixed(2)+'/plate', costPU:tpCost, cat:'framing' });
     framingPU += tpCost;
-    // 12" canopies: 2×2×¼ bar across the width near the front (CL 8-1/2" from front) — carries the tie-rods (per Mike)
+    // 12" canopies: 2×2×¼ bars run FRONT TO BACK — ONE PER TIE ROD (per Mike, 08/2026)
     if(face>=12){
-      let rb=[]; legs.forEach(l=>rb.push(l.w));
-      framingPU += stick('2×2×¼ tie-rod support bar', CM.rodbar22.sku, rb, `${rb.length*qty} run${rb.length*qty>1?'s':''} across width · CL 8½" from front`);
+      framingPU += stick('2×2×¼ rod support bars', CM.rodbar22.sku, rbAll, `${rbAll.length*qty} bars @ ${legs[0].p.toFixed(1)}′ · 1/rod · front-to-back`);
     }
   }
   // Wall plates: 6x6x1/4 standard spec (per Mike). COUNT per the DXF corpus + shop PTLs:
@@ -3206,7 +3221,7 @@ function canopyTrueCost(spec, mode){
   // all-thread jobs anchor straight into blocking — no wall plates bought (3903/3943 PTLs).
   const platesPerBar = CM.plate.platesPerUnit;
   const platePer = emsStick(CM.plate.sku)/platesPerBar;
-  const plateN = (spec.attach||'')==='tierod' ? (Math.ceil(legs.reduce((a,l)=>a+Math.ceil(l.w/6)+1,0))) : 0;
+  const plateN = (spec.attach||'')==='tierod' ? (Math.ceil(legs.reduce((a,l)=>a+Math.ceil(l.w/5)+1,0))) : 0;
   if(plateN>0){
     const plateCost = plateN*platePer;
     lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${plateN*qty} plates (1/rod) · ${platesPerBar}/bar`, qtyText:(plateN*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });

@@ -256,6 +256,7 @@ const CM = {
  fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
  support14:{ sku:'20-63-235' },                 // 1x4 support — 10" & 12" face (per Mike, 07/2026)
  support12:{ sku:'20-63-225' },                 // 1x2 support — 6" & 8" face (per Mike, 07/2026)
+ support16:{ sku:'20-63-237' },                 // 1x6x.125 REAR support — 12" face (per Mike, 08/2026)
  tierod1:{ sku:'18-63-225' },
  sleeve125:{ sku:'18-63-235' },
  plate:{ sku:'10-63-350', platesPerUnit:40 },   // 6x6x1/4 wall plates from 1/4"x6"x20' bar (40/bar) — STANDARD all canopies (per Mike)
@@ -293,15 +294,21 @@ function piecesForSpec(s){
   const panLf = (W*P/(pan.cover||0.5))*qty;
   const fs=CM[CM_FAS[face]||'fascia8'];
   add(fs.sku,`Gutter fascia ${face}″`, [W,W,P,P]);   // full perimeter: front + rear + both ends
-  const supSku=(face<=8)?CM.support12.sku:CM.support14.sku;   // 1×2 on 6"/8", 1×4 on 10"/12" (per Mike)
-  add(supSku,(face<=8?'1×2':'1×4')+' front/rear support',[W,W]);
+  // supports: 1×2 (6"/8") · 1×4 (10") · 12" = 1×4 front + 1×6 rear (per Mike)
+  if(face>=12){
+    add(CM.support14.sku,'1×4 front support',[W]);
+    add(CM.support16.sku,'1×6 rear support',[W]);
+  } else {
+    const supSku=(face<=8)?CM.support12.sku:CM.support14.sku;
+    add(supSku,(face<=8?'1×2':'1×4')+' front/rear support',[W,W]);
+  }
   const pts=Math.ceil(W/2)+1;
   let nRod=0;
   if((s.attach||'tierod')==='tierod'){
-    nRod=Math.ceil(W/6)+1;   // arms @ 5'-6' o.c. (per Mike)
+    nRod=Math.ceil(W/5)+1;   // arms @ 4'-5' o.c. (per Mike)
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
     add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
-    if(face>=12) add(CM.rodbar22.sku,'2×2×¼ tie-rod support bar (CL 8½″ from front)',[W]);   // 12" face only (per Mike)
+    if(face>=12) add(CM.rodbar22.sku,'2×2×¼ rod support bars (1/rod, front-to-back)', Array(nRod).fill(P));   // 12" face (per Mike)
   }
   const dsN=(+s.ds||0);
   if(dsN>0){
