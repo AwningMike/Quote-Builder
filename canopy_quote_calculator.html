@@ -4350,7 +4350,26 @@ function buildActivityRows(s, color, height){
   }
   if(s.lift>0) rows.push({ label:'Lift Rental -- Waived if lift is provided', desc:'', amt: fmtDecimal(s.lift), taxed:false });
 
-  return rows;
+  // FINAL PASS — any rows whose labels READ the same (ignoring case, extra spaces, and
+  // dash style) merge into ONE line with combined dollars (per Mike 08/04/26). This
+  // catches every entry path: item name, group field, or a mix with stray spaces.
+  const normLbl = t => String(t||'').toLowerCase().replace(/[—–]/g,'-').replace(/\s*-\s*/g,'-').replace(/\s+/g,' ').trim();
+  const mergedRows = [];
+  rows.forEach(r=>{
+    const k = normLbl(r.label);
+    const prev = mergedRows.find(m=>m._k===k);
+    if(prev){
+      const trailer = /\n*Color:[\s\S]*$/;   // keep only ONE Color/engineering trailer, at the end
+      if(trailer.test(prev.desc||'') && trailer.test(r.desc||'')) prev.desc = prev.desc.replace(trailer,'').trim();
+      prev.desc = [prev.desc, r.desc].filter(Boolean).join('\n\n').trim();
+      prev._sum += parseFloat(String(r.amt).replace(/[^0-9.-]/g,''))||0;
+      prev.amt = fmtDecimal(prev._sum);
+      prev.taxed = prev.taxed || r.taxed;
+    } else {
+      mergedRows.push(Object.assign({}, r, { _k:k, _sum: parseFloat(String(r.amt).replace(/[^0-9.-]/g,''))||0 }));
+    }
+  });
+  return mergedRows;
 }
 
 function populateFormalQuoteDoc(){
