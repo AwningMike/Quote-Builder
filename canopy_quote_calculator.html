@@ -702,7 +702,7 @@ function renderCanopySection(sectionKey, faceLabel){
         </div>
       </details>
       <div class="field"><label>Job / item label</label><input type="text" id="c-name" placeholder="e.g. Front entry canopy"></div>
-      <div class="field"><label>Quote Group</label><input type="text" id="c-group" value="Metal-Tech Canopy - Fully welded construction"></div>
+      <div class="field"><label>Quote Group / Line Item — canopies given the same group print as ONE line</label><input type="text" id="c-group" value="Metal-Tech Canopy - Fully welded construction"></div>
       <div class="checkline"><input type="checkbox" id="c-ownline"><label for="c-ownline">List THIS canopy as its own line item on the estimate (don't combine with the group)</label></div>
       <div class="breakdown" id="c-breakdown"></div>
       <button class="btn" id="c-add-btn">Add to Quote</button>
@@ -3718,9 +3718,10 @@ function buildAirtableLogText(){
     const labels = airtableLabels(type);
     const allCanopy = items.every(i=>i.type==='canopy');
 
-    // per-canopy own-line flag, or the global "individual" switch, pulls canopies out of the combined group
-    const ownItems = (individualCanopy && allCanopy) ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
-    const combined = (individualCanopy && allCanopy) ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
+    // mirror the print rule: custom-named multi-canopy groups stay combined (per Mike 08/04/26)
+    const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || items.length === 1);
+    const ownItems = splitAll ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
+    const combined = splitAll ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
     ownItems.forEach(i=>{
       const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
       lines.push(`${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}`);
@@ -4265,9 +4266,12 @@ function buildActivityRows(s, color, height){
     const groupHasSS = items.some(i=>i.type==='standingSeam');
     const allCanopy = items.every(i=>i.type==='canopy');
 
-    // per-canopy own-line flag, or the global "individual" switch, pulls canopies out of the combined group
-    const ownItems = (individualCanopy && allCanopy) ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
-    const combined = (individualCanopy && allCanopy) ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
+    // Custom-named groups with 2+ canopies ALWAYS print as ONE combined line — this is how
+    // different-size canopies share a single line item (per Mike 08/04/26). The global
+    // "individual" switch only splits the generic default group; per-canopy own-line still wins.
+    const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || items.length === 1);
+    const ownItems = splitAll ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
+    const combined = splitAll ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
     ownItems.forEach((i, idx)=>{
       const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
       let desc = specLines.join('\n');
@@ -4277,7 +4281,7 @@ function buildActivityRows(s, color, height){
         if(document.getElementById('extra-scupper').checked) desc += `Scupper(s): included\n`;
         desc += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
       }
-      const lbl = (i.title && !/^\d+["″]/.test(i.title)) ? `${gName} — ${i.title}` : `${gName} — ${i.spec.widthStr} × ${i.spec.projStr}`;
+      const lbl = (i.title && !/^\d+["″]/.test(i.title)) ? `${gName} — ${i.title}` : gName;   // dims never ride in the line label — they live in the spec block (per Mike 08/04/26)
       rows.push({ label: lbl, desc: desc.trim(), amt: fmtDecimal(i.amount), taxed: true });
     });
     if(!combined.length) return;
