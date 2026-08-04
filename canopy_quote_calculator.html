@@ -1376,7 +1376,7 @@ function endViewSVG(item){
     svg += leader(footX-40, footY-32, footX-6, footY-1, faceIn<=8
       ? `5"x6"x1/4" Top Plate Welded To Pans — Tie Plate Bolts To Plate`
       : (faceIn>=12 ? `2"x5"x1/4" Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Top Plate — Bolted To 1"x4" Support`), 'end');
-    svg += leader(footX+150, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia — See Profile Sheet`, 'start');
+    svg += leader(footX+150, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
     if(!_hasDS) svg += leader(footX+150, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
     svg += leader(slabX0+40, deckY+slabH+26, slabX0+slabW*0.3, deckY+slabH-2, '6" Self Mating Pans', 'start');
   } else if(attach==='cchannel'){
@@ -1384,14 +1384,14 @@ function endViewSVG(item){
     svg += `<rect x="${slabX0-9}" y="${deckY-2}" width="9" height="${slabH+6}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
     svg += leader(slabX0-30, deckY+slabH+34, slabX0-5, deckY+slabH+2, '1-1/4" C-Channel Low Attach', 'start');
     svg += leader(slabX0+slabW-60, deckY-30, slabX0+slabW*0.5, deckY+2, '6" Self Mating Pans', 'start');
-    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia — See Profile Sheet`, 'start');
+    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
     if(!_hasDS) svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
   } else {
     // all-thread direct: rear 1x4 bolts straight into the blocking — no rod, no top support
     svg += `<rect x="${slabX0-2}" y="${deckY-8}" width="8" height="8" fill="#eef0f2" stroke="#111" stroke-width="1.1"/>`;
     svg += leader(slabX0-6, deckY-40, slabX0+2, deckY-9, '1/2" All Thread Into Blocking', 'end');
     svg += leader(slabX0+slabW-60, deckY-30, slabX0+slabW*0.5, deckY+2, '6" Self Mating Pans', 'start');
-    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia — See Profile Sheet`, 'start');
+    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
     if(!_hasDS) svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
   }
   // downspout stub at the rear
@@ -1840,8 +1840,9 @@ function notesSheetSVG(item){
 
 // CUSTOMER drawing set — the BOM pull-list sheet is intentionally NOT in here
 // (internal only — open it from the "Shop BOM" button; it never prints with the set).
-/* EXTRUSION PROFILES sheet — the REAL sections, drawn large with their true dims
-   (from Mike's profile drawings, 08/2026):
+/* EXTRUSION PROFILES sheet (currently NOT in the customer set — removed per Mike 08/04/26;
+   function kept so it can be re-added to canopyPages if wanted later).
+   Real sections from Mike's profile drawings, 08/2026:
    · Gutter fascia: 4" deep gutter · face leg = face size · 2-3/4" inner lip (pans seat) · 1" top return
    · 6" self-mating pan: 6.000 wide · 3.000 / 2.912 legs w/ interlock hooks · 3.000 OC
    Wall thickness by SKU: 6"=.093 · 8"=.125 · 10"=.140 · 12"=.160 · pan=.065 */
@@ -1915,7 +1916,7 @@ function profilesSheetSVG(item){
 }
 
 function canopyPages(item){
-  const pages = [canopySVG(item), endViewSVG(item), profilesSheetSVG(item)];
+  const pages = [canopySVG(item), endViewSVG(item)];
   if((item.spec.downspoutPerUnit||0) > 0) pages.push(downspoutDetailSVG(item));
   pages.push(wallDetailSVG(item));
   const hw = hardwareDetailSVG(item);
@@ -2666,9 +2667,10 @@ function renderRecover(){
         ${ftInField('rc-height','Height')}
         ${ftInField('rc-proj','Projection')}
       </div>
-      <div class="grid2">
+      <div class="grid3">
         <div class="field"><label>Passes</label><input type="number" id="rc-passes" value="1"></div>
         <div class="field"><label>Ends</label><input type="number" id="rc-ends" value="0"></div>
+        <div class="field"><label>Quantity (identical units)</label><input type="number" id="rc-qty" value="1" min="1" step="1"></div>
       </div>
       <div class="field"><label>Fabric</label><select id="rc-fabric">${fabricOptions}</select></div>
       <div class="grid2">
@@ -2694,7 +2696,7 @@ function renderRecover(){
   bindFtIn('rc-width', computeRecover);
   bindFtIn('rc-height', computeRecover);
   bindFtIn('rc-proj', computeRecover);
-  ['rc-passes','rc-ends','rc-g1','rc-g2','rc-retrofit','rc-skin','rc-takedown','rc-delivery','rc-survey']
+  ['rc-passes','rc-ends','rc-qty','rc-g1','rc-g2','rc-retrofit','rc-skin','rc-takedown','rc-delivery','rc-survey']
     .forEach(id=>document.getElementById(id).addEventListener('input', computeRecover));
   document.getElementById('rc-fabric').addEventListener('change', computeRecover);
   computeRecover();
@@ -2714,6 +2716,7 @@ function computeRecover(){
   const takedown = parseFloat(document.getElementById('rc-takedown').value)||0;
   const delivery = parseFloat(document.getElementById('rc-delivery').value)||0;
   const survey = parseFloat(document.getElementById('rc-survey').value)||0;
+  const qty = Math.max(1, parseInt(document.getElementById('rc-qty').value)||1);
 
   const yardage = (widthFt*passes + ends*2)/3;
   const sqft = widthFt*projFt;
@@ -2729,7 +2732,8 @@ function computeRecover(){
   const deliveryCost = delivery*cfg.deliveryRate;
   const installTotal = retrofitCost + skinCost + takedownCost;
 
-  const grandTotal = survey + mfgTotal + deliveryCost + installTotal;
+  const unitTotal = survey + mfgTotal + deliveryCost + installTotal;
+  const grandTotal = unitTotal*qty;   // all inputs above are per unit; qty = identical units
 
   const matRow = patio
     ? `<div class="row"><span>SQ FT (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
@@ -2742,18 +2746,19 @@ function computeRecover(){
     <div class="row"><span>Retrofit / Skin / Takedown</span>${fmtCopy(installTotal)}</div>
     <div class="row"><span>Delivery</span>${fmtCopy(deliveryCost)}</div>
     <div class="row"><span>Survey</span>${fmtCopy(survey)}</div>
-    <div class="row total"><span>Item Total</span>${fmtCopy(grandTotal)}</div>
+    ${qty>1 ? `<div class="row"><span>Per Unit Total</span>${fmtCopy(unitTotal)}</div>` : ''}
+    <div class="row total"><span>Item Total${qty>1 ? ` (${qty} units)` : ''}</span>${fmtCopy(grandTotal)}</div>
   `;
-  return { grandTotal, yardage, sqft, patio };
+  return { grandTotal, yardage, sqft, patio, qty };
 }
 function addRecoverToQuote(){
   const r = computeRecover();
   const name = document.getElementById('rc-name').value || 'Recover';
-  const sub = r.patio ? `Recover · Patio · ${r.sqft.toFixed(1)} sqft` : `Recover · ${r.yardage.toFixed(1)} yd`;
+  const sub = (r.patio ? `Recover · Patio · ${r.sqft.toFixed(1)} sqft` : `Recover · ${r.yardage.toFixed(1)} yd`) + (r.qty>1 ? ` · qty ${r.qty}` : '');
   quoteItems.push({
     id:itemSeq++, title:name, sub, amount:Math.ceil(r.grandTotal), group:document.getElementById('rc-group').value,
     type:'recover',
-    spec:{ qty:1, widthStr:ftInLabel('rc-width'), heightStr:ftInLabel('rc-height'), projStr:ftInLabel('rc-proj'), patio:r.patio }
+    spec:{ qty:r.qty, widthStr:ftInLabel('rc-width'), heightStr:ftInLabel('rc-height'), projStr:ftInLabel('rc-proj'), patio:r.patio }
   });
   renderQuote();
 }
@@ -4064,7 +4069,7 @@ function serializeQuoteForAirtable(){
       push('sunshade', 'Sunshade', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Sunshade`);
       push('labor', 'Labor', 1, it.labor, `${it.title} — Labor`);
     } else if(it.type==='recover'){
-      push('recover', 'Recover', 1, it.amount, `${it.title} — Recover`);
+      push('recover', 'Recover', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Recover`);
     }
   });
   // job-level lines
