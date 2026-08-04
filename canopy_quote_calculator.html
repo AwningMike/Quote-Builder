@@ -1896,23 +1896,16 @@ function canopyDXFParts(item){
   const mitered = !!(s.mitered && mSegs && mSegs.some(v=>v>0));
   let mB=[]; if(mitered){ const tot=mSegs.reduce((a,v)=>a+v,0)||1; let acc=0; mB=[0]; mSegs.forEach(v=>{acc+=v; mB.push(acc/tot);}); }
 
-  const L = [], T = [];
+  const L = [], T = [], D = [];
   const line = (x1,y1,x2,y2,c) => L.push({x1,y1,x2,y2,c:c||7});
   const rect = (x,y,w,h,c) => { line(x,y,x+w,y,c); line(x+w,y,x+w,y+h,c); line(x+w,y+h,x,y+h,c); line(x,y+h,x,y,c); };
   const text = (x,y,h,str,c) => T.push({x,y,h,str,c:c||7});
-  // dual-label dimension helpers (Y-up). textBelow places labels toward -Y.
+  // REAL dimension entities (rendered in the emitter as DIMENSION + anonymous block)
   const hdim = (x1,x2,y,val,below) => {
-    line(x1,y,x2,y,7);
-    line(x1,y-2.5,x1,y+2.5,7); line(x2,y-2.5,x2,y+2.5,7);
-    const cx=(x1+x2)/2, ln=_toAscii(ftInStr(val)), br=_toAscii(bracketStr(val));
-    if(below){ text(cx-widthIn*0.02-6,y-6,4,ln,7); text(cx-widthIn*0.02-6,y-13,4,br,7); }
-    else { text(cx-widthIn*0.02-6,y+7,4,ln,7); text(cx-widthIn*0.02-6,y+1,4,br,7); }
+    D.push({kind:'h', a:{x:x1,y}, b:{x:x2,y}, pos:y, lab:_toAscii(ftInStr(val)), br:_toAscii(bracketStr(val))});
   };
   const vdim = (x,y1,y2,val) => {
-    line(x,y1,x,y2,7);
-    line(x-2.5,y1,x+2.5,y1,7); line(x-2.5,y2,x+2.5,y2,7);
-    const cy=(y1+y2)/2, ln=_toAscii(ftInStr(val)), br=_toAscii(bracketStr(val));
-    text(x-26,cy+1,4,ln,7); text(x-26,cy-6,4,br,7);
+    D.push({kind:'v', a:{x,y:y1}, b:{x,y:y2}, pos:x, lab:_toAscii(ftInStr(val)), br:_toAscii(bracketStr(val))});
   };
 
   // ---- PLAN VIEW (bottom): width x projection ----
@@ -1979,19 +1972,74 @@ function canopyDXFParts(item){
   text(minX+6,minY+4,2.6,'Auto-generated APMG reference geometry - verify before fabrication - not a finished shop drawing',7);
   text((minX+maxX)/2-46,minY+30,6,'FABRICATION DETAILS',7);
 
-  return { L, T, minY, maxY, minX, maxX };
+  return { L, T, D, minY, maxY, minX, maxX };
 }
 
-// assemble LINE/TEXT arrays into a DXF, applying an optional (ox,oy) offset
-function _assembleDXF(L, T, ox, oy){
-  ox = ox||0; oy = oy||0;
-  let out = '0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n1\n0\nENDSEC\n';
+// ============ CAD-grade DXF emitter (R12) ============
+// Named layers, real DIMENSION entities (with rendered anonymous blocks so AutoCAD
+// shows + can re-associate them), tick/arrow graphics, dual ft-in labels.
+// L: lines {x1,y1,x2,y2,c} · T: texts {x,y,h,str,c} · D: dims {kind:'h'|'v', a,b,pos,lab,br}
+const _DXF_LAYERS = [
+  ['APMG-FRAME', 7], ['APMG-STRUCT', 1], ['APMG-LIGHT', 8],
+  ['APMG-CENTER', 4], ['APMG-TEXT', 7], ['APMG-DIMS', 1], ['APMG-TITLE', 7]
+];
+function _lineLayer(c){ return c===1?'APMG-STRUCT':(c===8?'APMG-LIGHT':(c===4?'APMG-CENTER':(c===6?'APMG-TITLE':'APMG-FRAME'))); }
+function _dxfNum(v){ return (Math.round(v*1000)/1000).toString(); }
+function _assembleDXF(L, T, ox, oy, D){
+  ox = ox||0; oy = oy||0; D = D||[];
+  const N = _dxfNum;
+  let out = '0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$MEASUREMENT\n70\n0\n0\nENDSEC\n';
+  // ---- TABLES: linetypes, layers, text style ----
+  out += '0\nSECTION\n2\nTABLES\n';
+  out += '0\nTABLE\n2\nLTYPE\n70\n1\n0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nENDTAB\n';
+  out += '0\nTABLE\n2\nLAYER\n70\n' + _DXF_LAYERS.length + '\n';
+  _DXF_LAYERS.forEach(([nm,col])=>{ out += `0\nLAYER\n2\n${nm}\n70\n0\n62\n${col}\n6\nCONTINUOUS\n`; });
+  out += '0\nENDTAB\n';
+  out += '0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0.0\n41\n1.0\n50\n0.0\n71\n0\n42\n2.5\n3\ntxt\n4\n\n0\nENDTAB\n';
+  out += '0\nENDSEC\n';
+  // ---- BLOCKS: one rendered anonymous block per dimension ----
+  const dline=(x1,y1,x2,y2)=>`0\nLINE\n8\nAPMG-DIMS\n10\n${N(x1)}\n20\n${N(y1)}\n30\n0.0\n11\n${N(x2)}\n21\n${N(y2)}\n31\n0.0\n`;
+  const dsolid=(pts)=>`0\nSOLID\n8\nAPMG-DIMS\n10\n${N(pts[0][0])}\n20\n${N(pts[0][1])}\n30\n0.0\n11\n${N(pts[1][0])}\n21\n${N(pts[1][1])}\n31\n0.0\n12\n${N(pts[2][0])}\n22\n${N(pts[2][1])}\n32\n0.0\n13\n${N(pts[3][0])}\n23\n${N(pts[3][1])}\n33\n0.0\n`;
+  const dtext=(x,y,h,str)=>`0\nTEXT\n8\nAPMG-DIMS\n10\n${N(x)}\n20\n${N(y)}\n30\n0.0\n40\n${h}\n1\n${str}\n72\n1\n11\n${N(x)}\n21\n${N(y)}\n31\n0.0\n`;
+  out += '0\nSECTION\n2\nBLOCKS\n';
+  D.forEach((d,i)=>{
+    const bn='*D'+(i+1);
+    out += `0\nBLOCK\n8\n0\n2\n${bn}\n70\n1\n10\n0.0\n20\n0.0\n30\n0.0\n3\n${bn}\n`;
+    const AR=2.2;   // arrowhead size
+    if(d.kind==='h'){
+      const x1=d.a.x+ox, x2=d.b.x+ox, y=d.pos+oy, cx=(x1+x2)/2;
+      out += dline(x1,y,x2,y);
+      out += dline(x1,y-2.5,x1,y+2.5) + dline(x2,y-2.5,x2,y+2.5);
+      out += dsolid([[x1,y],[x1+AR,y+AR*0.35],[x1+AR,y-AR*0.35],[x1,y]]);
+      out += dsolid([[x2,y],[x2-AR,y+AR*0.35],[x2-AR,y-AR*0.35],[x2,y]]);
+      out += dtext(cx,y+2.2,3.2,d.lab);
+      if(d.br) out += dtext(cx,y-5.4,2.6,d.br);
+    } else {
+      const y1=d.a.y+oy, y2=d.b.y+oy, x=d.pos+ox, cy=(y1+y2)/2;
+      out += dline(x,y1,x,y2);
+      out += dline(x-2.5,y1,x+2.5,y1) + dline(x-2.5,y2,x+2.5,y2);
+      out += dsolid([[x,y1],[x+AR*0.35,y1+AR],[x-AR*0.35,y1+AR],[x,y1]]);
+      out += dsolid([[x,y2],[x+AR*0.35,y2-AR],[x-AR*0.35,y2-AR],[x,y2]]);
+      out += dtext(x-4.5,cy,3.2,d.lab);
+      if(d.br) out += dtext(x+5.2,cy,2.6,d.br);
+    }
+    out += '0\nENDBLK\n8\n0\n';
+  });
+  out += '0\nENDSEC\n';
+  // ---- ENTITIES ----
   out += '0\nSECTION\n2\nENTITIES\n';
   L.forEach(l=>{
-    out += `0\nLINE\n8\n0\n62\n${l.c}\n10\n${(l.x1+ox).toFixed(3)}\n20\n${(l.y1+oy).toFixed(3)}\n30\n0.0\n11\n${(l.x2+ox).toFixed(3)}\n21\n${(l.y2+oy).toFixed(3)}\n31\n0.0\n`;
+    out += `0\nLINE\n8\n${_lineLayer(l.c)}\n10\n${N(l.x1+ox)}\n20\n${N(l.y1+oy)}\n30\n0.0\n11\n${N(l.x2+ox)}\n21\n${N(l.y2+oy)}\n31\n0.0\n`;
   });
   T.forEach(t=>{
-    out += `0\nTEXT\n8\n0\n62\n${t.c}\n10\n${(t.x+ox).toFixed(3)}\n20\n${(t.y+oy).toFixed(3)}\n30\n0.0\n40\n${t.h}\n1\n${t.str}\n`;
+    out += `0\nTEXT\n8\nAPMG-TEXT\n62\n${t.c}\n10\n${N(t.x+ox)}\n20\n${N(t.y+oy)}\n30\n0.0\n40\n${t.h}\n1\n${t.str}\n`;
+  });
+  D.forEach((d,i)=>{
+    const bn='*D'+(i+1);
+    let p1, p2, dl, tx, ty, ang;
+    if(d.kind==='h'){ p1={x:d.a.x+ox,y:d.pos+oy}; p2={x:d.b.x+ox,y:d.pos+oy}; dl=p2; tx=(p1.x+p2.x)/2; ty=d.pos+oy+2.2; ang=0; }
+    else { p1={x:d.pos+ox,y:d.a.y+oy}; p2={x:d.pos+ox,y:d.b.y+oy}; dl=p2; tx=d.pos+ox-4.5; ty=(p1.y+p2.y)/2; ang=90; }
+    out += `0\nDIMENSION\n8\nAPMG-DIMS\n2\n${bn}\n10\n${N(dl.x)}\n20\n${N(dl.y)}\n30\n0.0\n11\n${N(tx)}\n21\n${N(ty)}\n31\n0.0\n70\n0\n1\n${d.lab}\n13\n${N(p1.x)}\n23\n${N(p1.y)}\n33\n0.0\n14\n${N(p2.x)}\n24\n${N(p2.y)}\n34\n0.0\n50\n${ang}\n`;
   });
   out += '0\nENDSEC\n0\nEOF\n';
   return out;
@@ -2000,23 +2048,25 @@ function _assembleDXF(L, T, ox, oy){
 // single-canopy DXF
 function canopyDXF(item){
   const p = canopyDXFParts(item);
-  return _assembleDXF(p.L, p.T, 0, 0);
+  return _assembleDXF(p.L, p.T, 0, 0, p.D||[]);
 }
 
 // combined DXF: every canopy stacked vertically in one file
 function allCanopiesDXF(items){
   const cans = (items || []).filter(i => i.type === 'canopy');
-  let allL = [], allT = [], oy = 0;
+  let allL = [], allT = [], allD = [], oy = 0;
   cans.forEach((it, idx) => {
     const p = canopyDXFParts(it);
     const span = (p.maxY - p.minY);
-    // shift so each canopy sits below the previous (Y-up: move down = negative)
     const off = oy - p.maxY;
     p.L.forEach(l => allL.push({x1:l.x1, y1:l.y1+off, x2:l.x2, y2:l.y2+off, c:l.c}));
     p.T.forEach(t => allT.push({x:t.x, y:t.y+off, h:t.h, str:t.str, c:t.c}));
-    oy = oy - span - 40; // 40in gap between sheets
+    (p.D||[]).forEach(d => allD.push(d.kind==='h'
+      ? {kind:'h', a:{x:d.a.x, y:d.a.y+off}, b:{x:d.b.x, y:d.b.y+off}, pos:d.pos+off, lab:d.lab, br:d.br}
+      : {kind:'v', a:{x:d.a.x, y:d.a.y+off}, b:{x:d.b.x, y:d.b.y+off}, pos:d.pos, lab:d.lab, br:d.br}));
+    oy = oy - span - 40;
   });
-  return _assembleDXF(allL, allT, 0, 0);
+  return _assembleDXF(allL, allT, 0, 0, allD);
 }
 
 /* ============ FINISHED DRAWING SET (DXF) ============
@@ -2024,15 +2074,14 @@ function allCanopiesDXF(items){
    + attachment/blocking detail + hardware page (tie-rod) — each a framed sheet
    with title block, tiled in one DXF. Client-side Route A (LINE+TEXT). */
 function _dxfKit(){
-  const L=[], T=[];
+  const L=[], T=[], D=[];
   const line=(x1,y1,x2,y2,c)=>L.push({x1,y1,x2,y2,c:c||7});
   const rect=(x,y,w,h,c)=>{line(x,y,x+w,y,c);line(x+w,y,x+w,y+h,c);line(x+w,y+h,x,y+h,c);line(x,y+h,x,y,c);};
   const text=(x,y,h,str,c)=>T.push({x,y,h,str,c:c||7});
-  const hdim=(x1,x2,y,val,c)=>{line(x1,y,x2,y,7);line(x1,y-2,x1,y+2,7);line(x2,y-2,x2,y+2,7);
-    const cx=(x1+x2)/2;text(cx-8,y+3,3,_toAscii(ftInStr(val)),c||7);text(cx-8,y-4,3,_toAscii(bracketStr(val)),c||7);};
-  const vdim=(x,y1,y2,val,c)=>{line(x,y1,x,y2,7);line(x-2,y1,x+2,y1,7);line(x-2,y2,x+2,y2,7);
-    const cy=(y1+y2)/2;text(x-20,cy+1,3,_toAscii(ftInStr(val)),c||7);text(x-20,cy-5,3,_toAscii(bracketStr(val)),c||7);};
-  return {L,T,line,rect,text,hdim,vdim};
+  // REAL dimension entities — rendered by the emitter as DIMENSION + anonymous block
+  const hdim=(x1,x2,y,val)=>D.push({kind:'h', a:{x:x1,y}, b:{x:x2,y}, pos:y, lab:_toAscii(ftInStr(val)), br:_toAscii(bracketStr(val))});
+  const vdim=(x,y1,y2,val)=>D.push({kind:'v', a:{x,y:y1}, b:{x,y:y2}, pos:x, lab:_toAscii(ftInStr(val)), br:_toAscii(bracketStr(val))});
+  return {L,T,D,line,rect,text,hdim,vdim};
 }
 function _dxfHdr(){ const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
   return {jobNo:gv('hdr-projno'), client:gv('hdr-projname')||gv('hdr-shipname'), city:gv('hdr-address2'), gc:gv('hdr-gc'), dwg:gv('hdr-date')}; }
@@ -2101,7 +2150,7 @@ function downspoutDXFParts(item){
   k.text(gx+20,gy+12,2.8,'3"x3"x.125" Angle 4"L',7);
   k.text(gx+20,gy+7,2.6,'11-63-330  QTY: '+((dsN||1)*3),7);
   k.text(gx+20,gy+2,2.6,'.125" Holes On Site',7);
-  return {L:k.L,T:k.T,minX:0,minY:0,maxX:W,maxY:H};
+  return {L:k.L,T:k.T,D:k.D,minX:0,minY:0,maxX:W,maxY:H};
 }
 // ---- ATTACHMENT / BLOCKING detail sheet ----
 function attachmentDXFParts(item){
@@ -2131,7 +2180,7 @@ function attachmentDXFParts(item){
   k.text(W*0.16,H*0.45,2.8,'Standard 2" EIFs',7); k.line(W*0.28,H*0.45,wx,H*0.45,7);
   k.vdim(wx-9,deckY,wTop-4,projIn>50?98:65,7);
   k.text(W*0.50,deckY-8,3.4,'Bottom of Canopies AFF TBD',7);
-  return {L:k.L,T:k.T,minX:0,minY:0,maxX:W,maxY:H};
+  return {L:k.L,T:k.T,D:k.D,minX:0,minY:0,maxX:W,maxY:H};
 }
 // ---- HARDWARE page ----
 function hardwareDXFParts(item){
@@ -2156,12 +2205,12 @@ function hardwareDXFParts(item){
   k.rect(bx+70,by+2,7,7,7); k.text(bx+70,by-4,2.5,"Stand Off's Sm",7); k.text(bx+70,by-8,2.5,'QTY: '+rods,7);
   k.rect(bx+96,by+2,7,7,7); k.text(bx+96,by-4,2.5,"Stand Off's Nm",7); k.text(bx+96,by-8,2.5,'QTY: '+rods,7);
   k.rect(bx+122,by+2,7,7,7); k.text(bx+122,by-4,2.5,'TABS',7); k.text(bx+122,by-8,2.5,'QTY: '+(2*rods),7);
-  return {L:k.L,T:k.T,minX:0,minY:0,maxX:W,maxY:H};
+  return {L:k.L,T:k.T,D:k.D,minX:0,minY:0,maxX:W,maxY:H};
 }
 // assemble every sheet for every canopy into one tiled DXF
 function finishedSetDXF(items){
   const cans=(items||[]).filter(i=>i.type==='canopy');
-  let allL=[], allT=[], rowY=0;
+  let allL=[], allT=[], allD=[], rowY=0;
   cans.forEach(it=>{
     // build this canopy's sheet list
     const sheets=[canopyDXFParts(it)];
@@ -2175,11 +2224,14 @@ function finishedSetDXF(items){
       const dx=colX - p.minX, dy=rowY - p.maxY;   // top-align row (Y-up)
       p.L.forEach(l=>allL.push({x1:l.x1+dx,y1:l.y1+dy,x2:l.x2+dx,y2:l.y2+dy,c:l.c}));
       p.T.forEach(t=>allT.push({x:t.x+dx,y:t.y+dy,h:t.h,str:t.str,c:t.c}));
+      (p.D||[]).forEach(d=>allD.push(d.kind==='h'
+        ? {kind:'h', a:{x:d.a.x+dx, y:d.a.y+dy}, b:{x:d.b.x+dx, y:d.b.y+dy}, pos:d.pos+dy, lab:d.lab, br:d.br}
+        : {kind:'v', a:{x:d.a.x+dx, y:d.a.y+dy}, b:{x:d.b.x+dx, y:d.b.y+dy}, pos:d.pos+dx, lab:d.lab, br:d.br}));
       colX += (p.maxX-p.minX) + 30;               // gap between sheets in a row
     });
     rowY -= rowH + 45;                            // next canopy below
   });
-  return _assembleDXF(allL, allT, 0, 0);
+  return _assembleDXF(allL, allT, 0, 0, allD);
 }
 function downloadFinishedSetDXF(){
   const cans=(quoteItems||[]).filter(i=>i.type==='canopy');
