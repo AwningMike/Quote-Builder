@@ -642,6 +642,15 @@ function renderCanopySection(sectionKey, faceLabel){
       </div>
       <div class="field"><label>Quantity (identical units)</label><input type="number" id="c-qty" value="1" min="1" step="1"></div>
       <div class="checkline" style="margin-top:-2px;">
+        <input type="checkbox" id="c-linegroup-on" onchange="document.getElementById('c-linegroup-wrap').style.display = this.checked ? 'block' : 'none';">
+        <label for="c-linegroup-on">Group with other canopies as ONE quote line (different sizes, one price)</label>
+      </div>
+      <div class="field" id="c-linegroup-wrap" style="display:none;">
+        <label>Line item name — canopies given the same name print together</label>
+        <input type="text" id="c-linegroup" list="c-linegroup-list" placeholder="e.g. Lease">
+        <datalist id="c-linegroup-list">${[...new Set(quoteItems.filter(i=>i.lineGroup).map(i=>i.lineGroup))].map(g=>`<option value="${String(g).replace(/"/g,'&quot;')}">`).join('')}</datalist>
+      </div>
+      <div class="checkline" style="margin-top:-2px;">
         <input type="checkbox" id="c-customface-toggle">
         <label for="c-customface-toggle">Custom fascia size (larger than 12″) — priced (Width + 2 × Projection) × $30/ft</label>
       </div>
@@ -849,6 +858,8 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
     bd: r.bd,           // component $ breakdown for Airtable line-item push
     faceInches: faceInches,
     group: group,
+    // explicit line-item grouping (checkbox under Quantity): same name = ONE printed line
+    lineGroup: ((document.getElementById('c-linegroup-on')||{}).checked && ((document.getElementById('c-linegroup')||{}).value||'').trim()) || null,
     ownLine: !!(document.getElementById('c-ownline')||{}).checked,   // per-canopy: its own estimate line
     type: 'canopy',
     spec: {
@@ -3716,30 +3727,37 @@ function buildAirtableLogText(){
   Object.entries(s.groups.groups).forEach(([gName, items])=>{
     const type = items[0] ? items[0].type : null;
     const labels = airtableLabels(type);
-    const allCanopy = items.every(i=>i.type==='canopy');
 
-    // mirror the print rule: custom-named multi-canopy groups stay combined (per Mike 08/04/26)
-    const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || items.length === 1);
-    const ownItems = splitAll ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
-    const combined = splitAll ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
-    // mirror the print rule: same-named own-line canopies merge into one block (per Mike 08/04/26)
-    const ownGroups = [];
-    ownItems.forEach(i=>{
-      const named = i.title && !/^\d+["″]/.test(i.title);
-      const key = named ? i.title : ('__solo__' + i.id);
-      let og = ownGroups.find(o=>o.key===key);
-      if(!og){ og = { key, named, i0: i, items: [] }; ownGroups.push(og); }
-      og.items.push(i);
+    // mirror the print rule: explicit line-item groups (checkbox in the canopy form) first
+    const lgMap = {}; const lgOrder = []; const rest = [];
+    items.forEach(i=>{
+      if(i.type==='canopy' && i.lineGroup){
+        const k = String(i.lineGroup).trim().toLowerCase();
+        if(!lgMap[k]){ lgMap[k] = { name: String(i.lineGroup).trim(), items: [] }; lgOrder.push(k); }
+        lgMap[k].items.push(i);
+      } else rest.push(i);
     });
-    ownGroups.forEach(og=>{
-      const head = og.named ? `${labels.short} — ${og.i0.title}` : `${labels.short} — ${og.i0.spec.widthStr} × ${og.i0.spec.projStr}`;
-      lines.push(head);
+    lgOrder.forEach(k=>{
+      const c = lgMap[k];
+      lines.push(`${labels.short} — ${c.name}`);
       lines.push('');
-      og.items.forEach(i=>{
+      c.items.forEach(i=>{
         const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
         if(specLines.length){ lines.push(...specLines); lines.push(''); }
       });
-      mfgLines.push(`MFG ${head}: ${fmtDecimal(og.items.reduce((s,i)=>s+i.amount,0))}`);
+      mfgLines.push(`MFG ${labels.short} — ${c.name}: ${fmtDecimal(c.items.reduce((s2,i)=>s2+i.amount,0))}`);
+    });
+
+    const allCanopy = rest.length>0 && rest.every(i=>i.type==='canopy');
+    const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || rest.length === 1);
+    const ownItems = splitAll ? rest : rest.filter(i=>i.type==='canopy' && i.ownLine);
+    const combined = splitAll ? [] : rest.filter(i=>!(i.type==='canopy' && i.ownLine));
+    ownItems.forEach(i=>{
+      const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
+      lines.push(`${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}`);
+      lines.push('');
+      if(specLines.length){ lines.push(...specLines); lines.push(''); }
+      mfgLines.push(`MFG ${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}: ${fmtDecimal(i.amount)}`);
     });
     if(!combined.length) return;
     const items2 = combined;
@@ -4276,49 +4294,54 @@ function buildActivityRows(s, color, height){
   Object.entries(s.groups.groups).forEach(([gName, items])=>{
     const groupHasCanopy = items.some(i=>i.type==='canopy');
     const groupHasSS = items.some(i=>i.type==='standingSeam');
-    const allCanopy = items.every(i=>i.type==='canopy');
+    const gRows = [];   // this quote group's rows — Color/engineering trailer lands on the LAST one
 
-    // Custom-named groups with 2+ canopies ALWAYS print as ONE combined line — this is how
-    // different-size canopies share a single line item (per Mike 08/04/26). The global
-    // "individual" switch only splits the generic default group; per-canopy own-line still wins.
-    const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || items.length === 1);
-    const ownItems = splitAll ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
-    const combined = splitAll ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
-    // Same printed label = ONE line with combined dollars (per Mike 08/04/26): canopies
-    // named "Lease" all merge, sizes stack in the spec block. Unnamed canopies stay separate.
-    const ownGroups = [];
+    // 1) EXPLICIT line-item grouping (checkbox under Quantity in the canopy form, per Mike
+    //    08/04/26): canopies given the same Line item name print as ONE line, combined dollars.
+    const lgMap = {}; const lgOrder = []; const rest = [];
+    items.forEach(i=>{
+      if(i.type==='canopy' && i.lineGroup){
+        const k = String(i.lineGroup).trim().toLowerCase();
+        if(!lgMap[k]){ lgMap[k] = { name: String(i.lineGroup).trim(), items: [] }; lgOrder.push(k); }
+        lgMap[k].items.push(i);
+      } else rest.push(i);
+    });
+    lgOrder.forEach(k=>{
+      const c = lgMap[k];
+      const desc = c.items.map(i=>buildSpecLines(i, height).map(l=>l.replace(/^  /,'')).join('\n')).join('\n\n');
+      gRows.push({ label: `${gName} — ${c.name}`, desc, amt: fmtDecimal(c.items.reduce((s2,i)=>s2+i.amount,0)), taxed: true });
+    });
+
+    // 2) everything else: own-line / combined behavior (labels carry no dims)
+    const allCanopyRest = rest.length>0 && rest.every(i=>i.type==='canopy');
+    const splitAll = individualCanopy && allCanopyRest && (gName === 'Metal-Tech Canopy - Fully welded construction' || rest.length === 1);
+    const ownItems = splitAll ? rest : rest.filter(i=>i.type==='canopy' && i.ownLine);
+    const combined = splitAll ? [] : rest.filter(i=>!(i.type==='canopy' && i.ownLine));
     ownItems.forEach(i=>{
-      const named = i.title && !/^\d+["″]/.test(i.title);
-      const lbl = named ? `${gName} — ${i.title}` : gName;      // dims never ride in the line label
-      const key = named ? lbl : ('__solo__' + i.id);
-      let og = ownGroups.find(o=>o.key===key);
-      if(!og){ og = { key, lbl, items: [] }; ownGroups.push(og); }
-      og.items.push(i);
-    });
-    ownGroups.forEach((og, idx)=>{
-      let desc = og.items.map(i=>buildSpecLines(i, height).map(l=>l.replace(/^  /,'')).join('\n')).join('\n\n');
-      // trailing color/engineering note rides on the LAST canopy row of this group only
-      if(!combined.length && idx === ownGroups.length-1){
-        desc += `\n\nColor: ${color}\n`;
-        if(document.getElementById('extra-scupper').checked) desc += `Scupper(s): included\n`;
-        desc += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
-      }
-      const amt = og.items.reduce((sum,i)=>sum+i.amount,0);
-      rows.push({ label: og.lbl, desc: desc.trim(), amt: fmtDecimal(amt), taxed: true });
-    });
-    if(!combined.length) return;
-
-    const groupTotal = combined.reduce((sum,i)=>sum+i.amount,0);
-    let desc = '';
-    combined.forEach(i=>{
       const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
-      if(specLines.length) desc += specLines.join('\n') + '\n\n';
+      const named = i.title && !/^\d+["″]/.test(i.title);
+      gRows.push({ label: named ? `${gName} — ${i.title}` : gName, desc: specLines.join('\n'), amt: fmtDecimal(i.amount), taxed: true });
     });
-    desc += `Color: ${color}\n`;
-    if(groupHasCanopy && document.getElementById('extra-scupper').checked) desc += `Scupper(s): included\n`;
-    if(groupHasSS && document.getElementById('extra-shopdrawings').checked) desc += `Shop drawings to be approved by customer\n`;
-    if(groupHasCanopy) desc += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
-    rows.push({ label: gName, desc: desc.trim(), amt: fmtDecimal(groupTotal), taxed: true });   // ALL product groups taxable (canopies, standing seam, fabric — per Mike)
+    if(combined.length){
+      const groupTotal = combined.reduce((sum,i)=>sum+i.amount,0);
+      let desc = '';
+      combined.forEach(i=>{
+        const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
+        if(specLines.length) desc += specLines.join('\n') + '\n\n';
+      });
+      gRows.push({ label: gName, desc: desc.trim(), amt: fmtDecimal(groupTotal), taxed: true });   // ALL product groups taxable (per Mike)
+    }
+
+    // 3) Color / scupper / shop-drawings / engineering trailer — ONCE, on the group's last row
+    if(gRows.length){
+      let t = `\n\nColor: ${color}\n`;
+      if(groupHasCanopy && document.getElementById('extra-scupper').checked) t += `Scupper(s): included\n`;
+      if(groupHasSS && document.getElementById('extra-shopdrawings').checked) t += `Shop drawings to be approved by customer\n`;
+      if(groupHasCanopy) t += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
+      const last = gRows[gRows.length-1];
+      last.desc = ((last.desc||'') + t).trim();
+    }
+    gRows.forEach(r=>rows.push(r));
   });
 
   s.groups.standalone.forEach(i=>{
@@ -4350,26 +4373,7 @@ function buildActivityRows(s, color, height){
   }
   if(s.lift>0) rows.push({ label:'Lift Rental -- Waived if lift is provided', desc:'', amt: fmtDecimal(s.lift), taxed:false });
 
-  // FINAL PASS — any rows whose labels READ the same (ignoring case, extra spaces, and
-  // dash style) merge into ONE line with combined dollars (per Mike 08/04/26). This
-  // catches every entry path: item name, group field, or a mix with stray spaces.
-  const normLbl = t => String(t||'').toLowerCase().replace(/[—–]/g,'-').replace(/\s*-\s*/g,'-').replace(/\s+/g,' ').trim();
-  const mergedRows = [];
-  rows.forEach(r=>{
-    const k = normLbl(r.label);
-    const prev = mergedRows.find(m=>m._k===k);
-    if(prev){
-      const trailer = /\n*Color:[\s\S]*$/;   // keep only ONE Color/engineering trailer, at the end
-      if(trailer.test(prev.desc||'') && trailer.test(r.desc||'')) prev.desc = prev.desc.replace(trailer,'').trim();
-      prev.desc = [prev.desc, r.desc].filter(Boolean).join('\n\n').trim();
-      prev._sum += parseFloat(String(r.amt).replace(/[^0-9.-]/g,''))||0;
-      prev.amt = fmtDecimal(prev._sum);
-      prev.taxed = prev.taxed || r.taxed;
-    } else {
-      mergedRows.push(Object.assign({}, r, { _k:k, _sum: parseFloat(String(r.amt).replace(/[^0-9.-]/g,''))||0 }));
-    }
-  });
-  return mergedRows;
+  return rows;
 }
 
 function populateFormalQuoteDoc(){
