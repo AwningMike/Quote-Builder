@@ -1,6 +1,6 @@
 // APMG Quote Calculator service worker
 // Bump CACHE version whenever you deploy a new build so clients refresh cleanly.
-const CACHE = 'apmg-quote-calc-v83';
+const CACHE = 'apmg-quote-calc-v84';
 const ASSETS = [
   './canopy_quote_calculator.html',
   './drawing_builder.html',
@@ -37,7 +37,9 @@ self.addEventListener('fetch', (e) => {
   const isPage = req.mode === 'navigate' || req.destination === 'document' || url.pathname.endsWith('.html');
   if (isPage) {
     e.respondWith(
-      fetch(req).then((res) => {
+      // cache:'no-cache' revalidates with the server instead of trusting the browser's
+      // 10-minute HTTP cache — deploys show up on the very next reload.
+      fetch(req, { cache: 'no-cache' }).then((res) => {
         if (res && res.status === 200) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;
       }).catch(() => caches.match(req))
