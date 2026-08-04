@@ -1346,38 +1346,38 @@ function endViewSVG(item){
   // scupper stub under the front
   svg += `<rect x="${slabX0+slabW-16}" y="${deckY+slabH}" width="11" height="6" fill="#eee" stroke="#111" stroke-width="0.9"/>`;
   if(isTie){
-    // 6x6 wall plate at the top (at the wall, above the canopy rear)
-    svg += `<rect x="${slabX0-6}" y="${topY-4}" width="12" height="22" fill="#dfe3e6" stroke="#111" stroke-width="1.3"/>`;
-    // tie-rod: double line from wall plate down to the landing near the front
-    const footX = slabX0+slabW-14, footY = deckY-rise;
-    svg += `<line x1="${slabX0+2}" y1="${topY+14}" x2="${footX}" y2="${footY}" stroke="${pf.painted?pf.fill:'#2a2d31'}" stroke-width="2.8"/>`;
-    svg += `<line x1="${slabX0+5}" y1="${topY+16}" x2="${footX+2}" y2="${footY+2.5}" stroke="#7a7f84" stroke-width="1.1"/>`;
-    // top plate welded to pans (vertical plate at the landing)
-    svg += `<rect x="${footX}" y="${footY}" width="8" height="${rise}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
-    // 8 1/2" rise dim just left of the top plate
-    svg += vDim(footX-8, footY, deckY, 8.5, {});
+    // WALL: hatched vertical band at the canopy rear so the wall plate mounts to something real
+    svg += `<rect x="${slabX0-14}" y="${topY-34}" width="10" height="${(deckY+slabH+42)-(topY-34)}" fill="url(#pans)" stroke="#111" stroke-width="1.1"/>`;
+    // 6x6x1/4 wall plate — flat against the wall face (slim vertical plate, proud of the wall)
+    svg += `<rect x="${slabX0-4}" y="${topY-2}" width="5" height="20" fill="#c9cfd6" stroke="#111" stroke-width="1.2"/>`;
+    // 12" canopies: 2x2x1/4 bars run FRONT TO BACK, one per tie rod — strip along the deck (per Mike)
+    if(faceIn>=12){
+      svg += `<rect x="${slabX0+3}" y="${deckY-7}" width="${slabW-34}" height="7" fill="#d3d8dc" stroke="#111" stroke-width="1.1"/>`;
+      svg += leader(slabX0+26, deckY-88, slabX0+slabW*0.3, deckY-7, `2"x2"x1/4" Rod Support Bars — 1 Per Rod, Front To Back`, 'end');
+    }
+    // FLAT top plate at the rod landing — welded to pans on ≤8" (per Mike); sits on the bar on 12"
+    const plateTop = faceIn>=12 ? deckY-7 : deckY;
+    const footX = slabX0+slabW-30, footY = plateTop-4;
+    svg += `<rect x="${footX-12}" y="${footY}" width="26" height="4" fill="#c9cfd6" stroke="#111" stroke-width="1.1"/>`;
+    // tie-rod: double line from wall plate down to the flat plate
+    svg += `<line x1="${slabX0+1}" y1="${topY+10}" x2="${footX}" y2="${footY}" stroke="${pf.painted?pf.fill:'#2a2d31'}" stroke-width="2.8"/>`;
+    svg += `<line x1="${slabX0+4}" y1="${topY+12}" x2="${footX+2}" y2="${footY+1.5}" stroke="#7a7f84" stroke-width="1.1"/>`;
     // arm-height dim (vertical, left of the rod span)
-    svg += vDim(slabX0-64, topY, deckY, armIn, {extTo:slabX0-8});
+    svg += vDim(slabX0-64, topY, deckY, armIn, {extTo:slabX0-16});
     // wall plates callout (top)
-    svg += `<text x="${slabX0+36}" y="${topY-12}" font-size="13" font-weight="600" fill="#111">6"x6"x1/4" Wall Plates</text>`;
-    svg += `<line x1="${slabX0+34}" y1="${topY-8}" x2="${slabX0+8}" y2="${topY+3}" stroke="#111" stroke-width="0.7"/>`;
+    svg += `<text x="${slabX0+36}" y="${topY-16}" font-size="13" font-weight="600" fill="#111">6"x6"x1/4" Wall Plates — Anchored Into Blocking</text>`;
+    svg += `<line x1="${slabX0+34}" y1="${topY-12}" x2="${slabX0+1}" y2="${topY+3}" stroke="#111" stroke-width="0.7"/>`;
     // mid-rod callout
     const midX=(slabX0+footX)/2, midY=(topY+footY)/2;
-    svg += leader(midX+130, midY-16, midX+14, midY-2, 'SCH. 40 1" Tierods', 'start');
-    // right-stacked callouts
-    // ≤8" face: top plate is WELDED TO THE PANS (not the front support) — tie plate bolts plate-to-plate (per Mike)
-    svg += leader(footX+120, footY-26, footX+8, footY+3, faceIn<=8
+    svg += leader(midX+120, midY-30, midX+14, midY-8, 'SCH. 40 1" Tierods', 'start');
+    // top plate callout — anchored LEFT of the landing so it never runs off the sheet
+    // ≤8": plate is WELDED TO THE PANS, tie plate bolts plate-to-plate (per Mike)
+    svg += leader(footX-40, footY-32, footX-6, footY-1, faceIn<=8
       ? `5"x6"x1/4" Top Plate Welded To Pans — Tie Plate Bolts To Plate`
-      : (faceIn>=12 ? `2"x5"x1/4" Alum Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Alum Top Plate — Bolted To 1"x4" Support`), 'start');
-    // 12" canopies: 2x2x1/4 bars run FRONT TO BACK, one per tie rod — in section the bar
-    // shows as a strip along the deck from wall to front (per Mike, 08/2026)
-    if(faceIn>=12){
-      svg += `<rect x="${slabX0+3}" y="${deckY-7}" width="${slabW-32}" height="7" fill="#d3d8dc" stroke="#111" stroke-width="1.1"/>`;
-      svg += leader(slabX0+30, deckY-56, slabX0+slabW*0.3, deckY-7, `2"x2"x1/4" Rod Support Bars — 1 Per Tie Rod, Front To Back`, 'end');
-    }
-    svg += leader(footX+120, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
-    svg += leader(footX+120, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
-    svg += leader(slabX0+40, deckY-26, slabX0+slabW*0.35, deckY+2, '6" Self Mating Pans', 'start');
+      : (faceIn>=12 ? `2"x5"x1/4" Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Top Plate — Bolted To 1"x4" Support`), 'end');
+    svg += leader(footX+150, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
+    svg += leader(footX+150, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
+    svg += leader(slabX0+40, deckY+slabH+26, slabX0+slabW*0.3, deckY+slabH-2, '6" Self Mating Pans', 'start');
   } else if(attach==='cchannel'){
     // rear C-channel low attach
     svg += `<rect x="${slabX0-9}" y="${deckY-2}" width="9" height="${slabH+6}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
