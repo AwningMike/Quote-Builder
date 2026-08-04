@@ -3722,12 +3722,24 @@ function buildAirtableLogText(){
     const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || items.length === 1);
     const ownItems = splitAll ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
     const combined = splitAll ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
+    // mirror the print rule: same-named own-line canopies merge into one block (per Mike 08/04/26)
+    const ownGroups = [];
     ownItems.forEach(i=>{
-      const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
-      lines.push(`${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}`);
+      const named = i.title && !/^\d+["″]/.test(i.title);
+      const key = named ? i.title : ('__solo__' + i.id);
+      let og = ownGroups.find(o=>o.key===key);
+      if(!og){ og = { key, named, i0: i, items: [] }; ownGroups.push(og); }
+      og.items.push(i);
+    });
+    ownGroups.forEach(og=>{
+      const head = og.named ? `${labels.short} — ${og.i0.title}` : `${labels.short} — ${og.i0.spec.widthStr} × ${og.i0.spec.projStr}`;
+      lines.push(head);
       lines.push('');
-      if(specLines.length){ lines.push(...specLines); lines.push(''); }
-      mfgLines.push(`MFG ${labels.short} — ${i.spec.widthStr} × ${i.spec.projStr}: ${fmtDecimal(i.amount)}`);
+      og.items.forEach(i=>{
+        const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
+        if(specLines.length){ lines.push(...specLines); lines.push(''); }
+      });
+      mfgLines.push(`MFG ${head}: ${fmtDecimal(og.items.reduce((s,i)=>s+i.amount,0))}`);
     });
     if(!combined.length) return;
     const items2 = combined;
@@ -4272,17 +4284,27 @@ function buildActivityRows(s, color, height){
     const splitAll = individualCanopy && allCanopy && (gName === 'Metal-Tech Canopy - Fully welded construction' || items.length === 1);
     const ownItems = splitAll ? items : items.filter(i=>i.type==='canopy' && i.ownLine);
     const combined = splitAll ? [] : items.filter(i=>!(i.type==='canopy' && i.ownLine));
-    ownItems.forEach((i, idx)=>{
-      const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
-      let desc = specLines.join('\n');
+    // Same printed label = ONE line with combined dollars (per Mike 08/04/26): canopies
+    // named "Lease" all merge, sizes stack in the spec block. Unnamed canopies stay separate.
+    const ownGroups = [];
+    ownItems.forEach(i=>{
+      const named = i.title && !/^\d+["″]/.test(i.title);
+      const lbl = named ? `${gName} — ${i.title}` : gName;      // dims never ride in the line label
+      const key = named ? lbl : ('__solo__' + i.id);
+      let og = ownGroups.find(o=>o.key===key);
+      if(!og){ og = { key, lbl, items: [] }; ownGroups.push(og); }
+      og.items.push(i);
+    });
+    ownGroups.forEach((og, idx)=>{
+      let desc = og.items.map(i=>buildSpecLines(i, height).map(l=>l.replace(/^  /,'')).join('\n')).join('\n\n');
       // trailing color/engineering note rides on the LAST canopy row of this group only
-      if(!combined.length && idx === ownItems.length-1){
+      if(!combined.length && idx === ownGroups.length-1){
         desc += `\n\nColor: ${color}\n`;
         if(document.getElementById('extra-scupper').checked) desc += `Scupper(s): included\n`;
         desc += `*Stamped engineering drawings have an additional cost of ${fmtDecimal(stampedAmt)}*`;
       }
-      const lbl = (i.title && !/^\d+["″]/.test(i.title)) ? `${gName} — ${i.title}` : gName;   // dims never ride in the line label — they live in the spec block (per Mike 08/04/26)
-      rows.push({ label: lbl, desc: desc.trim(), amt: fmtDecimal(i.amount), taxed: true });
+      const amt = og.items.reduce((sum,i)=>sum+i.amount,0);
+      rows.push({ label: og.lbl, desc: desc.trim(), amt: fmtDecimal(amt), taxed: true });
     });
     if(!combined.length) return;
 
