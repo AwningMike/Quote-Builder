@@ -1059,8 +1059,8 @@ function canopyFigure(item, baseY){
       svg += `<line x1="${jx}" y1="${feY-2}" x2="${jx}" y2="${feY+faceBand+2}" stroke="#c8102e" stroke-width="1.2" stroke-dasharray="5,3"/>`;
     }
   }
-  // drainage scupper notch front-right
-  svg += `<rect x="${elevX0+elevW-11}" y="${feY+faceBand}" width="11" height="4" fill="#333"/>`;
+  // drainage: scupper notch ONLY when there are no downspouts (per Mike — downspouts replace scuppers)
+  if(dsN===0) svg += `<rect x="${elevX0+elevW-11}" y="${feY+faceBand}" width="11" height="4" fill="#333"/>`;
   // downspout stubs under the fascia (drafted sheets show them with the GC tie-in note)
   if(dsN > 0){
     dsPos.forEach(fr=>{
@@ -1078,7 +1078,7 @@ function canopyFigure(item, baseY){
   } else {
     svg += leader(elevX0+elevW*0.40, feY+faceBand+18, elevX0+elevW*0.52, feY+faceBand, `${faceIn}" Flat Gutter Fascia`, 'start');
   }
-  svg += leader(elevX0+elevW-64, feY+faceBand+30, elevX0+elevW-4, feY+faceBand+4, 'Drainage Scupper', 'start');
+  if(dsN===0) svg += leader(elevX0+elevW-64, feY+faceBand+30, elevX0+elevW-4, feY+faceBand+4, 'Drainage Scupper', 'start');
 
   // (End view now lives on its own dedicated sheet — endViewSVG — mimicking the drafted 'End View A'.)
 
@@ -1343,8 +1343,9 @@ function endViewSVG(item){
     svg += `<rect x="${slabX0+14}" y="${deckY+2}" width="${slabW-40}" height="4" fill="#c8102e" opacity="0.85"/>`;
     svg += leader(slabX0+slabW*0.32, deckY-44, slabX0+slabW*0.45, deckY+3, `${ltN} × 4" Recessed LEDs`, 'start');
   }
-  // scupper stub under the front
-  svg += `<rect x="${slabX0+slabW-16}" y="${deckY+slabH}" width="11" height="6" fill="#eee" stroke="#111" stroke-width="0.9"/>`;
+  // scupper stub under the front — ONLY when there are no downspouts (per Mike)
+  const _hasDS = (s0.downspoutPerUnit||0) > 0;
+  if(!_hasDS) svg += `<rect x="${slabX0+slabW-16}" y="${deckY+slabH}" width="11" height="6" fill="#eee" stroke="#111" stroke-width="0.9"/>`;
   if(isTie){
     // WALL: hatched vertical band at the canopy rear so the wall plate mounts to something real
     svg += `<rect x="${slabX0-14}" y="${topY-34}" width="10" height="${(deckY+slabH+42)-(topY-34)}" fill="url(#pans)" stroke="#111" stroke-width="1.1"/>`;
@@ -1376,7 +1377,7 @@ function endViewSVG(item){
       ? `5"x6"x1/4" Top Plate Welded To Pans — Tie Plate Bolts To Plate`
       : (faceIn>=12 ? `2"x5"x1/4" Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Top Plate — Bolted To 1"x4" Support`), 'end');
     svg += leader(footX+150, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
-    svg += leader(footX+150, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
+    if(!_hasDS) svg += leader(footX+150, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
     svg += leader(slabX0+40, deckY+slabH+26, slabX0+slabW*0.3, deckY+slabH-2, '6" Self Mating Pans', 'start');
   } else if(attach==='cchannel'){
     // rear C-channel low attach
@@ -1384,14 +1385,14 @@ function endViewSVG(item){
     svg += leader(slabX0-30, deckY+slabH+34, slabX0-5, deckY+slabH+2, '1-1/4" C-Channel Low Attach', 'start');
     svg += leader(slabX0+slabW-60, deckY-30, slabX0+slabW*0.5, deckY+2, '6" Self Mating Pans', 'start');
     svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
-    svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
+    if(!_hasDS) svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
   } else {
     // all-thread direct: rear 1x4 bolts straight into the blocking — no rod, no top support
     svg += `<rect x="${slabX0-2}" y="${deckY-8}" width="8" height="8" fill="#eef0f2" stroke="#111" stroke-width="1.1"/>`;
     svg += leader(slabX0-6, deckY-40, slabX0+2, deckY-9, '1/2" All Thread Into Blocking', 'end');
     svg += leader(slabX0+slabW-60, deckY-30, slabX0+slabW*0.5, deckY+2, '6" Self Mating Pans', 'start');
     svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
-    svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
+    if(!_hasDS) svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
   }
   // downspout stub at the rear
   if((s0.downspoutPerUnit||0) > 0){
@@ -1693,7 +1694,7 @@ function bomSheetSVG(item){
   const dsN=(s0.downspoutPerUnit||0)*qty;
   if(dsN>0){
     const dsSku=(faceIn>=10)?CM.downspout23.sku:CM.downspout22.sku; addSticks('Downspouts', dsSku, Array(dsN).fill(DS_DROP_FT));
-    rows.push({ role:'Scupper angle brackets (3×3×⅛ × 4″)', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), pcs:dsN*3, pull:(dsN*1)+' ft ('+(dsN/emsLen(CM.angle33.sku)).toFixed(2)+' stick)' });
+    rows.push({ role:'Downspout collector brackets (3×3×⅛ × 4″)', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), pcs:dsN*3, pull:(dsN*1)+' ft ('+(dsN/emsLen(CM.angle33.sku)).toFixed(2)+' stick)' });
   }
   const ccFt=(s0.cchannelPerUnit||0)*qty;
   if(ccFt>0) rows.push({ role:'C-channel (LED)', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku), pcs:'—', pull:ccFt.toFixed(1)+' ft ('+(ccFt/CM.cchannel.yieldFt).toFixed(2)+' sheet)' });
@@ -1738,7 +1739,7 @@ function bomSheetSVG(item){
   } else {
     hw.push(`(${pts}) 1/2″ All-Thread Into Blocking w/ Nuts, Washers & Lags — Direct At Canopy`);
   }
-  if((s0.downspoutPerUnit||0)>0) hw.push(`(${(s0.downspoutPerUnit||0)*qty}) Downspout Drops @ ${DS_DROP_FT}′-0″ w/ Scupper Collector Brackets`);
+  if((s0.downspoutPerUnit||0)>0) hw.push(`(${(s0.downspoutPerUnit||0)*qty}) Downspout Drops @ ${DS_DROP_FT}′-0″ w/ Collector Brackets — No Scuppers`);
   hw.push(`Stainless Fasteners / Rivets / Sealant — Shop Standard`);
   hw.forEach(t=>{ svg += `<text x="${bx+26}" y="${y}" font-size="10.5" fill="#222">• ${_esc(t)}</text>`; y += 16; });
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'BILL OF MATERIALS'}), [
@@ -1788,7 +1789,9 @@ function notesSheetSVG(item){
       'Verify all field dimensions and wall conditions prior to fabrication.'
     ]],
     ['DRAINAGE', [
-      'Internal gutter drains through front scuppers' + ((s0.downspoutPerUnit||0)>0 ? ` to ${faceIn>=10?'2"x3"':'2"x2"'} downspouts (bottom sleeve cut on site to height).` : '; downspouts by others where required.'),
+      ((s0.downspoutPerUnit||0)>0
+        ? `Internal gutter drains to ${faceIn>=10?'2"x3"':'2"x2"'} downspouts (bottom sleeve cut on site to height) — no scuppers.`
+        : 'Internal gutter drains through front scuppers; downspouts by others where required.'),
       'Positive slope to drain points; all seams sealed watertight.'
     ]],
     ['FINISH', [
@@ -1829,7 +1832,7 @@ function notesSheetSVG(item){
     `6063 aluminum · fully welded construction`,
     `Blocking by others · verify field dims`,
     painted ? `Painted ${_esc(s0.paint.trim())}` : 'Mill finish — no paint',
-    `Sealed watertight · scupper drainage`
+    `Sealed watertight drainage`
   ]);
   svg += '</svg>';
   return svg;
@@ -3294,7 +3297,7 @@ function canopyTrueCost(spec, mode){
     // scupper brackets: (3) 4"-long 3×3×⅛ angle per downspout = 1 ft/drop (per DXF corpus: 11-63-330 "3 per downspout")
     const angPpf = emsStick(CM.angle33.sku)/emsLen(CM.angle33.sku);
     const angPU = dsN * 1 * angPpf;
-    lines.push({ role:'Scupper angle brackets', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), note:`${dsN*3*qty} pcs @ 4″ (3/drop) · per drawings`, qtyText:(dsN*qty).toFixed(0)+' ft', unitText:'$'+angPpf.toFixed(2)+'/ft', costPU:angPU, cat:'acc' });
+    lines.push({ role:'Downspout collector brackets', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), note:`${dsN*3*qty} pcs @ 4″ (3/drop) · per drawings`, qtyText:(dsN*qty).toFixed(0)+' ft', unitText:'$'+angPpf.toFixed(2)+'/ft', costPU:angPU, cat:'acc' });
     dsPU += angPU;
   }
   const ccFt = (spec.cchannelPerUnit||0);
