@@ -194,7 +194,7 @@
     @page{ size:8.5in 11in; margin:0.5in; }
     body{ background:#fff; }
     .app{ display:none !important; }
-    #print-quote-doc{ display:block; }
+    #print-quote-doc{ display:block !important; }   /* !important beats any leftover inline hide from the PDF exporter */
   }
 
   /* ---- Formal Estimate Document ---- */
@@ -4451,7 +4451,13 @@ function populateFormalQuoteDoc(){
   `;
   return true;
 }
-function printFormalQuote(){ if(populateFormalQuoteDoc()) window.print(); else window.print(); }
+function printFormalQuote(){
+  const el = document.getElementById('print-quote-doc');
+  if(el) el.removeAttribute('style');       // clear any inline hide left over from a PDF export (blank-page bug)
+  if(!lastQuoteSummary) { try{ renderQuote(); }catch(e){} }   // rebuild summary if a reload/restore left it empty
+  if(populateFormalQuoteDoc()) window.print();
+  else alert('Nothing to print yet — add at least one line item (or reopen a saved quote), then Print.');
+}
 
 /* ---- Service mapping: which Service multi-select options this quote covers ---- */
 function serviceFromQuote(){
@@ -4482,7 +4488,7 @@ async function generateQuotePdfBase64(){
   el.setAttribute('style', 'display:block;position:fixed;left:-10000px;top:0;width:800px;background:#fff;z-index:-1;');
   let canvas;
   try { canvas = await window.html2canvas(el, { scale:2, backgroundColor:'#ffffff', useCORS:true }); }
-  finally { el.setAttribute('style', prev || 'display:none;'); }
+  finally { if(prev) el.setAttribute('style', prev); else el.removeAttribute('style'); }   // never leave an inline display:none behind — it blanked the Print button
   const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   const pdf = new jsPDF('p','pt','letter');
   const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
