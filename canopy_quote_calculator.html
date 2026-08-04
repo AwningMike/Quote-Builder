@@ -1376,7 +1376,7 @@ function endViewSVG(item){
     svg += leader(footX-40, footY-32, footX-6, footY-1, faceIn<=8
       ? `5"x6"x1/4" Top Plate Welded To Pans — Tie Plate Bolts To Plate`
       : (faceIn>=12 ? `2"x5"x1/4" Top Plate — Bolted To 2"x2"x1/4" Bar` : `2"x5"x1/4" Top Plate — Bolted To 1"x4" Support`), 'end');
-    svg += leader(footX+150, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
+    svg += leader(footX+150, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia — See Profile Sheet`, 'start');
     if(!_hasDS) svg += leader(footX+150, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
     svg += leader(slabX0+40, deckY+slabH+26, slabX0+slabW*0.3, deckY+slabH-2, '6" Self Mating Pans', 'start');
   } else if(attach==='cchannel'){
@@ -1384,14 +1384,14 @@ function endViewSVG(item){
     svg += `<rect x="${slabX0-9}" y="${deckY-2}" width="9" height="${slabH+6}" fill="#eef0f2" stroke="#111" stroke-width="1.2"/>`;
     svg += leader(slabX0-30, deckY+slabH+34, slabX0-5, deckY+slabH+2, '1-1/4" C-Channel Low Attach', 'start');
     svg += leader(slabX0+slabW-60, deckY-30, slabX0+slabW*0.5, deckY+2, '6" Self Mating Pans', 'start');
-    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
+    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia — See Profile Sheet`, 'start');
     if(!_hasDS) svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
   } else {
     // all-thread direct: rear 1x4 bolts straight into the blocking — no rod, no top support
     svg += `<rect x="${slabX0-2}" y="${deckY-8}" width="8" height="8" fill="#eef0f2" stroke="#111" stroke-width="1.1"/>`;
     svg += leader(slabX0-6, deckY-40, slabX0+2, deckY-9, '1/2" All Thread Into Blocking', 'end');
     svg += leader(slabX0+slabW-60, deckY-30, slabX0+slabW*0.5, deckY+2, '6" Self Mating Pans', 'start');
-    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia`, 'start');
+    svg += leader(slabX0+slabW+70, deckY+8, slabX0+slabW+10, deckY+6, `${faceIn}" Flat Gutter Fascia — See Profile Sheet`, 'start');
     if(!_hasDS) svg += leader(slabX0+slabW+70, deckY+34, slabX0+slabW-11, deckY+slabH+5, 'Scuppers On Front — See Layout', 'start');
   }
   // downspout stub at the rear
@@ -1399,7 +1399,7 @@ function endViewSVG(item){
     svg += `<rect x="${slabX0-6}" y="${deckY+slabH+2}" width="6" height="26" fill="${pf.painted?pf.fill:'#eee'}" stroke="#111" stroke-width="0.9"/>`;
     svg += leader(60, deckY+slabH+84, slabX0-4, deckY+slabH+20, `${faceIn>=10?'2"x3"':'2"x2"'}x.125" Rear Downspout — Installed On Site`, 'start');
   }
-  // face dim (inches) left of slab · projection dim below
+  // face dim (inches) left of slab · true profile is on the EXTRUSION PROFILES sheet
   svg += vDim(slabX0-26, deckY, deckY+faceBand-3, faceIn, {inchOnly:true});
   svg += hDim(slabX0, slabX0+slabW, deckY+slabH+46, projIn, {extFrom: deckY+slabH, side:'below'});
   // paint / finish note (top-left) — the drafted sheets carry it here
@@ -1840,8 +1840,82 @@ function notesSheetSVG(item){
 
 // CUSTOMER drawing set — the BOM pull-list sheet is intentionally NOT in here
 // (internal only — open it from the "Shop BOM" button; it never prints with the set).
+/* EXTRUSION PROFILES sheet — the REAL sections, drawn large with their true dims
+   (from Mike's profile drawings, 08/2026):
+   · Gutter fascia: 4" deep gutter · face leg = face size · 2-3/4" inner lip (pans seat) · 1" top return
+   · 6" self-mating pan: 6.000 wide · 3.000 / 2.912 legs w/ interlock hooks · 3.000 OC
+   Wall thickness by SKU: 6"=.093 · 8"=.125 · 10"=.140 · 12"=.160 · pan=.065 */
+function profilesSheetSVG(item){
+  const info = _headerInfo();
+  const W = 1000, H = 620, bx = 8, by = 8, bw = W-16, bh = H-16;
+  const s0 = item.spec||{}, faceIn = s0.face||8;
+  const fasciaT = ({6:'.093',8:'.125',10:'.140',12:'.160'})[faceIn] || '.125';
+  const fSku = (CM[CM_FAS[faceIn]]||CM.fascia8).sku;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" font-family="Arial,'Inter',sans-serif">`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>` + _canopyDefs();
+  svg += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="none" stroke="#111" stroke-width="1.6"/>`;
+  svg += _canopyHeader(W, info.dwgDate, 'PR');
+  svg += `<text x="${W/2}" y="60" font-size="19" font-weight="800" fill="#111" text-anchor="middle" text-decoration="underline">EXTRUSION PROFILES</text>`;
+
+  // ================= GUTTER FASCIA (left) =================
+  const sc = 26;                       // px per inch — large detail scale
+  const gx = 150, gBot = 385;          // gutter bottom-left inner corner
+  const t = Math.max(2.2, 0.13*sc);
+  const xIn = gx, xFace = gx+4*sc;
+  const fTop = gBot - faceIn*sc, lipTop = gBot - 2.75*sc;
+  const fpts = `${xFace-1*sc},${fTop} ${xFace},${fTop} ${xFace},${gBot} ${xIn},${gBot} ${xIn},${lipTop} ${xIn+0.6*sc},${lipTop}`;
+  svg += `<polyline points="${fpts}" fill="none" stroke="#1a1a1a" stroke-width="${t}" stroke-linejoin="miter" stroke-linecap="butt"/>`;
+  svg += hDim(xIn, xFace, gBot+34, 4, {inchOnly:true, side:'below', extFrom:gBot});
+  svg += vDim(xFace+34, fTop, gBot, faceIn, {inchOnly:true, extTo:xFace+4});
+  svg += vDim(xIn-30, lipTop, gBot, 2.75, {inchOnly:true, extTo:xIn-2});
+  svg += hDim(xFace-1*sc, xFace, fTop-22, 1, {inchOnly:true, side:'above', extFrom:fTop-2});
+  svg += `<text x="${gx+2*sc}" y="${gBot+74}" font-size="14" font-weight="700" fill="#111" text-anchor="middle">${faceIn}" GUTTER FASCIA</text>`;
+  svg += `<text x="${gx+2*sc}" y="${gBot+92}" font-size="11.5" fill="#333" text-anchor="middle">${_esc(fSku)} · 4 x ${faceIn} x ${fasciaT} — pans seat on 2-3/4" lip</text>`;
+
+  // ================= 6" SELF-MATING PAN (right) =================
+  const px0 = 560, pBot = 400, ps = 30;              // pan scale
+  const pt = Math.max(2.0, 0.09*ps);
+  const hook = (x, y, dir) => {                      // interlock hook curl at top of a leg
+    const r = 0.42*ps;
+    return `<path d="M ${x} ${y} q 0 ${-r} ${dir*r} ${-r} q ${dir*r} 0 ${dir*r} ${r*0.7} q 0 ${r*0.55} ${-dir*r*0.7} ${r*0.5}" fill="none" stroke="#1a1a1a" stroke-width="${pt}" stroke-linecap="round"/>`;
+  };
+  const legL = px0, legR = px0+6*ps;
+  const topL = pBot-2.912*ps, topR = pBot-3.0*ps;
+  // bottom with center V-notch (3.000 OC)
+  const cx = px0+3*ps, vn = 0.22*ps;
+  svg += `<polyline points="${legL},${topL} ${legL},${pBot} ${cx-vn},${pBot} ${cx},${pBot-vn} ${cx+vn},${pBot} ${legR},${pBot} ${legR},${topR}" fill="none" stroke="#1a1a1a" stroke-width="${pt}" stroke-linejoin="miter"/>`;
+  svg += hook(legL, topL, 1) + hook(legR, topR, -1);
+  svg += hDim(legL, legR, pBot+34, 6, {inchOnly:true, side:'below', extFrom:pBot});
+  // left leg is 2.912 exactly (per profile drawing) — hand-labeled so it doesn't round to 16ths
+  svg += `<line x1="${legL-28}" y1="${topL}" x2="${legL-28}" y2="${pBot}" stroke="#111" stroke-width="0.9"/>`;
+  svg += `<line x1="${legL-31}" y1="${topL}" x2="${legL-25}" y2="${topL}" stroke="#111" stroke-width="0.9"/>`;
+  svg += `<line x1="${legL-31}" y1="${pBot}" x2="${legL-25}" y2="${pBot}" stroke="#111" stroke-width="0.9"/>`;
+  svg += `<text x="${legL-36}" y="${(topL+pBot)/2+4}" font-size="12" font-weight="700" fill="#111" text-anchor="end">2.912"</text>`;
+  svg += vDim(legR+28, topR, pBot, 3, {inchOnly:true, extTo:legR+2});
+  // 3.000 OC — interlock spacing, labeled like the profile drawing
+  svg += `<line x1="${legL}" y1="${pBot-18}" x2="${cx}" y2="${pBot-18}" stroke="#111" stroke-width="0.9"/>`;
+  svg += `<line x1="${legL}" y1="${pBot-21}" x2="${legL}" y2="${pBot-15}" stroke="#111" stroke-width="0.9"/>`;
+  svg += `<line x1="${cx}" y1="${pBot-21}" x2="${cx}" y2="${pBot-15}" stroke="#111" stroke-width="0.9"/>`;
+  svg += `<text x="${(legL+cx)/2}" y="${pBot-24}" font-size="11" font-weight="700" fill="#111" text-anchor="middle">3.000 OC</text>`;
+  // faint second pan interlocked to the right (shows self-mating)
+  const off = 6*ps;
+  svg += `<g opacity="0.3"><polyline points="${legL+off},${topL} ${legL+off},${pBot} ${legL+off+2.2*ps},${pBot}" fill="none" stroke="#1a1a1a" stroke-width="${pt}"/>${hook(legL+off, topL, 1)}</g>`;
+  svg += `<text x="${px0+3*ps}" y="${pBot+78}" font-size="14" font-weight="700" fill="#111" text-anchor="middle">6" SELF-MATING PAN</text>`;
+  svg += `<text x="${px0+3*ps}" y="${pBot+96}" font-size="11.5" fill="#333" text-anchor="middle">56-63-015 · 3 x 6 x .065 — legs interlock pan-to-pan</text>`;
+
+  svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'EXTRUSION PROFILES'}), [
+    `${_esc(item.title)} — true sections, not to sheet scale`,
+    `Gutter fascia: 4" gutter · ${faceIn}" face · 2-3/4" pan lip · 1" return`,
+    `Pan: 6.000 wide · 3.000/2.912 interlock legs · .065 wall`,
+    `Fascia wall ${fasciaT}" (${_esc(fSku)})`,
+    `Profiles per APMG section drawings 08/2026`
+  ]);
+  svg += '</svg>';
+  return svg;
+}
+
 function canopyPages(item){
-  const pages = [canopySVG(item), endViewSVG(item)];
+  const pages = [canopySVG(item), endViewSVG(item), profilesSheetSVG(item)];
   if((item.spec.downspoutPerUnit||0) > 0) pages.push(downspoutDetailSVG(item));
   pages.push(wallDetailSVG(item));
   const hw = hardwareDetailSVG(item);
