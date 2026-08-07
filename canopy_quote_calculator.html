@@ -708,6 +708,13 @@ function renderCanopySection(sectionKey, faceLabel){
             </div>
             <div style="font-size:11px;color:var(--text-faint);margin-top:3px;">Drives the tie-rod/plate height <b>and</b> blocking placement on the attachment detail. Default 5&#39;5&quot;.</div>
           </div>
+          <div class="field"><label>Arms / tie-rods per canopy <span style="text-transform:none;font-weight:400;">(drawing callouts)</span></label>
+            <select id="c-arms">
+              <option value="0">Auto — one per 4&#39;-5&#39; of width</option>
+              ${Array.from({length:15},(_,i)=>i+2).map(n=>`<option value="${n}">${n} arms</option>`).join('')}
+            </select>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:3px;">Sets the arm count called out on the drawings — wall plates &amp; top plates follow. The margin check still figures arms automatically.</div>
+          </div>
         </div>
       </details>
       <div class="field"><label>Job / item label</label><input type="text" id="c-name" placeholder="e.g. Front entry canopy"></div>
@@ -881,7 +888,8 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
       attach: (document.getElementById('c-attach')||{}).value || 'tierod',
       paint: ((document.getElementById('c-paint')||{}).value || '').trim(),
       blocking: (document.getElementById('c-blocking')||{}).value || 'wood',
-      armHeightIn: (parseFloat((document.getElementById('c-armft')||{}).value)||5)*12 + (parseFloat((document.getElementById('c-armin')||{}).value)||0)
+      armHeightIn: (parseFloat((document.getElementById('c-armft')||{}).value)||5)*12 + (parseFloat((document.getElementById('c-armin')||{}).value)||0),
+      arms: parseInt((document.getElementById('c-arms')||{}).value,10)||0   // 0 = auto (4'-5' rule); 2–16 = manual drawing callout (per Mike 08/05/26)
     }
   });
   renderQuote();
@@ -1044,7 +1052,7 @@ function canopyFigure(item, baseY){
 
   let svg = '';
   // hanger positions (tie-rod) & downspout positions
-  const hgN = attach === 'tierod' ? (Math.ceil(widthIn/60)+1) : 0;   // arms @ 4'-5' o.c. +1 (per Mike) — matches engine & BOM counts
+  const hgN = attach === 'tierod' ? ((s.arms>0) ? s.arms : Math.ceil(widthIn/60)+1) : 0;   // manual override (2–16, per Mike 08/05/26) or auto 4'-5' o.c.
   const hgFrac = i => (hgN === 1 ? 0.5 : (0.5 + i) / hgN);
   const dsPos = [];
   if(dsN > 0){ const sp = 1 / dsN; for(let i=0;i<dsN;i++) dsPos.push(sp*0.5 + i*sp); }
@@ -1425,6 +1433,7 @@ function endViewSVG(item){
   const _qty = s0.qty||1;
   const _legs = (s0.mitered && s0.legs && s0.legs.length) ? s0.legs.map(l=>l.wFt||0) : [s0.widthFt||0];
   let _pts=0, _rods=0; _legs.forEach(w=>{ _pts+=Math.ceil(w/2)+1; _rods+=Math.ceil(w/5)+1; });   // arms @ 4'-5' o.c.
+  if(s0.arms>0) _rods = s0.arms;   // manual arm-count override (per Mike 08/05/26)
   _pts*=_qty; _rods*=_qty;
   svg += _canopyTitleBlock(W, H, Object.assign({}, info, {centerTitle:'END VIEW (SECTION)'}), [
     `${_esc(item.title)} — ${attLbl}`,
@@ -1567,7 +1576,7 @@ function hardwareDetailFigure(item, baseY){
   const widthIn = (s0.widthFt||0)*12;
   const qty = s0.qty||1;
   const attach = s0.attach || 'tierod';
-  const hgN = attach==='tierod' ? (Math.ceil(widthIn/60)+1) : Math.max(2, Math.round(widthIn/72));   // arms @ 4'-5' o.c. (per Mike) — matches cost engine
+  const hgN = (s0.arms>0) ? s0.arms : (attach==='tierod' ? (Math.ceil(widthIn/60)+1) : Math.max(2, Math.round(widthIn/72)));   // manual override (per Mike 08/05/26) or auto
   const rods = hgN*qty, wallPlates = hgN*qty, topPlates = hgN*qty, tabs = 2*hgN*qty, soSmall = hgN*qty, soNorm = hgN*qty;
   let s = '';
   // divider (top = tierod, bottom = block library)
@@ -1685,7 +1694,20 @@ function bomSheetSVG(item){
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1); pts*=qty;
   let nRods=0, rbB=[];
   if(attach==='tierod'){
-    let tp=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/5)+1; for(let k=0;k<n;k++){ tp.push(l.p+3); rbB.push(l.p); } /* arms @ 4'-5' o.c. per Mike */ });
+    let tp=[];
+    { // per-leg arm counts: auto 4'-5' rule, or the manual override distributed across legs by width (per Mike 08/05/26)
+      let per = legs.map(l=>Math.ceil(l.w/5)+1);
+      if(s0.arms>0){
+        const totW = legs.reduce((a,l)=>a+l.w,0)||1;
+        per = legs.map(l=>Math.max(1, Math.floor(s0.arms*l.w/totW)));
+        let rem = s0.arms - per.reduce((a,b)=>a+b,0);
+        const order = legs.map((l,i)=>i).sort((a,b)=>legs[b].w-legs[a].w);
+        let g = 0;
+        while(rem>0){ per[order[g%order.length]]++; rem--; g++; }
+        while(rem<0){ const j = order[order.length-1-(g%order.length)]; if(per[j]>1){ per[j]--; rem++; } g++; if(g>64) break; }
+      }
+      legs.forEach((l,i)=>{ for(let k=0;k<per[i];k++){ tp.push(l.p+3); rbB.push(l.p); } });
+    }
     tp = X(tp); rbB = X(rbB); nRods = tp.length;
     addSticks('Tie-rods (1" Sch40)', CM.tierod1.sku, tp);
     addSticks('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2));
@@ -2276,7 +2298,7 @@ function hardwareDXFParts(item){
   const k=_dxfKit(), W=230, H=160, sb=_specBom(item);
   _dxfSheet(k,W,H,'HW','STANDARD HARDWARE',sb.spec,sb.bom);
   const s=item.spec, widthIn=(s.widthFt||0)*12, qty=s.qty||1;
-  const hg=Math.max(2,Math.round(widthIn/72)), rods=hg*qty;
+  const hg=(s.arms>0)? s.arms : Math.max(2,Math.round(widthIn/72)), rods=hg*qty;   // manual arm override (per Mike 08/05/26)
   // adjustable tierod
   const ty=H*0.66, x0=W*0.10, x1=W*0.86;
   k.rect(x0,ty-1,x1-x0,2,7);
