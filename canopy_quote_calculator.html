@@ -1695,17 +1695,8 @@ function bomSheetSVG(item){
   let nRods=0, rbB=[];
   if(attach==='tierod'){
     let tp=[];
-    { // per-leg arm counts: auto 4'-5' rule, or the manual override distributed across legs by width (per Mike 08/05/26)
-      let per = legs.map(l=>Math.ceil(l.w/5)+1);
-      if(s0.arms>0){
-        const totW = legs.reduce((a,l)=>a+l.w,0)||1;
-        per = legs.map(l=>Math.max(1, Math.floor(s0.arms*l.w/totW)));
-        let rem = s0.arms - per.reduce((a,b)=>a+b,0);
-        const order = legs.map((l,i)=>i).sort((a,b)=>legs[b].w-legs[a].w);
-        let g = 0;
-        while(rem>0){ per[order[g%order.length]]++; rem--; g++; }
-        while(rem<0){ const j = order[order.length-1-(g%order.length)]; if(per[j]>1){ per[j]--; rem++; } g++; if(g>64) break; }
-      }
+    { // per-leg arm counts — same shared rule as the margin engine (auto 4'-5' or manual override)
+      const per = _rodPerLeg(legs, s0.arms||0);
       legs.forEach((l,i)=>{ for(let k=0;k<per[i];k++){ tp.push(l.p+3); rbB.push(l.p); } });
     }
     tp = X(tp); rbB = X(rbB); nRods = tp.length;
@@ -3310,6 +3301,22 @@ function _cmFfd(pieces, stock){
 }
 // True cost for one canopy line item (all qty). Also returns an itemized `lines` cut sheet
 // built from the SAME math, so the breakdown can never disagree with the margin number.
+// Per-leg tie-rod counts: auto = one per 4'-5' of width (+1); a manual override (spec.arms
+// 2–16, per Mike 08/05/26) is distributed across legs by width. Shared by the margin engine,
+// the shop BOM sheet, and the drawings so every count agrees.
+function _rodPerLeg(legs, arms){
+  let per = legs.map(l=>Math.ceil(l.w/5)+1);
+  if(arms>0){
+    const totW = legs.reduce((a,l)=>a+l.w,0)||1;
+    per = legs.map(l=>Math.max(1, Math.floor(arms*l.w/totW)));
+    let rem = arms - per.reduce((a,b)=>a+b,0);
+    const order = legs.map((l,i)=>i).sort((a,b)=>legs[b].w-legs[a].w);
+    let g = 0;
+    while(rem>0){ per[order[g%order.length]]++; rem--; g++; }
+    while(rem<0 && g<64){ const j = order[order.length-1-(g%order.length)]; if(per[j]>1){ per[j]--; rem++; } g++; }
+  }
+  return per;
+}
 function canopyTrueCost(spec, mode){
   mode = mode || CM_COST_MODE;   // 'stick' = whole-stick purchasing (default) · 'prop' = lineal-foot proportional
   if(!spec) return {material:0,labor:0,finish:0,freight:0,cost:0,sqft:0,lines:[],qty:1,framingPU:0,miscPU:0,dsPU:0,ccPU:0};
@@ -3368,7 +3375,8 @@ function canopyTrueCost(spec, mode){
   }
   let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
   if((spec.attach||'')==='tierod'){
-    let tp=[], rbAll=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/5)+1; for(let k=0;k<n;k++){ tp.push(l.p+3); rbAll.push(l.p); } /* arms @ 4'-5' o.c. per Mike */ });
+    const rodPer = _rodPerLeg(legs, spec.arms||0);   // manual arm override flows into cost (per Mike 08/05/26)
+    let tp=[], rbAll=[]; legs.forEach((l,li)=>{ const n=rodPer[li]; for(let k=0;k<n;k++){ tp.push(l.p+3); rbAll.push(l.p); } });
     framingPU += stick('Tie-rods (1" Sch40)', CM.tierod1.sku, tp, `${tp.length*qty} rods @ ${(legs[0].p+3).toFixed(1)}′`);
     framingPU += stick('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2), `${tp.length*qty} sleeves × 2′`);
     // canopy top plates — one per rod (per Mike): 5×6×¼ on 6"/8" face · 2×5×¼ on 10"/12"
@@ -3388,7 +3396,7 @@ function canopyTrueCost(spec, mode){
   // all-thread jobs anchor straight into blocking — no wall plates bought (3903/3943 PTLs).
   const platesPerBar = CM.plate.platesPerUnit;
   const platePer = emsStick(CM.plate.sku)/platesPerBar;
-  const plateN = (spec.attach||'')==='tierod' ? (Math.ceil(legs.reduce((a,l)=>a+Math.ceil(l.w/5)+1,0))) : 0;
+  const plateN = (spec.attach||'')==='tierod' ? _rodPerLeg(legs, spec.arms||0).reduce((a,b)=>a+b,0) : 0;   // 1/rod — follows the manual arm override
   if(plateN>0){
     const plateCost = plateN*platePer;
     lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${plateN*qty} plates (1/rod) · ${platesPerBar}/bar`, qtyText:(plateN*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });

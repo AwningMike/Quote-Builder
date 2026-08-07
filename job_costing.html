@@ -92,7 +92,7 @@
     <table class="list" id="can-table">
       <thead><tr>
         <th>Label</th><th>Width (ft)</th><th>Proj (ft)</th><th>Fascia</th><th>Qty</th>
-        <th>Attach</th><th>Downspouts</th><th>C-Chan (ft)</th><th>Outriggers</th><th class="num">Material</th><th></th>
+        <th>Attach</th><th>Arms</th><th>Downspouts</th><th>C-Chan (ft)</th><th>Outriggers</th><th class="num">Material</th><th></th>
       </tr></thead>
       <tbody id="can-body"></tbody>
     </table>
@@ -305,7 +305,7 @@ function piecesForSpec(s){
   const pts=Math.ceil(W/2)+1;
   let nRod=0;
   if((s.attach||'tierod')==='tierod'){
-    nRod=Math.ceil(W/5)+1;   // arms @ 4'-5' o.c. (per Mike)
+    nRod=(+s.arms>0) ? Math.round(+s.arms) : Math.ceil(W/5)+1;   // manual override (2–16, per Mike 08/05/26) or auto 4'-5' o.c. — matches Quote Builder
     add(CM.tierod1.sku,'Tie-rods (1″ Sch40)', Array(nRod).fill(P+3));
     add(CM.sleeve125.sku,'Tie-rod sleeves (1½″ Sch40 × 2′)', Array(nRod).fill(2));
     if(face>=12) add(CM.rodbar22.sku,'2×2×¼ rod support bars (1/rod, front-to-back)', Array(nRod).fill(P));   // 12" face (per Mike)
@@ -358,7 +358,7 @@ let seq=1;
 const LSK='apmg_job_costing_v1';
 
 function addCanopy(pre){
-  canopies.push(Object.assign({id:seq++,label:'Canopy '+seq, W:20,P:4,face:8,qty:1,attach:'tierod',ds:0,cc:0,outrig:0}, pre||{}));
+  canopies.push(Object.assign({id:seq++,label:'Canopy '+seq, W:20,P:4,face:8,qty:1,attach:'tierod',arms:0,ds:0,cc:0,outrig:0}, pre||{}));
   renderCanopies(); recalc();
 }
 function delCanopy(id){ canopies=canopies.filter(c=>c.id!==id); renderCanopies(); recalc(); }
@@ -366,7 +366,7 @@ function upd(id,key,val){ const c=canopies.find(x=>x.id===id); if(!c) return; c[
 
 function renderCanopies(){
   const tb=document.getElementById('can-body');
-  if(!canopies.length){ tb.innerHTML='<tr><td colspan="11" class="empty">No canopies yet — hit ＋ Add Canopy.</td></tr>'; return; }
+  if(!canopies.length){ tb.innerHTML='<tr><td colspan="12" class="empty">No canopies yet — hit ＋ Add Canopy.</td></tr>'; return; }
   tb.innerHTML=canopies.map(c=>`<tr>
     <td style="min-width:120px"><input value="${(c.label||'').replace(/"/g,'&quot;')}" oninput="upd(${c.id},'label',this.value)"></td>
     <td style="width:80px"><input type="number" min="1" step="0.5" value="${c.W}" oninput="upd(${c.id},'W',this.value)"></td>
@@ -377,6 +377,9 @@ function renderCanopies(){
     <td style="width:110px"><select onchange="upd(${c.id},'attach',this.value)">
       <option value="tierod" ${c.attach==='tierod'?'selected':''}>Tie-rod</option>
       <option value="allthread" ${c.attach!=='tierod'?'selected':''}>All-thread</option></select></td>
+    <td style="width:86px"><select onchange="upd(${c.id},'arms',this.value)" title="Tie-rod arms per canopy — Auto = one per 4'-5' of width">
+      <option value="0" ${!(+c.arms>0)?'selected':''}>Auto</option>
+      ${Array.from({length:15},(_,i)=>i+2).map(n=>`<option value="${n}" ${+c.arms===n?'selected':''}>${n}</option>`).join('')}</select></td>
     <td style="width:70px"><input type="number" min="0" step="1" value="${c.ds}" oninput="upd(${c.id},'ds',this.value)"></td>
     <td style="width:80px"><input type="number" min="0" step="1" value="${c.cc}" oninput="upd(${c.id},'cc',this.value)"></td>
     <td style="width:70px"><input type="number" min="0" step="1" value="${c.outrig}" oninput="upd(${c.id},'outrig',this.value)"></td>
@@ -637,7 +640,7 @@ function parseDXF(raw, fname){
       document.getElementById('j-no').value=s.job||'';
       canopies=[]; seq=1;
       addCanopy({label:(s.cust||'Canopy')+' 1', W:+s.W||20, P:+s.P||4, face:+s.face||8, qty:+s.qty||1,
-                 attach:(s.attach==='tierod'?'tierod':'allthread'), ds:0, cc:0, outrig:0});
+                 attach:(s.attach==='tierod'?'tierod':'allthread'), arms:(+s.arms||0), ds:0, cc:0, outrig:0});
       handed=true;
     }
   }catch(e){}
