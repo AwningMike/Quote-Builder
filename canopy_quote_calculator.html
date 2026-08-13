@@ -2575,6 +2575,7 @@ function renderFabricAwning(){
         ${ftInField('fb-height','Height (spec only)')}
         <div class="field"><label>Quantity (identical units)</label><input type="number" id="fb-qty" value="1" min="1" step="1"></div>
       </div>
+      <div class="field"><label>Sign panel height (inches) <span style="text-transform:none;font-weight:400;">(spec only — leave blank if no sign panel)</span></label><input type="number" id="fb-signpanel" min="0" step="0.5" placeholder="e.g. 12"></div>
       <div class="checkline"><input type="checkbox" id="fb-posts-on" onchange="computeFabric()"><label for="fb-posts-on">Add Posts ($650 ea)</label></div>
       <div class="field" id="fb-posts-wrap" style="display:none;"><label>Posts (qty)</label><input type="number" id="fb-posts" value="0" min="0"></div>
       <div class="field"><label>Job / item label</label><input type="text" id="fb-name" placeholder="e.g. Storefront fabric awning"></div>
@@ -2618,7 +2619,9 @@ function addFabricToQuote(){
     amount:Math.ceil(r.materialsTotal), labor:Math.ceil(r.labor), group:document.getElementById('fb-group').value || 'Fabric Awnings',
     postsCost: Math.ceil(r.postsCost), postsQty: r.postsQty,
     type: 'fabric',
-    spec: { qty: r.qty, widthStr: ftInLabel('fb-width'), projStr: ftInLabel('fb-proj'), heightStr: ftInLabel('fb-height'), postsPerUnit: r.postsQty }
+    spec: { qty: r.qty, widthStr: ftInLabel('fb-width'), projStr: ftInLabel('fb-proj'), heightStr: ftInLabel('fb-height'),
+            signPanelIn: parseFloat((document.getElementById('fb-signpanel')||{}).value)||0,   // sign panel height, inches (spec only — per Mike 08/10/26)
+            postsPerUnit: r.postsQty }
   });
   renderQuote();
 }
@@ -3732,6 +3735,7 @@ function buildSpecLines(i, height){
     lines.push(`  W: ${i.spec.widthStr}`);
     lines.push(`  P: ${i.spec.projStr}`);
     lines.push(`  H: ${i.spec.heightStr || height}`);
+    if(i.spec.signPanelIn>0) lines.push(`  Sign Panel: ${i.spec.signPanelIn}"`);
   }
   return lines;
 }
