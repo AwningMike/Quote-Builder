@@ -3884,11 +3884,77 @@ function serializeForCurrentBase(){
   fields[F.salePrice] = grand;
   fields[F.address]   = addrParts;
   fields[F.gc]        = _atHdr('hdr-gc');
-  fields[F.detailsLog]= `TOTAL: $${grand.toLocaleString()}\n\n${log}\n\n— uploaded from APMG Quote Builder`;
+  const qbLog = `TOTAL: $${grand.toLocaleString()}\n\n${log}\n\n— uploaded from APMG Quote Builder ${new Date().toLocaleDateString()}`;
+  fields[F.detailsLog]= composeDetailsLog('', qbLog);
   if(isIndiana) fields[F.indiana] = true;
   // Save the full editable quote state so this bid can be reopened & edited later from Airtable.
   try { if(F.qbState) fields[F.qbState] = JSON.stringify(captureQuoteState()); } catch(e){}
-  return { projName, grand, fields };
+  return { projName, grand, fields, qbLog };
+}
+
+/* ---- v90: CLOSE-NAME MATCHING on upload ----
+   The bid was usually entered in Airtable from the bid invite BEFORE the quote was
+   built, and the names rarely match letter-for-letter ("Crunch Fitness — Melrose
+   Park" vs "Crunch - Melrose Park, IL"). So on upload we look for the existing
+   record by exact name first, then by close name, and ADD the quote to it instead
+   of creating a duplicate project. The quote block is appended to the project log
+   (bid notes / plan links stay), and re-uploads replace only the quote block. */
+const QB_LOG_MARK = '───── QUOTE (from Quote Builder — replaced on each upload) ─────';
+function composeDetailsLog(existingLog, qbLog){
+  let kept = '';
+  if(existingLog){
+    let t = String(existingLog);
+    const i = t.indexOf(QB_LOG_MARK);
+    if(i >= 0) t = t.slice(0, i);                                   // drop the previous quote block
+    else if(/^TOTAL: \$/.test(t.trim()) && t.indexOf('uploaded from APMG Quote Builder') >= 0) t = ''; // legacy log that WAS only a QB upload
+    kept = t.trimEnd();
+  }
+  return (kept ? kept + '\n\n' : '') + QB_LOG_MARK + '\n' + qbLog;
+}
+function _projTokens(name){
+  const STOP = new Set(['the','and','of','at','in','on','a','an','for','to','llc','inc','co','project','job','bid']);
+  return String(name||'').toLowerCase()
+    .replace(/[&+]/g,' and ').replace(/['’]/g,'')
+    .replace(/[^a-z0-9]+/g,' ')
+    .split(' ').filter(t => t && !STOP.has(t));
+}
+// 0..1 — how close two project names are (share of the SHORTER name's words found in the other)
+function _namesClose(aName, bName){
+  const A = [...new Set(_projTokens(aName))], B = [...new Set(_projTokens(bName))];
+  if(!A.length || !B.length) return 0;
+  const sb = new Set(B);
+  let shared = 0, strong = 0;
+  A.forEach(t => { if(sb.has(t)){ shared++; if(t.length>=3 || /\d/.test(t)) strong++; } });
+  let score = shared / Math.min(A.length, B.length);
+  if(A.join(' ').indexOf(B.join(' '))>=0 || B.join(' ').indexOf(A.join(' '))>=0) score = Math.max(score, 0.95);
+  if(!strong) score = Math.min(score, 0.4);    // only short/common words in common — not a real match
+  return score;
+}
+async function findCloseProjectMatch(projName, url, H){
+  const F = CURRENT_BASE_CFG.fields;
+  const pick = `&returnFieldsByFieldId=true&fields%5B%5D=${F.project}&fields%5B%5D=${F.status}&fields%5B%5D=${F.detailsLog}`;
+  const grab = r => ({ id:r.id, name:(r.fields&&r.fields[F.project])||'', status:(r.fields&&r.fields[F.status])||'', log:(r.fields&&r.fields[F.detailsLog])||'' });
+  // 1) exact name (old upsert behavior)
+  try{
+    const q = await fetch(`${url}?maxRecords=1&filterByFormula=`+encodeURIComponent(`{Project}=`+JSON.stringify(projName))+pick, { headers:H }).then(r=>r.json());
+    if(q.records && q.records[0]) return Object.assign({ type:'exact' }, grab(q.records[0]));
+  }catch(e){}
+  // 2) close name — pull records sharing any distinctive word, score them here
+  try{
+    const key = [...new Set(_projTokens(projName).filter(t=>t.length>=3 || /\d/.test(t)))]
+      .sort((a,b)=>b.length-a.length).slice(0,5);
+    if(!key.length) return null;
+    const conds = key.map(t=>`FIND(${JSON.stringify(t)}, LOWER({Project}&""))`);
+    const formula = conds.length>1 ? `OR(${conds.join(',')})` : conds[0];
+    const q = await fetch(`${url}?maxRecords=40&filterByFormula=`+encodeURIComponent(formula)+pick, { headers:H }).then(r=>r.json());
+    let best=null, bestScore=0;
+    (q.records||[]).forEach(r=>{
+      const sc = _namesClose(projName, (r.fields&&r.fields[F.project])||'');
+      if(sc>bestScore){ bestScore=sc; best=r; }
+    });
+    if(best && bestScore>=0.6) return Object.assign({ type:'close', score:bestScore }, grab(best));
+  }catch(e){}
+  return null;
 }
 async function pushToCurrentBase(){
   const token = _atToken();
@@ -3898,19 +3964,27 @@ async function pushToCurrentBase(){
   const base = CURRENT_BASE_CFG.baseId, tbl = CURRENT_BASE_CFG.table, F = CURRENT_BASE_CFG.fields;
   const url = `https://api.airtable.com/v0/${base}/${tbl}`;
   const H = { 'Authorization':'Bearer '+token, 'Content-Type':'application/json' };
-  if(!confirm(`Upload to CURRENT base (APMG → Projects)?\n\nProject: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\nQuote PDF will be attached.\n\nOn a NEW project it also sets:\n• Status: ${CURRENT_BASE_CFG.defaultStatus}\n• Company: ${_atHdr('hdr-company')||'SA'}\n• PM: Mike Sommer\n• Service: ${serviceFromQuote().join(', ')||'—'}\n\nCreates the project if new, updates it if the name already exists.`)) return;
+  // v90 — find the bid's existing record FIRST (exact name, then close name) so the
+  // quote lands on the project already entered from the bid invite, not a duplicate.
+  let target = null;
+  try { target = await findCloseProjectMatch(p.projName, url, H); } catch(e){}
+  if(target && target.type==='close'){
+    if(!confirm(`This bid looks like it's already in the base as:\n\n   “${target.name}”${target.status?`  (Status: ${target.status})`:''}\n\nAdd this quote to that existing project? (recommended — avoids a duplicate)\n\nOK = add quote to “${target.name}”\nCancel = it's a DIFFERENT job — create “${p.projName}” as a new project`)) target = null;
+  }
+  if(!confirm(target
+    ? `Upload to CURRENT base (APMG → Projects)?\n\nUPDATING existing project: ${target.name}${target.status?`\nStatus stays: ${target.status}`:''}\nSale Price: $${p.grand.toLocaleString()}\nQuote PDF attached · quote added to the project log (bid notes kept).`
+    : `Upload to CURRENT base (APMG → Projects)?\n\nNEW project: ${p.projName}\nSale Price: $${p.grand.toLocaleString()}\nQuote PDF will be attached.\n\nIt also sets:\n• Status: ${CURRENT_BASE_CFG.defaultStatus}\n• Company: ${_atHdr('hdr-company')||'SA'}\n• PM: Mike Sommer\n• Service: ${serviceFromQuote().join(', ')||'—'}`)) return;
   try {
-    // find an existing Projects record with this exact name (upsert by Project)
-    let existingId = null, existingStatus = '';
-    try {
-      const formula = `{Project}=` + JSON.stringify(p.projName);   // JSON.stringify → valid Airtable string literal
-      const q = await fetch(`${url}?maxRecords=1&filterByFormula=`+encodeURIComponent(formula), { headers:H }).then(r=>r.json());
-      const ex = q.records && q.records[0];
-      if(ex){ existingId = ex.id; existingStatus = (ex.fields && ex.fields['Status']) || ''; }
-    } catch(e){}
     const fields = Object.assign({}, p.fields);
-    // Status / Company / PM are set only when CREATING — never overwrite a bid you've already moved/edited
-    if(!existingId){
+    if(target){
+      // ADDING the quote to an existing bid record:
+      // keep their project name on a close match, never blank out fields they filled in,
+      // and APPEND the quote block to the log (bid notes / plan links stay put).
+      if(target.type==='close') delete fields[F.project];
+      Object.keys(fields).forEach(k=>{ if(fields[k]==null || fields[k]==='') delete fields[k]; });
+      fields[F.detailsLog] = composeDetailsLog(target.log, p.qbLog);
+    } else {
+      // Status / Company / PM are set only when CREATING — never overwrite a bid you've already moved/edited
       fields[F.status]  = CURRENT_BASE_CFG.defaultStatus;
       const company = _atHdr('hdr-company') || 'SA';
       if(company) fields[F.company] = company;
@@ -3918,13 +3992,13 @@ async function pushToCurrentBase(){
       const svc = serviceFromQuote(); if(svc.length) fields[F.service] = svc;
     }
     let resp;
-    if(existingId){
-      resp = await fetch(url, { method:'PATCH', headers:H, body: JSON.stringify({ records:[{ id:existingId, fields }], typecast:true }) }).then(r=>r.json());
+    if(target){
+      resp = await fetch(url, { method:'PATCH', headers:H, body: JSON.stringify({ records:[{ id:target.id, fields }], typecast:true }) }).then(r=>r.json());
     } else {
       resp = await fetch(url, { method:'POST',  headers:H, body: JSON.stringify({ records:[{ fields }], typecast:true }) }).then(r=>r.json());
     }
     if(resp.error){ alert('Upload failed: '+(resp.error.message||JSON.stringify(resp.error))); return; }
-    const recId = existingId || (resp.records && resp.records[0] && resp.records[0].id);
+    const recId = (target && target.id) || (resp.records && resp.records[0] && resp.records[0].id);
     // drop the quote PDF into the Quote attachment field
     let pdfNote = '';
     if(recId){
@@ -3937,7 +4011,7 @@ async function pushToCurrentBase(){
     if(ml.ok) marginNote = `\n• Margin logged: ${ml.marginPct.toFixed(1)}% material`;
     else if(ml.error) marginNote = '\n• Margin log NOT written: '+ml.error;
     const svc = serviceFromQuote();
-    alert(`Uploaded to current base ✓\n${p.projName} — $${p.grand.toLocaleString()}\n(${existingId ? 'updated existing project'+(existingStatus?` · status kept: ${existingStatus}`:'') : 'new project · Status '+CURRENT_BASE_CFG.defaultStatus+' · Service: '+(svc.join(', ')||'—')})${pdfNote}${marginNote}`);
+    alert(`Uploaded to current base ✓\n${(target && target.name) || p.projName} — $${p.grand.toLocaleString()}\n(${target ? (target.type==='close' ? 'quote added to existing project (matched by name)' : 'updated existing project')+(target.status?` · status kept: ${target.status}`:'') : 'new project · Status '+CURRENT_BASE_CFG.defaultStatus+' · Service: '+(svc.join(', ')||'—')})${pdfNote}${marginNote}`);
   } catch(err){
     alert('Upload failed: '+err.message+'\n(Check your token has write access to the APMG base.)');
   }
