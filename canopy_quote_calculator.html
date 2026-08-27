@@ -344,7 +344,7 @@
             <input type="text" id="extra-color" value="TBD">
           </div>
           <div class="field">
-            <label>Ohio County Tax (if job ships to Ohio)</label>
+            <label>Ohio County Tax (if job ships to Ohio — applies to every line item)</label>
             <select id="extra-ohio-county" onchange="renderQuote()">
               <option value="0">None / Not Ohio</option>
             </select>
@@ -3653,7 +3653,9 @@ function renderQuote(){
   const ohioRate = parseFloat(document.getElementById('extra-ohio-county').value)||0;
   const taxOn = document.getElementById('extra-tax').checked || ohioRate>0;
   const taxRatePercent = ohioRate>0 ? ohioRate : 7;
-  const tax = taxOn ? Math.ceil(taxableMaterials*(taxRatePercent/100)) : 0; // tax on ALL product materials (canopies, standing seam, fabric, downspouts, lights, posts) — not labor/extras
+  const taxAllLines = ohioRate>0; // OHIO: sales tax applies to EVERY line item (materials, install, survey, lift, engineering). Indiana: materials only.
+  const taxBase = taxAllLines ? (taxableMaterials + installation + survey + lift + stamped) : taxableMaterials;
+  const tax = taxOn ? Math.ceil(taxBase*(taxRatePercent/100)) : 0;
   const total = taxableMaterials + installation + survey + lift + stamped + tax; // sum of already-rounded parts — always reconciles
 
   document.getElementById('q-downspouts-row').style.display = downspoutsTotal>0 ? 'flex' : 'none';
@@ -3689,7 +3691,7 @@ function renderQuote(){
     })(),
     hasNonCanopy: quoteItems.some(i=>i.type && i.type!=='canopy'),
     downspoutsTotal, downspoutsQty, lightsTotal, lightsQty, postsTotal, postsQty,
-    laborSubtotal, deliveryCost, installation, survey, lift, stamped, taxOn, taxRatePercent, tax, total
+    laborSubtotal, deliveryCost, installation, survey, lift, stamped, taxOn, taxRatePercent, taxAllLines, tax, total
   };
 }
 let lastQuoteSummary = null;
@@ -4395,7 +4397,8 @@ function buildActivityRows(s, color, height){
   const rows = [];
   const stampedAmt = parseFloat(document.getElementById('extra-stamped').value)||1250;
 
-  if(s.survey>0) rows.push({ label:'Survey / PM', desc:'', amt: fmtDecimal(s.survey), taxed:false });
+  // Ohio jobs (s.taxAllLines): sales tax applies to EVERY line item, so service lines carry the T marker too.
+  if(s.survey>0) rows.push({ label:'Survey / PM', desc:'', amt: fmtDecimal(s.survey), taxed: !!s.taxAllLines });
 
   const individualCanopy = document.getElementById('extra-individual-items').checked;
 
@@ -4473,13 +4476,13 @@ function buildActivityRows(s, color, height){
 
   // Installation and delivery are always combined into ONE "Installation" line (labor + mileage),
   // for every quote type — matching how canopy-only quotes already read.
-  rows.push({ label:'Installation', desc:'', amt: fmtDecimal(s.installation), taxed:false });
+  rows.push({ label:'Installation', desc:'', amt: fmtDecimal(s.installation), taxed: !!s.taxAllLines });
   if(s.hasNonCanopy){
-    rows.push({ label:'Engineering - If needed '+fmt(stampedAmt), desc:'', amt: fmtDecimal(s.stamped), taxed:false });
+    rows.push({ label:'Engineering - If needed '+fmt(stampedAmt), desc:'', amt: fmtDecimal(s.stamped), taxed: !!s.taxAllLines });
   } else {
-    if(s.stamped>0) rows.push({ label:'Stamped Engineering', desc:'', amt: fmtDecimal(s.stamped), taxed:false });
+    if(s.stamped>0) rows.push({ label:'Stamped Engineering', desc:'', amt: fmtDecimal(s.stamped), taxed: !!s.taxAllLines });
   }
-  if(s.lift>0) rows.push({ label:'Lift Rental -- Waived if lift is provided', desc:'', amt: fmtDecimal(s.lift), taxed:false });
+  if(s.lift>0) rows.push({ label:'Lift Rental -- Waived if lift is provided', desc:'', amt: fmtDecimal(s.lift), taxed: !!s.taxAllLines });
 
   return rows;
 }
