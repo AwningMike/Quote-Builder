@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APMG Email Signature Builder</title>
+<style>
+  :root{ --red:#C8102E; --blue:#1B3E8C; --ink:#333; --line:#e3e3e3; }
+  *{box-sizing:border-box}
+  body{ margin:0; font-family:Arial,Helvetica,sans-serif; background:#f4f5f7; color:var(--ink); }
+  header{ background:#fff; border-bottom:4px solid var(--red); padding:18px 24px; }
+  header h1{ margin:0; font-size:20px; color:var(--blue); }
+  header p{ margin:4px 0 0; font-size:13px; color:#666; }
+  .wrap{ max-width:980px; margin:24px auto; padding:0 16px; display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:20px; }
+  .form{ flex:1 1 300px; min-width:280px; }
+  .prev{ flex:1 1 420px; min-width:320px; }
+  label{ display:block; font-size:12px; font-weight:bold; letter-spacing:.5px; color:#555; margin:14px 0 4px; text-transform:uppercase; }
+  label:first-of-type{ margin-top:0; }
+  input{ width:100%; padding:9px 10px; font-size:14px; border:1px solid #ccc; border-radius:5px; font-family:inherit; }
+  input:focus{ outline:2px solid var(--blue); border-color:var(--blue); }
+  .hint{ font-size:11px; color:#888; margin-top:3px; }
+  .prev h2, .form h2{ margin:0 0 14px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:#888; }
+  #sig-box{ border:1px dashed #ccc; border-radius:6px; padding:18px; background:#fff; overflow-x:auto; }
+  .btnrow{ margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; }
+  button{ padding:10px 18px; font-size:14px; font-weight:bold; border:0; border-radius:6px; cursor:pointer; }
+  #copy-btn{ background:var(--blue); color:#fff; }
+  #copy-btn:hover{ background:#16327a; }
+  .ok{ background:#1a7f37 !important; }
+  .steps{ margin-top:18px; font-size:13px; color:#555; line-height:1.6; border-top:1px solid var(--line); padding-top:14px; }
+  .steps b{ color:var(--ink); }
+</style>
+</head>
+<body>
+<header>
+  <h1>APMG Email Signature Builder</h1>
+  <p>Fill in your info, then copy the signature into Outlook. Awning Partners Manufacturing Group.</p>
+</header>
+<div class="wrap">
+  <div class="card form">
+    <h2>Your info</h2>
+    <label for="f-name">Full name</label>
+    <input id="f-name" value="Mike Sommer" autocomplete="name">
+    <label for="f-title">Title</label>
+    <input id="f-title" value="Vice President" placeholder="e.g. Project Manager">
+    <label for="f-dept">Department / area (optional)</label>
+    <input id="f-dept" value="Sales" placeholder="e.g. Sales, Estimating, Production">
+    <div class="hint">Shows after the red divider: TITLE | DEPARTMENT</div>
+    <label for="f-mobile">Mobile (optional)</label>
+    <input id="f-mobile" value="(317) 677-2241" placeholder="(317) 555-1234">
+    <label for="f-office">Office phone (optional)</label>
+    <input id="f-office" value="" placeholder="(317) 555-1234">
+    <label for="f-email">Email (optional)</label>
+    <input id="f-email" value="" placeholder="you@awningpartners.com">
+  </div>
+  <div class="card prev">
+    <h2>Preview</h2>
+    <div id="sig-box"></div>
+    <div class="btnrow">
+      <button id="copy-btn" onclick="copySig()">Copy signature</button>
+    </div>
+    <div class="steps">
+      <b>To put it in Outlook:</b> click <b>Copy signature</b>, then in Outlook go to
+      Settings (gear) &rarr; Account &rarr; <b>Signatures</b>, click <b>+ New signature</b>
+      (or edit an existing one), click inside the signature box and press <b>Ctrl+V</b>, then <b>Save</b>.
+      Set it as your default for new messages and replies if you want it added automatically.
+    </div>
+  </div>
+</div>
+<script>
+const LOGO = "data:image/png;base64,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";
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function digits(s){ return s.replace(/[^0-9+]/g,''); }
+function buildSig(){
+  const name = esc(document.getElementById('f-name').value.trim() || 'Your Name');
+  const title = esc(document.getElementById('f-title').value.trim());
+  const dept = esc(document.getElementById('f-dept').value.trim());
+  const mobile = document.getElementById('f-mobile').value.trim();
+  const office = document.getElementById('f-office').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  let titleLine = '';
+  const tUp = title.toUpperCase().replace(/ /g,'&nbsp;');
+  const dUp = dept.toUpperCase().replace(/ /g,'&nbsp;');
+  if (title && dept) titleLine = tUp + '&nbsp;<span style="color:#C8102E;">|</span>&nbsp;' + dUp;
+  else titleLine = tUp || dUp;
+  let rows = '';
+  if (mobile) rows += '<div style="font-size:13px;line-height:17px;color:#333333;padding-top:8px;"><span style="font-weight:bold;color:#C8102E;">M</span>&nbsp;&nbsp;<a href="tel:' + digits(mobile) + '" style="color:#333333;text-decoration:none;">' + esc(mobile) + '</a></div>';
+  if (office) rows += '<div style="font-size:13px;line-height:17px;color:#333333;padding-top:' + (mobile ? '2px' : '8px') + ';"><span style="font-weight:bold;color:#C8102E;">O</span>&nbsp;&nbsp;<a href="tel:' + digits(office) + '" style="color:#333333;text-decoration:none;">' + esc(office) + '</a></div>';
+  if (email) rows += '<div style="font-size:13px;line-height:17px;padding-top:' + ((mobile||office) ? '2px' : '8px') + ';"><span style="font-weight:bold;color:#C8102E;">E</span>&nbsp;&nbsp;<a href="mailto:' + esc(email) + '" style="color:#333333;text-decoration:none;">' + esc(email) + '</a></div>';
+  return '<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;border-collapse:collapse;"><tr>'
+    + '<td align="left" style="border-left:4px solid #C8102E;padding:2px 0 2px 14px;text-align:left;">'
+    + '<div style="font-size:18px;line-height:22px;font-weight:bold;color:#1B3E8C;">' + name + '</div>'
+    + (titleLine ? '<div style="font-size:12px;line-height:16px;color:#333333;letter-spacing:1px;padding-top:3px;">' + titleLine + '</div>' : '')
+    + rows
+    + '<div style="padding-top:14px;"><a href="https://www.awningpartnersmanufacturinggroup.com" target="_blank" style="text-decoration:none;"><img src="' + LOGO + '" width="330" height="63" alt="APMG - Awning Partners Manufacturing Group" style="border:0;display:block;"></a></div>'
+    + '</td></tr></table>';
+}
+function render(){ document.getElementById('sig-box').innerHTML = buildSig(); }
+async function copySig(){
+  const html = buildSig();
+  const btn = document.getElementById('copy-btn');
+  try {
+    const blob = new Blob([html], {type:'text/html'});
+    const txt = new Blob([document.getElementById('sig-box').innerText], {type:'text/plain'});
+    await navigator.clipboard.write([new ClipboardItem({'text/html': blob, 'text/plain': txt})]);
+    btn.textContent = 'Copied - paste into Outlook'; btn.classList.add('ok');
+  } catch(e) {
+    // fallback: select the preview so the user can Ctrl+C
+    const box = document.getElementById('sig-box');
+    const range = document.createRange(); range.selectNodeContents(box);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    try { document.execCommand('copy'); btn.textContent = 'Copied - paste into Outlook'; btn.classList.add('ok'); }
+    catch(e2){ btn.textContent = 'Press Ctrl+C to copy'; }
+  }
+  setTimeout(()=>{ btn.textContent='Copy signature'; btn.classList.remove('ok'); }, 3000);
+}
+document.querySelectorAll('input').forEach(i => i.addEventListener('input', render));
+render();
+</script>
+</body>
+</html>
