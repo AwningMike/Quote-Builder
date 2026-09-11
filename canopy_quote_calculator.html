@@ -502,6 +502,7 @@ let itemSeq = 1;
 const SECTIONS = [
   { id:'canopy8', label:'8" Face Canopy' },
   { id:'canopy12', label:'12" Face Canopy' },
+  { id:'patio', label:'Patio / Railing' },
   { id:'standingSeam', label:'Standing Seam' },
   { id:'fabric', label:'Fabric' },
   { id:'sunshade', label:'Sunshade' },
@@ -891,6 +892,163 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
       armHeightIn: (parseFloat((document.getElementById('c-armft')||{}).value)||5)*12 + (parseFloat((document.getElementById('c-armin')||{}).value)||0),
       arms: parseInt((document.getElementById('c-arms')||{}).value,10)||0   // 0 = auto (4'-5' rule); 2–16 = manual drawing callout (per Mike 08/05/26)
     }
+  });
+  renderQuote();
+}
+
+/* ---------------- PATIO CANOPY / RAILING (custom-priced section — per Mike 09/11/26) ----------------
+   No auto-rating here: Mike types HIS manufacturing $ and install $ per unit.
+   Layout mirrors the 8"/12" canopy form (W/P ft-in, qty, accessories, group, breakdown). */
+let patioProduct = 'canopy';   // 'canopy' | 'railing'
+
+function renderPatioSection(){
+  const area = document.getElementById('calc-area');
+  area.innerHTML = `
+    <div class="card inputs">
+      <h2>Patio — Custom Priced</h2>
+      <div class="sub">Pick the product, enter sizes, then type YOUR manufacturing and install price per unit — nothing auto-rates in this section. Delivery mileage is still entered once for the whole job in the Quote panel.</div>
+      <div class="field"><label>Product</label>
+        <select id="p-product">
+          <option value="canopy"${patioProduct==='canopy'?' selected':''}>Metal Patio Canopy</option>
+          <option value="railing"${patioProduct==='railing'?' selected':''}>Patio Railing</option>
+        </select>
+      </div>
+      <div id="p-form"></div>
+    </div>
+  `;
+  document.getElementById('p-product').addEventListener('change', (e)=>{ patioProduct = e.target.value; renderPatioForm(); });
+  renderPatioForm();
+}
+
+function renderPatioForm(){
+  const mount = document.getElementById('p-form');
+  if(patioProduct==='canopy'){
+    mount.innerHTML = `
+      <div class="grid2">
+        ${ftInField('p-width','Width')}
+        ${ftInField('p-proj','Projection')}
+      </div>
+      <div class="field"><label>Quantity (identical units)</label><input type="number" id="p-qty" value="1" min="1" step="1"></div>
+      <div class="grid2">
+        <div class="field"><label>Manufacturing $ <span style="text-transform:none;font-weight:400;">(per unit — your price)</span></label><input type="number" id="p-mfg" value="0" min="0" step="1"></div>
+        <div class="field"><label>Install $ <span style="text-transform:none;font-weight:400;">(per unit — your price)</span></label><input type="number" id="p-install" value="0" min="0" step="1"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>Lights (qty · $275 ea)</label><input type="number" id="p-lights" value="0" min="0"></div>
+        <div class="field"><label>Downspouts (qty · $650 ea)</label><input type="number" id="p-downspout" value="0" min="0"></div>
+        <div class="field"><label>Posts (qty · $650 ea)</label><input type="number" id="p-posts" value="0" min="0"></div>
+      </div>
+      <div class="field"><label>Job / item label</label><input type="text" id="p-name" placeholder="e.g. Rear patio canopy"></div>
+      <div class="field"><label>Quote Group / Line Item — items given the same group print as ONE line</label><input type="text" id="p-group" value="Metal Patio Canopy - Fully welded construction"></div>
+      <div class="breakdown" id="p-breakdown"></div>
+      <button class="btn" id="p-add-btn">Add to Quote</button>
+      <button class="btn ghost" type="button" onclick="renderCalc()">Clear Form</button>
+    `;
+    bindFtIn('p-width', computePatio); bindFtIn('p-proj', computePatio);
+    ['p-qty','p-mfg','p-install','p-lights','p-downspout','p-posts'].forEach(id=>document.getElementById(id).addEventListener('input', computePatio));
+    document.getElementById('p-add-btn').addEventListener('click', addPatioCanopyToQuote);
+  } else {
+    mount.innerHTML = `
+      <div class="grid2">
+        ${ftInField('p-len','Railing length (run)')}
+        <div class="field"><label>Height <span style="text-transform:none;font-weight:400;">(inches — 36&quot; typical / 42&quot; at drop-offs)</span></label><input type="number" id="p-height" value="36" min="12" step="1"></div>
+      </div>
+      <div class="field"><label>Quantity (identical runs)</label><input type="number" id="p-qty" value="1" min="1" step="1"></div>
+      <div class="grid2">
+        <div class="field"><label>Manufacturing $ <span style="text-transform:none;font-weight:400;">(per run — your price)</span></label><input type="number" id="p-mfg" value="0" min="0" step="1"></div>
+        <div class="field"><label>Install $ <span style="text-transform:none;font-weight:400;">(per run — your price)</span></label><input type="number" id="p-install" value="0" min="0" step="1"></div>
+      </div>
+      <div class="field"><label>Job / item label</label><input type="text" id="p-name" placeholder="e.g. Patio perimeter railing"></div>
+      <div class="field"><label>Quote Group / Line Item — items given the same group print as ONE line</label><input type="text" id="p-group" value="Aluminum Patio Railing - Fully welded construction"></div>
+      <div class="breakdown" id="p-breakdown"></div>
+      <button class="btn" id="p-add-btn">Add to Quote</button>
+      <button class="btn ghost" type="button" onclick="renderCalc()">Clear Form</button>
+    `;
+    bindFtIn('p-len', computePatio);
+    ['p-height','p-qty','p-mfg','p-install'].forEach(id=>document.getElementById(id).addEventListener('input', computePatio));
+    document.getElementById('p-add-btn').addEventListener('click', addPatioRailingToQuote);
+  }
+  computePatio();
+}
+
+function computePatio(){
+  const bd = document.getElementById('p-breakdown'); if(!bd) return null;
+  const qty = Math.max(1, parseFloat((document.getElementById('p-qty')||{}).value)||1);
+  const mfg = parseFloat((document.getElementById('p-mfg')||{}).value)||0;
+  const install = parseFloat((document.getElementById('p-install')||{}).value)||0;
+  if(patioProduct==='canopy'){
+    const widthFt = getFtInInches('p-width')/12, projFt = getFtInInches('p-proj')/12;
+    const sqft = widthFt*projFt;
+    const lights = parseFloat(document.getElementById('p-lights').value)||0;
+    const downspout = parseFloat(document.getElementById('p-downspout').value)||0;
+    const posts = parseFloat(document.getElementById('p-posts').value)||0;
+    const lightsCost = lights*275*qty, downspoutCost = downspout*650*qty, postsCost = posts*650*qty;
+    const materialsTotal = mfg*qty, labor = install*qty;
+    const perSqft = sqft>0 ? (mfg/sqft) : 0;
+    bd.innerHTML = `
+      <div class="row"><span>SQ FT per unit (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
+      <div class="row"><span>MFG — your price ($${mfg.toLocaleString()} × ${qty})${perSqft>0?` · ≈ $${perSqft.toFixed(0)}/sqft`:''}</span>${fmtCopy(materialsTotal)}</div>
+      <div class="row total"><span>Patio Canopy Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
+      <div class="row" style="margin-top:8px;"><span>Lights (× ${qty}) — separate line item</span>${fmtCopy(lightsCost)}</div>
+      <div class="row"><span>Downspouts (× ${qty}) — separate line item</span>${fmtCopy(downspoutCost)}</div>
+      <div class="row"><span>Posts (${posts*qty} × $650) — separate line item</span>${fmtCopy(postsCost)}</div>
+      <div class="row"><span>Install — your price ($${install.toLocaleString()} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
+    `;
+    return { widthFt, projFt, sqft, qty, materialsTotal, labor,
+      lightsCost, lightsQty: lights*qty, lightsPerUnit: lights,
+      downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout,
+      postsCost, postsQty: posts*qty, postsPerUnit: posts };
+  } else {
+    const lenFt = getFtInInches('p-len')/12;
+    const heightIn = parseFloat(document.getElementById('p-height').value)||36;
+    const materialsTotal = mfg*qty, labor = install*qty;
+    const perFt = lenFt>0 ? (mfg/lenFt) : 0;
+    bd.innerHTML = `
+      <div class="row"><span>Run per unit</span><span class="num">${lenFt.toFixed(2)} ft · ${heightIn}&quot; high</span></div>
+      <div class="row"><span>MFG — your price ($${mfg.toLocaleString()} × ${qty})${perFt>0?` · ≈ $${perFt.toFixed(0)}/lin ft`:''}</span>${fmtCopy(materialsTotal)}</div>
+      <div class="row total"><span>Railing Total (${qty} run${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
+      <div class="row" style="margin-top:8px;"><span>Install — your price ($${install.toLocaleString()} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
+    `;
+    return { lenFt, heightIn, qty, materialsTotal, labor };
+  }
+}
+
+function addPatioCanopyToQuote(){
+  const r = computePatio(); if(!r) return;
+  const widthStr = ftInLabel('p-width'), projStr = ftInLabel('p-proj');
+  const name = document.getElementById('p-name').value || 'Metal Patio Canopy';
+  const group = document.getElementById('p-group').value || 'Metal Patio Canopy - Fully welded construction';
+  quoteItems.push({
+    id: itemSeq++,
+    title: name,
+    sub: `Patio Canopy (custom priced) · ${r.widthFt.toFixed(1)}ft × ${r.projFt.toFixed(1)}ft${r.qty>1?` · qty ${r.qty}`:''}`,
+    amount: Math.ceil(r.materialsTotal),
+    labor: Math.ceil(r.labor),
+    lightsCost: Math.ceil(r.lightsCost), lightsQty: r.lightsQty,
+    downspoutCost: Math.ceil(r.downspoutCost), downspoutQty: r.downspoutQty,
+    postsCost: Math.ceil(r.postsCost), postsQty: r.postsQty,
+    group: group,
+    type: 'patiocanopy',
+    spec: { qty:r.qty, widthStr:widthStr, projStr:projStr, widthFt:r.widthFt, projFt:r.projFt,
+      lightsPerUnit:r.lightsPerUnit, downspoutPerUnit:r.downspoutPerUnit, postsPerUnit:r.postsPerUnit }
+  });
+  renderQuote();
+}
+
+function addPatioRailingToQuote(){
+  const r = computePatio(); if(!r) return;
+  const lengthStr = ftInLabel('p-len');
+  const name = document.getElementById('p-name').value || 'Patio Railing';
+  const group = document.getElementById('p-group').value || 'Aluminum Patio Railing - Fully welded construction';
+  quoteItems.push({
+    id: itemSeq++,
+    title: name,
+    sub: `Patio Railing (custom priced) · ${r.lenFt.toFixed(1)} lin ft · ${r.heightIn}&quot; high${r.qty>1?` · qty ${r.qty}`:''}`,
+    amount: Math.ceil(r.materialsTotal),
+    labor: Math.ceil(r.labor),
+    group: group,
+    type: 'patiorailing',
+    spec: { qty:r.qty, lengthStr:lengthStr, lenFt:r.lenFt, heightIn:r.heightIn }
   });
   renderQuote();
 }
@@ -2794,6 +2952,7 @@ function addRecoverToQuote(){
 function renderCalc(){
   if(activeTab==='canopy8') renderCanopySection('canopy8','8" Face');
   else if(activeTab==='canopy12') renderCanopySection('canopy12','12" Face');
+  else if(activeTab==='patio') renderPatioSection();
   else if(activeTab==='standingSeam') renderStandingSeam();
   else if(activeTab==='fabric') renderFabricAwning();
   else if(activeTab==='sunshade') renderSunshade();
@@ -3721,6 +3880,26 @@ function buildSpecLines(i, height){
       const total = i.spec.postsPerUnit*i.spec.qty;
       lines.push(i.spec.qty>1 ? `  Posts: ${total} (${i.spec.postsPerUnit}ea)` : `  Posts: ${total}`);
     }
+  } else if(i.type==='patiocanopy' && i.spec){
+    lines.push(`  Qty: ${i.spec.qty}`);
+    lines.push(`  W: ${i.spec.widthStr}`);
+    lines.push(`  P: ${i.spec.projStr}`);
+    if(i.spec.downspoutPerUnit>0){
+      const total = i.spec.downspoutPerUnit*i.spec.qty;
+      lines.push(i.spec.qty>1 ? `  Downspout: ${total} (${i.spec.downspoutPerUnit}ea)` : `  Downspouts: ${total}`);
+    }
+    if(i.spec.lightsPerUnit>0){
+      const total = i.spec.lightsPerUnit*i.spec.qty;
+      lines.push(i.spec.qty>1 ? `  LEDs: ${total} (${i.spec.lightsPerUnit}ea)` : `  LEDs: ${total}`);
+    }
+    if(i.spec.postsPerUnit>0){
+      const total = i.spec.postsPerUnit*i.spec.qty;
+      lines.push(i.spec.qty>1 ? `  Posts: ${total} (${i.spec.postsPerUnit}ea)` : `  Posts: ${total}`);
+    }
+  } else if(i.type==='patiorailing' && i.spec){
+    lines.push(`  Qty: ${i.spec.qty}`);
+    lines.push(`  L: ${i.spec.lengthStr}`);
+    lines.push(`  H: ${i.spec.heightIn}"`);
   } else if(i.type==='standingSeam' && i.spec){
     lines.push(`  Qty: ${i.spec.qty}`);
     lines.push(`  W: ${i.spec.widthStr}`);
@@ -3748,6 +3927,8 @@ function airtableLabels(type){
   if(type==='standingSeam') return { header: 'Standing Seam Awnings', short: 'Standing Seam Awnings' };
   if(type==='fabric') return { header: 'Fabric Awnings', short: 'Fabric Awnings' };
   if(type==='sunshade') return { header: 'Sunshades', short: 'Sunshades' };
+  if(type==='patiocanopy') return { header: 'Metal Patio Canopies', short: 'Patio Canopies' };
+  if(type==='patiorailing') return { header: 'Patio Railing', short: 'Patio Railing' };
   return { header: 'Items', short: 'Items' };
 }
 
@@ -4209,6 +4390,15 @@ function serializeQuoteForAirtable(){
     } else if(it.type==='sunshade'){
       push('sunshade', 'Sunshade', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Sunshade`);
       push('labor', 'Labor', 1, it.labor, `${it.title} — Labor`);
+    } else if(it.type==='patiocanopy'){
+      push('patiocanopy', 'Metal Patio Canopy', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Patio Canopy (custom priced)`);
+      push('labor', 'Labor', 1, it.labor, `${it.title} — Install (custom priced)`);
+      push('leds', 'LEDs', it.lightsQty, it.lightsCost, `${it.title} — Lights`);
+      push('downspouts', 'Downspouts', it.downspoutQty, it.downspoutCost, `${it.title} — Downspouts`);
+      push('posts', 'Posts', it.postsQty, it.postsCost, `${it.title} — Posts`);
+    } else if(it.type==='patiorailing'){
+      push('patiorailing', 'Patio Railing', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Patio Railing (custom priced)`);
+      push('labor', 'Labor', 1, it.labor, `${it.title} — Install (custom priced)`);
     } else if(it.type==='recover'){
       push('recover', 'Recover', it.spec&&it.spec.qty||1, it.amount, `${it.title} — Recover`);
     }
@@ -4602,6 +4792,7 @@ function serviceFromQuote(){
     else if(it.type==='sunshade') set.add('Sunshade(s)');
     else if(it.type==='standingSeam') set.add('Standing Seam Awning(s)');
     else if(it.type==='recover') set.add('Recover Fabric Awning(s)');
+    else if(it.type==='patiocanopy') set.add('Metal Canopy');
   });
   return [...set];
 }
