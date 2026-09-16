@@ -673,6 +673,10 @@ function renderCanopySection(sectionKey, faceLabel){
         <label for="c-cchannel-perimeter">C-Channel auto — full perimeter (Width + 2 × Projection)</label>
       </div>
       <div class="field"><label>Added Fascia ($ — your call)</label><input type="number" id="c-fascia" value="0" min="0" step="1"></div>
+      <div class="checkline" style="margin-top:-2px;">
+        <input type="checkbox" id="c-paint9" checked>
+        <label for="c-paint9">Paint — <b>$9.00/sqft</b> (averaged) — baked into the canopy price · never its own quote line · held out of the margin check</label>
+      </div>
       <style>
         .drawing-opts{border:1px solid var(--line);border-radius:6px;margin:8px 0;}
         .drawing-opts>summary{cursor:pointer;list-style:none;padding:8px 10px;font-size:12px;font-weight:700;color:#e0a800;user-select:none;}
@@ -755,6 +759,7 @@ function renderCanopySection(sectionKey, faceLabel){
     computeCanopy(sectionKey);
   });
   document.getElementById('c-customface-in').addEventListener('input', ()=>computeCanopy(sectionKey));
+  document.getElementById('c-paint9').addEventListener('change', ()=>computeCanopy(sectionKey));
   // sensible default attachment by face height (user can change)
   document.getElementById('c-attach').value = faceInches >= 12 ? 'tierod' : 'topsupport';
   computeCanopy(sectionKey);
@@ -809,8 +814,12 @@ function computeCanopy(sectionKey){
   const cchannelCost = cchannel*tier.cchannel*qty;
   const outriggerCost = outrigger*tier.outrigger*qty;
   const fasciaCost = fascia*qty + customFasciaCost;   // manual add + custom-fascia (perimeter × $30)
+  // PAINT ADDER — $9.00/sqft averaged paint cost (per Mike 09/16/26). Baked into the canopy
+  // price (never its own quote line) and HELD OUT of the margin check + margin log math.
+  const paintOn = !!((document.getElementById('c-paint9')||{checked:true}).checked);
+  const paintCost = paintOn ? sqft*9*qty : 0;
   // Canopy body only — downspouts & lights are broken out as their own line items on the quote
-  const materialsTotal = mfgBase + cchannelCost + outriggerCost + fasciaCost;
+  const materialsTotal = mfgBase + cchannelCost + outriggerCost + fasciaCost + paintCost;
 
   const labor = widthFt*cfg.laborPerFt*qty;   // labor on total running width
 
@@ -824,15 +833,16 @@ function computeCanopy(sectionKey){
     <div class="row"><span>Outriggers</span>${fmtCopy(outriggerCost)}</div>
     ${(cfOn && cfIn>0) ? `<div class="row"><span>Custom Fascia ${cfIn}″ (${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} × ${qty})</span>${fmtCopy(customFasciaCost)}</div>` : ''}
     <div class="row"><span>Added Fascia — manual (× ${qty})</span>${fmtCopy(fascia*qty)}</div>
+    ${paintCost>0 ? `<div class="row"><span>Paint ($9/sqft × ${sqft.toFixed(1)} × ${qty}) — baked in, not on margin check</span>${fmtCopy(paintCost)}</div>` : ''}
     <div class="row total"><span>Canopy Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row" style="margin-top:8px;"><span>Lights (× ${qty}) — separate line item</span>${fmtCopy(lightsCost)}</div>
     <div class="row"><span>Downspouts (× ${qty}) — separate line item</span>${fmtCopy(downspoutCost)}</div>
     <div class="row"><span>Posts (${posts*qty} × $${tier.post||650}) — separate line item</span>${fmtCopy(postsCost)}</div>
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered, legs, legCount,
+  return { materialsTotal, labor, paintCost, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered, legs, legCount,
     // component breakdown (exact $ per category) for the Airtable line-item push
-    bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost:0, miterQty:0, fasciaCost, labor, laborFt: widthFt*qty } };
+    bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost:0, miterQty:0, fasciaCost, paintCost, labor, laborFt: widthFt*qty } };
 }
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
@@ -856,6 +866,7 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
     title: name,
     sub: `${faceLabel} · ${r.tier.name.split('·')[1].trim()} · ${r.widthFt.toFixed(1)}ft × ${r.projFt.toFixed(1)}ft${r.qty>1 ? ` · qty ${r.qty}` : ''}`,
     amount: Math.ceil(r.materialsTotal),
+    paintCost: Math.ceil(r.paintCost||0),   // $9/sqft paint adder — baked into amount, held out of the margin check
     labor: Math.ceil(r.labor),
     downspoutCost: Math.ceil(r.downspoutCost),
     downspoutQty: r.downspoutQty,
@@ -3603,18 +3614,21 @@ function canopyTrueCost(spec, mode){
 function setPriceToMultiple(m){
   const cans = quoteItems.filter(i=>i.type==='canopy');
   if(!cans.length){ alert('Add a canopy first.'); return; }
-  let mat=0, sellNow=0, amtNow=0, dsNow=0;
-  cans.forEach(i=>{ mat+=canopyTrueCost(i.spec).material; amtNow+=(i.amount||0); dsNow+=(i.downspoutCost||0); });
-  sellNow = amtNow + dsNow;
+  let mat=0, sellNow=0, amtNow=0, dsNow=0, paintNow=0;
+  cans.forEach(i=>{ mat+=canopyTrueCost(i.spec).material; amtNow+=(i.amount||0); dsNow+=(i.downspoutCost||0); paintNow+=(i.paintCost||0); });
+  // the $9/sqft paint adder is held OUT of the multiple math: base price hits mat×N, paint rides on top unchanged
+  const baseNow = amtNow - paintNow;
+  sellNow = baseNow + dsNow;
   const target = mat*m;
-  const newAmtTotal = target - dsNow;   // downspout lines keep their price; canopy bodies absorb the change
-  if(newAmtTotal <= 0){ alert('Material × '+m+' is less than the downspout lines alone — cannot set.'); return; }
-  if(!confirm(`Set canopy pricing to ${m}× material?\n\nMaterial cost: $${Math.round(mat).toLocaleString()}\nCanopy sell now: $${Math.round(sellNow).toLocaleString()} (${mat>0?(sellNow/mat).toFixed(2):'—'}×)\nCanopy sell after: $${Math.round(target).toLocaleString()} (${m}×)\n\nEvery canopy line item is rescaled proportionally. Lights, posts, labor and other lines are untouched.`)) return;
-  const factor = newAmtTotal/amtNow;
+  const newBaseTotal = target - dsNow;   // downspout lines keep their price; canopy bodies (ex-paint) absorb the change
+  if(newBaseTotal <= 0 || baseNow <= 0){ alert('Material × '+m+' is less than the downspout lines alone — cannot set.'); return; }
+  if(!confirm(`Set canopy pricing to ${m}× material?\n\nMaterial cost: $${Math.round(mat).toLocaleString()}\nCanopy sell now (ex-paint): $${Math.round(sellNow).toLocaleString()} (${mat>0?(sellNow/mat).toFixed(2):'—'}×)\nCanopy sell after (ex-paint): $${Math.round(target).toLocaleString()} (${m}×)${paintNow>0?`\nPaint adder stays on top: +$${Math.round(paintNow).toLocaleString()}`:''}\n\nEvery canopy line item is rescaled proportionally. Lights, posts, labor and other lines are untouched.`)) return;
+  const factor = newBaseTotal/baseNow;
   let running=0;
   cans.forEach((i,idx)=>{
-    if(idx===cans.length-1){ i.amount = Math.round(newAmtTotal-running); }   // last item absorbs rounding so the total is exact
-    else { i.amount = Math.round((i.amount||0)*factor); running += i.amount; }
+    const p = i.paintCost||0;
+    if(idx===cans.length-1){ i.amount = Math.round(newBaseTotal-running) + p; }   // last item absorbs rounding so the ex-paint total is exact
+    else { const nb = Math.round(((i.amount||0)-p)*factor); i.amount = nb + p; running += nb; }
   });
   renderQuote();
 }
@@ -3694,7 +3708,8 @@ function updateMarginCheck(){
   // MATERIAL ONLY for now — labor/finish/freight are held out until hard numbers are set.
   // (canopyTrueCost still computes them so they can be switched on later without rework.)
   let sell=0, mat=0;
-  cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0); mat+=c.material; });
+  // sell EXCLUDES the $9/sqft paint adder (per Mike 09/16/26) — margin stays material-vs-base-price
+  cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0)-(i.paintCost||0); mat+=c.material; });
   const margin = sell>0 ? (sell-mat)/sell : 0;
   const reqSell = mat/(1-target);
   const ok = margin>=target;
@@ -3733,7 +3748,7 @@ function updateMarginCheck(){
          ${row(3.25)}
          ${row(3)}
        </div>`; })()}
-     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing.</div>`;
+     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing. The $9/sqft paint adder is excluded from both sides of this check.</div>`;
 }
 
 function renderQuote(){
@@ -4219,7 +4234,8 @@ async function writeMarginLog(token){
     const cans = quoteItems.filter(i=>i.type==='canopy');
     if(!cans.length) return { ok:false, skipped:true };
     let sell=0, mat=0, sqft=0;
-    cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0); mat+=c.material; sqft+=c.sqft; });
+    // sell EXCLUDES the $9/sqft paint adder — same basis as the on-screen margin check
+    cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0)-(i.paintCost||0); mat+=c.material; sqft+=c.sqft; });
     if(sell<=0) return { ok:false, skipped:true };
     const target = parseFloat((document.getElementById('mc-target')||{}).value)||42.5;
     const marginPct = (sell-mat)/sell*100;
@@ -4372,7 +4388,7 @@ function serializeQuoteForAirtable(){
       const b = it.bd || {}; sqftTotal += (b.sqft||0);
       const fasciaKey = (it.faceInches||8) <= 8 ? 'fascia8' : 'fascia12';
       const fasciaName = (it.faceInches||8) <= 8 ? '6"-8" Fascia Size' : '10"-12" Fascia Size';
-      push(fasciaKey, fasciaName, b.sqft, (b.mfg||0)+(b.fasciaCost||0), `${it.title} — MFG (${it.spec.widthStr} × ${it.spec.projStr})`);
+      push(fasciaKey, fasciaName, b.sqft, (b.mfg||0)+(b.fasciaCost||0)+(b.paintCost||0), `${it.title} — MFG${(b.paintCost||0)>0?' incl. paint $9/sqft':''} (${it.spec.widthStr} × ${it.spec.projStr})`);
       push('cchannel', 'C-Channel', b.cchannelFt, b.cchannelCost, `${it.title} — C-Channel`);
       push('outriggers', 'Outriggers', b.outriggerFt, b.outriggerCost, `${it.title} — Outriggers`);
       push('miter', 'Miter', b.miterQty, b.miterCost, `${it.title} — Miter`);
