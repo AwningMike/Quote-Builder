@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APMG Quoting Dashboard</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-1:#fcfcfb; --surface-2:#f4f4f2; --card:#ffffff;
+    --line:#e4e3df; --grid:#ececea;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#8a8985;
+    --accent:#2a78d6; --accent-deep:#1c5cab; --accent-wash:rgba(42,120,214,.10);
+    --meter-track:#cde2fb;
+    --good:#008300; --warn:#c9711c; --bad:#c33736;
+    --chip-good-bg:#e7f3e7; --chip-warn-bg:#fbeee0; --chip-bad-bg:#fbe7e7;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --surface-1:#1a1a19; --surface-2:#222221; --card:#242423;
+      --line:#3a3a37; --grid:#2e2e2c;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+      --accent:#3987e5; --accent-deep:#86b6ef; --accent-wash:rgba(57,135,229,.14);
+      --meter-track:#184f95;
+      --good:#3fae3f; --warn:#e08a3c; --bad:#e66767;
+      --chip-good-bg:#1f3320; --chip-warn-bg:#3a2c1c; --chip-bad-bg:#3a2222;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-1:#1a1a19; --surface-2:#222221; --card:#242423;
+    --line:#3a3a37; --grid:#2e2e2c;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+    --accent:#3987e5; --accent-deep:#86b6ef; --accent-wash:rgba(57,135,229,.14);
+    --meter-track:#184f95;
+    --good:#3fae3f; --warn:#e08a3c; --bad:#e66767;
+    --chip-good-bg:#1f3320; --chip-warn-bg:#3a2c1c; --chip-bad-bg:#3a2222;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--surface-1); color:var(--text-primary);
+    font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:0 16px 48px;
+  }
+  .wrap{max-width:1060px;margin:0 auto;}
+  header.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:20px 0 4px;}
+  header.top h1{font-size:20px;font-weight:700;margin:0;letter-spacing:.2px;}
+  header.top .sub{color:var(--text-muted);font-size:12px;}
+  .toolbar{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .btn{
+    background:var(--card);border:1px solid var(--line);color:var(--text-primary);
+    border-radius:7px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .tabs{display:flex;gap:4px;margin:14px 0 18px;border-bottom:1px solid var(--line);}
+  .tab{
+    padding:8px 14px;font-size:13px;font-weight:600;color:var(--text-secondary);
+    border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  .tab.active{color:var(--text-primary);border-bottom-color:var(--accent);}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:16px 18px;margin-bottom:14px;
+  }
+  .grid-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;}
+  .tile .label{font-size:12px;color:var(--text-secondary);}
+  .tile .value{font-size:22px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .tile .note{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+  .hero-row{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;}
+  .hero-num{font-size:56px;font-weight:700;line-height:1.05;font-variant-numeric:tabular-nums;}
+  .hero-cap{font-size:13px;color:var(--text-secondary);margin-top:2px;}
+  .meter-block{flex:1;min-width:260px;padding-top:6px;}
+  .meter-top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-secondary);margin-bottom:6px;}
+  .meter-top b{color:var(--text-primary);font-size:14px;}
+  .meter{position:relative;height:18px;border-radius:9px;background:var(--meter-track);overflow:visible;}
+  .meter .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:9px;transition:width .5s ease;}
+  .meter .tick{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text-muted);}
+  .meter .tick.goal{background:var(--text-primary);}
+  .meter-scale{position:relative;height:16px;font-size:11px;color:var(--text-muted);margin-top:3px;}
+  .meter-scale span{position:absolute;transform:translateX(-50%);}
+  .chip{display:inline-block;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;}
+  .chip.good{background:var(--chip-good-bg);color:var(--good);}
+  .chip.warn{background:var(--chip-warn-bg);color:var(--warn);}
+  .chip.bad{background:var(--chip-bad-bg);color:var(--bad);}
+  h2.section{font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px;}
+  .chart-wrap{position:relative;}
+  .chart-wrap svg{display:block;width:100%;height:auto;}
+  .tooltip{
+    position:absolute;pointer-events:none;background:var(--card);border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.14);
+    opacity:0;transition:opacity .08s;white-space:nowrap;z-index:5;
+  }
+  .tooltip .tt-val{font-weight:700;font-size:13px;}
+  .tooltip .tt-lab{color:var(--text-secondary);}
+  table.data{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.data th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--text-muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);
+  }
+  table.data td{padding:6px 8px;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums;}
+  table.data td.num,table.data th.num{text-align:right;}
+  .muted{color:var(--text-muted);}
+  .hbar-row{display:flex;align-items:center;gap:10px;margin:5px 0;font-size:12.5px;}
+  .hbar-name{width:170px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);}
+  .hbar-track{flex:1;height:14px;position:relative;}
+  .hbar-fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:0 4px 4px 0;}
+  .hbar-val{width:78px;flex:none;text-align:left;font-variant-numeric:tabular-nums;}
+  .gate{max-width:440px;margin:60px auto;text-align:center;}
+  .gate input{
+    width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:7px;
+    background:var(--surface-2);color:var(--text-primary);font-size:13px;margin:10px 0;
+  }
+  .msg{font-size:12px;color:var(--text-muted);}
+  .err{color:var(--bad);font-size:12.5px;}
+  select.ctl{
+    background:var(--card);border:1px solid var(--line);color:var(--text-primary);
+    border-radius:7px;padding:6px 10px;font-size:12.5px;font-weight:600;
+  }
+  .filters{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .loading-dim{opacity:.55;transition:opacity .2s;}
+  @media print{
+    body{padding:0;background:#fff;}
+    .toolbar,.tabs,.filters .no-print{display:none !important;}
+    .card{border-color:#ccc;break-inside:avoid;}
+  }
+  @media (max-width:640px){
+    .hero-num{font-size:44px;}
+    .hbar-name{width:110px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>APMG Quoting Dashboard</h1>
+    <span class="sub" id="last-updated">loading…</span>
+    <div class="toolbar">
+      <button class="btn" id="btn-theme" title="Toggle light/dark">◐</button>
+      <button class="btn" id="btn-print">Print report</button>
+      <button class="btn primary" id="btn-refresh">Refresh</button>
+    </div>
+  </header>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-view="dash">This Month</button>
+    <button class="tab" data-view="report">Monthly Report</button>
+  </div>
+
+  <div id="gate" class="gate" style="display:none;">
+    <h2 style="font-size:16px;">Connect to Airtable</h2>
+    <p class="msg">Paste the same Airtable token the Quote Builder uses. It's saved in this browser only and never leaves it except to talk to Airtable directly.</p>
+    <input type="password" id="gate-token" placeholder="pat…">
+    <button class="btn primary" id="gate-save">Save &amp; load</button>
+    <div class="err" id="gate-err"></div>
+  </div>
+
+  <div id="view-dash" style="display:none;"></div>
+  <div id="view-report" style="display:none;"></div>
+  <div id="boot-msg" class="msg" style="padding:30px 0;">Loading quoting data…</div>
+</div>
+<script>
+/* =====================================================================
+   APMG QUOTING DASHBOARD
+   - Live tally of quotes moved to "Quote Sent " (monthly goal 85-100)
+   - Counts by the "Quote Sent Date" field, stamped by the Airtable
+     automation "Stamp Quote Sent Date" (fallback: this page stamps
+     recently-worked records itself, see stampFallback()).
+   - Monthly Report tab: month-by-month history from Sept 2026 onward.
+   ===================================================================== */
+const CFG = {
+  baseId:'appHEn1othbGBQEMc',
+  table:'tbl0xMHhBBN2k64aU',
+  F:{
+    project:'fldi6oZ93a30ob48U',
+    status:'fld3f4IDK9H63E6QC',
+    sentDate:'fldyTVW2G4eWSKtc2',
+    sale:'fldk1MFcMie7OXiq6',
+    qb:'fldbcuV9WH1xzZYwT',
+    company:'fld19JuMc8oKQa1GG',
+    leadSource:'fldG8m70eUwfJhkUJ',
+    quoteLM:'fldUg8tW9Kww3yUox',
+    created:'fldkPDCwy8caJRYqT'
+  },
+  STATUS_SENT:'Quote Sent ',            // note trailing space in Airtable
+  STATUS_PIPELINE:['Estimating','Scrubbing / Scaling'],
+  GOAL_MIN:85, GOAL_MAX:100,
+  REFRESH_MS: 5*60*1000
+};
+let TOKEN = null;
+try { TOKEN = localStorage.getItem('apmg_at_token'); } catch(e){}
+let sentRecords = [];      // every record with a Quote Sent Date
+let pipeCounts = {};       // status -> count (Estimating / Scrubbing)
+let currentView = 'dash';
+let reportMonth = null;    // 'YYYY-MM'
+let refreshTimer = null;
+
+/* ---------------- Airtable fetch helpers ---------------- */
+async function at(path, params){
+  const url = new URL(`https://api.airtable.com/v0/${CFG.baseId}/${path}`);
+  Object.entries(params||{}).forEach(([k,v])=>{
+    if(Array.isArray(v)) v.forEach(x=>url.searchParams.append(k,x));
+    else url.searchParams.set(k,v);
+  });
+  const r = await fetch(url,{headers:{Authorization:'Bearer '+TOKEN}});
+  if(r.status===401||r.status===403) throw new Error('AUTH');
+  if(!r.ok) throw new Error('Airtable error '+r.status);
+  return r.json();
+}
+async function atAll(params){
+  let out=[], offset=null;
+  do{
+    const page = await at(CFG.table, offset?{...params,offset}:params);
+    out = out.concat(page.records||[]);
+    offset = page.offset;
+  }while(offset);
+  return out;
+}
+async function atPatch(records){
+  for(let i=0;i<records.length;i+=10){
+    await fetch(`https://api.airtable.com/v0/${CFG.baseId}/${CFG.table}`,{
+      method:'PATCH',
+      headers:{Authorization:'Bearer '+TOKEN,'Content-Type':'application/json'},
+      body:JSON.stringify({records:records.slice(i,i+10)})
+    });
+  }
+}
+
+/* ---------------- Load + fallback stamping ---------------- */
+async function loadData(){
+  const F=CFG.F;
+  const fields=[F.project,F.status,F.sentDate,F.sale,F.qb,F.company,F.leadSource];
+  const [sent, pipe] = await Promise.all([
+    atAll({
+      filterByFormula:`NOT({Quote Sent Date}='')`,
+      returnFieldsByFieldId:'true',
+      'fields[]':fields
+    }).then(r=>r,e=>{throw e;}),
+    atAll({
+      filterByFormula:`OR({Status}='Estimating',{Status}='Scrubbing / Scaling')`,
+      returnFieldsByFieldId:'true',
+      'fields[]':[F.status]
+    })
+  ]);
+  sentRecords = sent.map(r=>({
+    id:r.id,
+    name:(r.fields[F.project]||'').toString(),
+    status:(r.fields[F.status]||''),
+    date:r.fields[F.sentDate]||'',
+    sale:+r.fields[F.sale]||0,
+    qb:r.fields[F.qb]||'',
+    company:r.fields[F.company]||'—',
+    sources:Array.isArray(r.fields[F.leadSource])?r.fields[F.leadSource]:[]
+  })).filter(r=>r.date);
+  pipeCounts={};
+  pipe.forEach(r=>{ const s=r.fields[F.status]||'?'; pipeCounts[s]=(pipeCounts[s]||0)+1; });
+}
+/* Fallback stamper: if the Airtable automation is off, stamp any record
+   that is sitting in "Quote Sent " with no date AND had quote activity in
+   the last 14 days. Old stale records are deliberately left alone. */
+async function stampFallback(){
+  try{
+    const F=CFG.F;
+    const rows = await atAll({
+      filterByFormula:`AND({Status}='${CFG.STATUS_SENT}',{Quote Sent Date}='',IS_AFTER({Last Modified},DATEADD(TODAY(),-14,'days')))`,
+      returnFieldsByFieldId:'true',
+      'fields[]':[F.quoteLM]
+    });
+    if(!rows.length) return 0;
+    const patch = rows.map(r=>{
+      const lm=(r.fields[F.quoteLM]||'').slice(0,10) || new Date().toISOString().slice(0,10);
+      return {id:r.id, fields:{[F.sentDate]:lm}};
+    });
+    await atPatch(patch);
+    return patch.length;
+  }catch(e){ return 0; }
+}
+
+/* ---------------- Date helpers ---------------- */
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function ym(d){ return d.slice(0,7); }
+function todayLocal(){ const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function monthLabel(key){ const [y,m]=key.split('-'); return MONTHS[+m-1]+' '+y; }
+function workdaysBetween(a,b){ // inclusive a..b, Mon-Fri
+  let n=0; const d=new Date(a);
+  while(d<=b){ const w=d.getDay(); if(w>0&&w<6)n++; d.setDate(d.getDate()+1); }
+  return n;
+}
+function fmt$(n){ return '$'+Math.round(n).toLocaleString(); }
+function esc(s){ const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+
+/* ---------------- Compute ---------------- */
+function monthStats(key){
+  const rows = sentRecords.filter(r=>ym(r.date)===key);
+  const total = rows.length;
+  const dollars = rows.reduce((s,r)=>s+r.sale,0);
+  const byCompany={}, bySource={}, byDay={};
+  rows.forEach(r=>{
+    byCompany[r.company]=(byCompany[r.company]||0)+1;
+    (r.sources.length?r.sources:['—']).forEach(s=>bySource[s]=(bySource[s]||0)+1);
+    byDay[r.date]=(byDay[r.date]||0)+1;
+  });
+  const converted = rows.filter(r=>['Sold','GC Awarded'].includes((r.status||'').trim())).length;
+  return {key, rows, total, dollars, byCompany, bySource, byDay, converted};
+}
+function availableMonths(){
+  const set=new Set(sentRecords.map(r=>ym(r.date)));
+  const now=todayLocal(); set.add(now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0'));
+  return [...set].sort().reverse();
+}
+</script>
+<script>
+/* ---------------- RENDER: This Month ---------------- */
+function renderDash(){
+  const now=todayLocal();
+  const key=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const st=monthStats(key);
+  const first=new Date(now.getFullYear(),now.getMonth(),1);
+  const last=new Date(now.getFullYear(),now.getMonth()+1,0);
+  const wdTotal=workdaysBetween(first,last);
+  const wdDone=workdaysBetween(first,now);
+  const wdLeft=Math.max(0,wdTotal-wdDone);
+  const pace = wdDone>0 ? st.total/wdDone : 0;
+  const projected = Math.round(pace*wdTotal);
+  const pctMin = Math.min(100, st.total/CFG.GOAL_MIN*100);
+  const needPerDay = wdLeft>0 ? Math.max(0,(CFG.GOAL_MIN-st.total))/wdLeft : 0;
+  const onTrack = projected>=CFG.GOAL_MIN;
+  const close = !onTrack && projected>=CFG.GOAL_MIN*0.85;
+  const chip = onTrack
+    ? `<span class="chip good">✓ On pace — projected ${projected}</span>`
+    : close
+      ? `<span class="chip warn">Close — projected ${projected} of ${CFG.GOAL_MIN}</span>`
+      : `<span class="chip bad">Behind — projected ${projected} of ${CFG.GOAL_MIN}</span>`;
+  const est=pipeCounts['Estimating']||0, scrub=pipeCounts['Scrubbing / Scaling']||0;
+  const track100 = CFG.GOAL_MAX*1.08;   // meter runs a hair past 100 so the stretch tick isn't at the edge
+  const fillPct=Math.min(100, st.total/track100*100);
+  const t85=CFG.GOAL_MIN/track100*100, t100=CFG.GOAL_MAX/track100*100;
+
+  document.getElementById('view-dash').innerHTML=`
+    <div class="card">
+      <div class="hero-row">
+        <div>
+          <div class="hero-num">${st.total}</div>
+          <div class="hero-cap">quotes sent in ${monthLabel(key)}</div>
+          <div style="margin-top:10px;">${chip}</div>
+        </div>
+        <div class="meter-block">
+          <div class="meter-top">
+            <span><b>${pctMin.toFixed(0)}%</b> of the 85-quote goal</span>
+            <span>${st.total} / ${CFG.GOAL_MIN}–${CFG.GOAL_MAX}</span>
+          </div>
+          <div class="meter" aria-label="Progress toward 85 quote goal">
+            <div class="fill" style="width:${fillPct}%"></div>
+            <div class="tick goal" style="left:${t85}%" title="Goal: 85"></div>
+            <div class="tick" style="left:${t100}%" title="Stretch: 100"></div>
+          </div>
+          <div class="meter-scale">
+            <span style="left:${t85}%">85</span>
+            <span style="left:${t100}%">100</span>
+          </div>
+          <div class="msg" style="margin-top:8px;">
+            Workday ${wdDone} of ${wdTotal} · ${wdLeft} left ·
+            ${st.total>=CFG.GOAL_MIN ? 'goal hit — push for 100' : `need ${needPerDay.toFixed(1)}/day to hit 85`}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-kpi">
+      <div class="card tile"><div class="label">Value quoted this month</div><div class="value">${fmt$(st.dollars)}</div><div class="note">${st.total? 'avg '+fmt$(st.dollars/st.total)+' per quote':'—'}</div></div>
+      <div class="card tile"><div class="label">Pace</div><div class="value">${pace.toFixed(1)}/day</div><div class="note">projected ${projected} by month end</div></div>
+      <div class="card tile"><div class="label">In Estimating</div><div class="value">${est}</div><div class="note">ready to work</div></div>
+      <div class="card tile"><div class="label">In Scrubbing / Scaling</div><div class="value">${scrub}</div><div class="note">feeding the pipeline</div></div>
+    </div>
+
+    <div class="card">
+      <h2 class="section">Cumulative quotes sent — ${monthLabel(key)}</h2>
+      <div class="chart-wrap" id="cum-chart"></div>
+    </div>`;
+  drawCumChart(st, first, last, now);
+}
+
+/* Cumulative line vs goal-pace reference, SVG, crosshair tooltip */
+function drawCumChart(st, first, last, now){
+  const host=document.getElementById('cum-chart'); if(!host) return;
+  const dim=last.getDate();
+  const daily=new Array(dim+1).fill(0);
+  Object.entries(st.byDay).forEach(([d,n])=>{ daily[+d.slice(8,10)]+=n; });
+  const cum=[]; let run=0;
+  for(let d=1;d<=dim;d++){ run+=daily[d]; cum.push(run); }
+  const todayD = now.getDate();
+  const yMax = Math.max(CFG.GOAL_MAX, run, CFG.GOAL_MIN)*1.06;
+  const W=980,H=300,mL=44,mR=16,mT=14,mB=30;
+  const iw=W-mL-mR, ih=H-mT-mB;
+  const x=d=> mL + (d-1)/(dim-1)*iw;
+  const y=v=> mT + ih - v/yMax*ih;
+  // gridlines at clean steps
+  let step=25; if(yMax<=30)step=10;
+  let grid='';
+  for(let g=step; g<=yMax; g+=step){
+    grid+=`<line x1="${mL}" y1="${y(g)}" x2="${W-mR}" y2="${y(g)}" stroke="var(--grid)" stroke-width="1"/>
+           <text x="${mL-8}" y="${y(g)+4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${g}</text>`;
+  }
+  // goal pace reference: straight line 0 -> 85 across the month
+  const paceLine=`<line x1="${x(1)}" y1="${y(0)}" x2="${x(dim)}" y2="${y(CFG.GOAL_MIN)}" stroke="var(--text-muted)" stroke-width="1"/>
+    <text x="${x(dim)-4}" y="${y(CFG.GOAL_MIN)-6}" text-anchor="end" font-size="11" fill="var(--text-muted)">goal pace → 85</text>`;
+  // actual cumulative up to today
+  let path='', area='';
+  for(let d=1; d<=todayD; d++){
+    path+=(d===1?'M':'L')+x(d).toFixed(1)+' '+y(cum[d-1]).toFixed(1)+' ';
+  }
+  if(todayD>=1){
+    area=`M ${x(1)} ${y(0)} `+cum.slice(0,todayD).map((v,i)=>`L ${x(i+1).toFixed(1)} ${y(v).toFixed(1)}`).join(' ')+` L ${x(todayD)} ${y(0)} Z`;
+  }
+  const endDot=`<circle cx="${x(todayD)}" cy="${y(cum[todayD-1]||0)}" r="4.5" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>
+    <text x="${Math.min(x(todayD)+8,W-mR-10)}" y="${y(cum[todayD-1]||0)-8}" font-size="12" font-weight="700" fill="var(--text-primary)">${cum[todayD-1]||0}</text>`;
+  host.innerHTML=`
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative quotes sent this month vs goal pace">
+      ${grid}
+      <line x1="${mL}" y1="${y(0)}" x2="${W-mR}" y2="${y(0)}" stroke="var(--line)" stroke-width="1"/>
+      ${paceLine}
+      <path d="${area}" fill="var(--accent-wash)"/>
+      <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${endDot}
+      <text x="${x(1)}" y="${H-8}" font-size="11" fill="var(--text-muted)">${MONTHS[first.getMonth()].slice(0,3)} 1</text>
+      <text x="${x(dim)}" y="${H-8}" text-anchor="end" font-size="11" fill="var(--text-muted)">${MONTHS[first.getMonth()].slice(0,3)} ${dim}</text>
+      <line id="xhair" x1="0" y1="${mT}" x2="0" y2="${mT+ih}" stroke="var(--text-muted)" stroke-width="1" opacity="0"/>
+      <rect id="hit" x="${mL}" y="${mT}" width="${iw}" height="${ih}" fill="transparent"/>
+    </svg>
+    <div class="tooltip" id="cum-tt"></div>`;
+  const svg=host.querySelector('svg'), hit=host.querySelector('#hit'),
+        xh=host.querySelector('#xhair'), tt=host.querySelector('#cum-tt');
+  function showAt(clientX){
+    const r=svg.getBoundingClientRect();
+    const sx=(clientX-r.left)*(W/r.width);
+    let d=Math.round((sx-mL)/iw*(dim-1))+1; d=Math.max(1,Math.min(dim,d));
+    xh.setAttribute('x1',x(d)); xh.setAttribute('x2',x(d)); xh.setAttribute('opacity','1');
+    const v=d<=todayD?cum[d-1]:null;
+    const paceV=(CFG.GOAL_MIN*(d-1)/(dim-1));
+    tt.innerHTML=`<div class="tt-val">${v==null?'—':v} sent</div>
+      <div class="tt-lab">${MONTHS[first.getMonth()].slice(0,3)} ${d} · goal pace ${paceV.toFixed(0)}${daily[d]?` · +${daily[d]} that day`:''}</div>`;
+    const hostR=host.getBoundingClientRect();
+    let px=(x(d)/W)*hostR.width+12;
+    if(px>hostR.width-170) px-=190;
+    tt.style.left=px+'px'; tt.style.top='20px'; tt.style.opacity='1';
+  }
+  hit.addEventListener('pointermove',e=>showAt(e.clientX));
+  hit.addEventListener('pointerleave',()=>{tt.style.opacity='0';xh.setAttribute('opacity','0');});
+}
+
+/* ---------------- RENDER: Monthly Report ---------------- */
+function renderReport(){
+  const months=availableMonths();
+  if(!reportMonth||!months.includes(reportMonth)) reportMonth=months[0];
+  const st=monthStats(reportMonth);
+  const [yy,mm]=reportMonth.split('-').map(Number);
+  const first=new Date(yy,mm-1,1), lastDom=new Date(yy,mm,0);
+  const now=todayLocal();
+  const isCurrent = ym(now.toISOString().slice(0,10))===reportMonth;
+  const wdTotal=workdaysBetween(first,lastDom);
+  const pct=st.total/CFG.GOAL_MIN*100;
+  const companies=Object.entries(st.byCompany).sort((a,b)=>b[1]-a[1]);
+  const sources=Object.entries(st.bySource).sort((a,b)=>b[1]-a[1]);
+  const maxC=companies.length?companies[0][1]:1;
+  const maxS=sources.length?sources[0][1]:1;
+  const goalChip = st.total>=CFG.GOAL_MIN
+    ? `<span class="chip good">✓ Goal hit — ${st.total} of ${CFG.GOAL_MIN}</span>`
+    : isCurrent
+      ? `<span class="chip warn">In progress — ${st.total} of ${CFG.GOAL_MIN}</span>`
+      : `<span class="chip bad">Missed — ${st.total} of ${CFG.GOAL_MIN}</span>`;
+  const histRows=months.map(k=>{
+    const s=monthStats(k);
+    return `<tr${k===reportMonth?' style="font-weight:700;"':''}>
+      <td>${monthLabel(k)}</td>
+      <td class="num">${s.total}</td>
+      <td class="num">${Math.round(s.total/CFG.GOAL_MIN*100)}%</td>
+      <td class="num">${fmt$(s.dollars)}</td>
+      <td class="num">${s.total?fmt$(s.dollars/s.total):'—'}</td>
+      <td class="num">${s.converted}</td>
+    </tr>`;}).join('');
+  const quoteRows=st.rows.sort((a,b)=>a.date<b.date?1:-1).map(r=>`
+    <tr>
+      <td class="muted">${r.date.slice(5,7)}/${r.date.slice(8,10)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(typeof r.company==='object'?(r.company.name||'—'):r.company)}</td>
+      <td class="num">${r.sale?fmt$(r.sale):'—'}</td>
+      <td>${esc((r.status&&r.status.name?r.status.name:r.status||'').trim())}</td>
+    </tr>`).join('');
+  document.getElementById('view-report').innerHTML=`
+    <div class="filters">
+      <select class="ctl" id="rep-month">${months.map(k=>`<option value="${k}"${k===reportMonth?' selected':''}>${monthLabel(k)}</option>`).join('')}</select>
+      ${goalChip}
+      <span class="msg">History builds from September 2026 forward (when date-stamping began).</span>
+    </div>
+    <div class="grid-kpi">
+      <div class="card tile"><div class="label">Quotes sent</div><div class="value">${st.total}</div><div class="note">${pct.toFixed(0)}% of the 85 goal · ${wdTotal} workdays</div></div>
+      <div class="card tile"><div class="label">Total value quoted</div><div class="value">${fmt$(st.dollars)}</div><div class="note">${st.total?'avg '+fmt$(st.dollars/st.total):'—'}</div></div>
+      <div class="card tile"><div class="label">Converted so far</div><div class="value">${st.converted}</div><div class="note">now Sold / GC Awarded</div></div>
+      <div class="card tile"><div class="label">Best day</div><div class="value">${Object.values(st.byDay).length?Math.max(...Object.values(st.byDay)):0}</div><div class="note">quotes in one day</div></div>
+    </div>
+    <div class="card">
+      <h2 class="section">By company</h2>
+      ${companies.length?companies.map(([c,n])=>`
+        <div class="hbar-row">
+          <div class="hbar-name" title="${esc(typeof c==='object'?'—':c)}">${esc(typeof c==='object'?'—':c)}</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:${n/maxC*100}%"></div></div>
+          <div class="hbar-val">${n}</div>
+        </div>`).join(''):'<div class="msg">No quotes recorded this month yet.</div>'}
+    </div>
+    <div class="card">
+      <h2 class="section">By lead source</h2>
+      ${sources.length?sources.map(([c,n])=>`
+        <div class="hbar-row">
+          <div class="hbar-name" title="${esc(c)}">${esc(c)}</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:${n/maxS*100}%"></div></div>
+          <div class="hbar-val">${n}</div>
+        </div>`).join(''):'<div class="msg">No lead sources recorded.</div>'}
+    </div>
+    <div class="card">
+      <h2 class="section">Month-by-month history</h2>
+      <table class="data">
+        <thead><tr><th>Month</th><th class="num">Sent</th><th class="num">vs 85</th><th class="num">$ Quoted</th><th class="num">Avg</th><th class="num">Converted</th></tr></thead>
+        <tbody>${histRows}</tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2 class="section">Every quote — ${monthLabel(reportMonth)} (${st.total})</h2>
+      <div style="max-height:420px;overflow:auto;">
+        <table class="data">
+          <thead><tr><th>Date</th><th>Project</th><th>Co.</th><th class="num">Value</th><th>Status now</th></tr></thead>
+          <tbody>${quoteRows||'<tr><td colspan="5" class="msg">Nothing yet.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('rep-month').addEventListener('change',e=>{reportMonth=e.target.value;renderReport();});
+}
+
+/* ---------------- Shell ---------------- */
+function normalize(){
+  // Airtable returns select values as strings with returnFieldsByFieldId + string coercion,
+  // but singleSelect via REST returns plain name strings; guard both shapes.
+  sentRecords.forEach(r=>{
+    if(r.company&&typeof r.company==='object') r.company=r.company.name||'—';
+    if(r.status&&typeof r.status==='object') r.status=r.status.name||'';
+    r.sources=r.sources.map(s=>typeof s==='object'?(s.name||'—'):s);
+  });
+}
+function renderAll(){
+  normalize();
+  document.getElementById('boot-msg').style.display='none';
+  document.getElementById('view-dash').style.display=currentView==='dash'?'':'none';
+  document.getElementById('view-report').style.display=currentView==='report'?'':'none';
+  if(currentView==='dash') renderDash(); else renderReport();
+  document.getElementById('last-updated').textContent='updated '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+}
+async function refresh(fromTimer){
+  if(!TOKEN){ showGate(); return; }
+  const dimEls=[document.getElementById('view-dash'),document.getElementById('view-report')];
+  dimEls.forEach(el=>el.classList.add('loading-dim'));
+  try{
+    const stamped=await stampFallback();
+    await loadData();
+    renderAll();
+  }catch(e){
+    if(String(e.message)==='AUTH'){ TOKEN=null; try{localStorage.removeItem('apmg_at_token');}catch(_){}; showGate('That token was rejected by Airtable — paste a current one.'); }
+    else if(!fromTimer){ document.getElementById('boot-msg').textContent='Could not reach Airtable: '+e.message; document.getElementById('boot-msg').style.display=''; }
+  }finally{
+    dimEls.forEach(el=>el.classList.remove('loading-dim'));
+  }
+}
+function showGate(msg){
+  document.getElementById('boot-msg').style.display='none';
+  document.getElementById('view-dash').style.display='none';
+  document.getElementById('view-report').style.display='none';
+  document.getElementById('gate').style.display='';
+  document.getElementById('gate-err').textContent=msg||'';
+}
+document.getElementById('gate-save').addEventListener('click',()=>{
+  const v=document.getElementById('gate-token').value.trim();
+  if(!v){document.getElementById('gate-err').textContent='Paste a token first.';return;}
+  TOKEN=v; try{localStorage.setItem('apmg_at_token',v);}catch(e){}
+  document.getElementById('gate').style.display='none';
+  document.getElementById('boot-msg').style.display='';
+  refresh();
+});
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('.tab'); if(!b) return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  b.classList.add('active');
+  currentView=b.dataset.view;
+  if(sentRecords.length||TOKEN) renderAll();
+});
+document.getElementById('btn-refresh').addEventListener('click',()=>refresh());
+document.getElementById('btn-print').addEventListener('click',()=>{
+  if(currentView!=='report'){ currentView='report';
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view==='report'));
+    renderAll();
+  }
+  setTimeout(()=>window.print(),150);
+});
+document.getElementById('btn-theme').addEventListener('click',()=>{
+  const r=document.documentElement;
+  const cur=r.getAttribute('data-theme');
+  const next=cur==='dark'?'light':cur==='light'?'dark':(matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
+  r.setAttribute('data-theme',next);
+  try{localStorage.setItem('apmg_dash_theme',next);}catch(e){}
+  renderAll();
+});
+try{ const th=localStorage.getItem('apmg_dash_theme'); if(th) document.documentElement.setAttribute('data-theme',th);}catch(e){}
+window.addEventListener('resize',()=>{ if(sentRecords.length) renderAll(); });
+refresh();
+refreshTimer=setInterval(()=>refresh(true), CFG.REFRESH_MS);
+</script>
+</body>
+</html>
