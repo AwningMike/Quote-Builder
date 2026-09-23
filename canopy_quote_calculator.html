@@ -274,7 +274,7 @@
               <div class="field"><label>Date</label><input type="text" id="hdr-date" placeholder="e.g. 7/21/2026"></div>
             </div>
             <div class="field"><label>Ship To — Address</label><input type="text" id="hdr-address1" placeholder="Street address"></div>
-            <div class="field"><label>Ship To — City, State ZIP</label><input type="text" id="hdr-address2" placeholder="e.g. Shelbyville, IN 46176"></div>
+            <div class="field"><label>Ship To — City, State ZIP</label><input type="text" id="hdr-address2" placeholder="e.g. Shelbyville, IN 46176" onchange="calcDeliveryMiles()"></div>
             <div class="grid2">
               <div class="field"><label>Project No.</label><input type="text" id="hdr-projno" placeholder="e.g. 4299"></div>
               <div class="field"><label>Project Name - Location <span style="text-transform:none;font-weight:400;">(auto-fills from Ship To Name)</span></label><input type="text" id="hdr-projname" placeholder="e.g. Speedway"></div>
@@ -333,7 +333,9 @@
           </div>
           <div class="field">
             <label>Delivery Mileage (round trip, once per job)</label>
-            <input type="number" id="extra-miles" value="0" step="1" oninput="renderQuote()">
+            <input type="number" id="extra-miles" value="0" step="1" oninput="qbMilesManual()">
+            <div style="margin-top:5px;"><button type="button" class="btn" style="font-size:11px;padding:4px 8px;" onclick="calcDeliveryMiles()">📍 Auto-calc from Ship To city</button></div>
+            <div id="extra-miles-status" style="font-size:11px;color:#9aa3b2;line-height:1.5;margin-top:4px;">Fills in automatically when you enter the Ship To city. Under 70 mi one-way = flat $250 delivery.</div>
           </div>
           <div class="field">
             <label>Lift Charge $ (steps $250, $500–$5,000 — or type any amount)</label>
@@ -429,7 +431,9 @@
 
 let RATES = {
   jobLevel: {
-    deliveryRate: 4.25,  // $/mile — entered once per job, not per line item
+    deliveryRate: 4.25,  // $/mile (round-trip miles) — applies only beyond the flat zone
+    flatDeliveryUnderMi: 70,   // one-way miles — under this, delivery is a flat charge
+    flatDeliveryPrice: 250,    // the flat delivery charge inside the zone
   },
   canopy8: {
     laborPerFt: 65,
@@ -3052,6 +3056,7 @@ function newQuote(){
   setV('hdr-company','SA');
   try{ setV('hdr-date', new Date().toLocaleDateString('en-US')); }catch(e){ setV('hdr-date',''); }
   // job-level extras
+  qbAutoMiles = null;
   ['extra-miles','extra-lift','extra-color','extra-ohio-county'].forEach(id=>setV(id,''));
   setV('extra-survey','500.00'); setV('extra-stamped','1250');
   ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items'].forEach(id=>setC(id,false));
@@ -3090,6 +3095,7 @@ function captureQuoteState(){
 }
 function restoreQuoteState(st){
   if(!st || typeof st!=='object'){ alert('Could not read that saved quote.'); return false; }
+  qbAutoMiles = null; // saved quotes restore their mileage number; the auto-calc label resets
   const sv=id=>{ const el=document.getElementById(id); return el; };
   quoteItems = Array.isArray(st.items) ? JSON.parse(JSON.stringify(st.items)) : [];
   // keep new line-item ids unique going forward
@@ -3752,6 +3758,78 @@ function updateMarginCheck(){
      <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing. The $9/sqft paint adder is excluded from both sides of this check.</div>`;
 }
 
+/* ---- v96: DELIVERY MILES AUTO-CALC ----
+   Types a city into "Ship To — City, State ZIP" → geocodes it (Open-Meteo, free/no key),
+   gets driving distance from the shop via OSRM (falls back to straight-line × 1.25),
+   fills the round-trip mileage box, and prices delivery:
+   one-way < 70 mi → flat $250; otherwise round-trip miles × $4.25 as before. */
+const QB_SHOP = { label:'Sommer Awning — 1160 W 16th St, Indianapolis, IN 46202', lat:39.7893, lon:-86.1815 };
+const QB_STATE_NAMES = {AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'District of Columbia'};
+let qbAutoMiles = null; // {oneWay, roundTrip, place, est} from the last successful auto-calc
+
+function qbMilesManual(){ qbAutoMiles = null; renderQuote(); }
+
+function qbHaversineMi(a, b){
+  const R=3958.8, toR=x=>x*Math.PI/180;
+  const dLat=toR(b.lat-a.lat), dLon=toR(b.lon-a.lon);
+  const h=Math.sin(dLat/2)**2 + Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+async function calcDeliveryMiles(){
+  const statusEl = document.getElementById('extra-miles-status');
+  const raw = (document.getElementById('hdr-address2').value||'').trim();
+  if(!raw){ if(statusEl) statusEl.textContent = 'Enter the Ship To city first (e.g. Shelbyville, IN).'; return; }
+  // "Shelbyville, IN 46176" -> city "Shelbyville", state "IN"
+  const noZip = raw.replace(/\s*\d{5}(-\d{4})?\s*$/,'').replace(/[,\s]+$/,'').trim();
+  const parts = noZip.split(',').map(s=>s.trim()).filter(Boolean);
+  const cityName = parts[0]||noZip;
+  const stAbbr = (parts[1]||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,2);
+  const wantState = QB_STATE_NAMES[stAbbr] || null;
+  if(statusEl) statusEl.textContent = 'Calculating distance to ' + noZip + '…';
+  try{
+    // 1) Geocode the city (Open-Meteo geocoding — free, no key, CORS-friendly)
+    const gRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(cityName)+'&count=10&language=en&format=json');
+    const gJson = await gRes.json();
+    let hits = (gJson.results||[]).filter(r=>r.country_code==='US');
+    if(wantState) hits = hits.filter(r=>(r.admin1||'')===wantState).concat(hits.filter(r=>(r.admin1||'')!==wantState));
+    else hits = hits.filter(r=>(r.admin1||'')==='Indiana').concat(hits.filter(r=>(r.admin1||'')!=='Indiana'));
+    const hit = hits[0];
+    if(!hit) throw new Error('City not found');
+    const dest = {lat:hit.latitude, lon:hit.longitude};
+    const placeLabel = hit.name + ', ' + (hit.admin1||'');
+    // 2) Driving distance via OSRM; fall back to straight-line × 1.25 if unreachable
+    let oneWay, est=false;
+    try{
+      const rRes = await fetch('https://router.project-osrm.org/route/v1/driving/'+QB_SHOP.lon+','+QB_SHOP.lat+';'+dest.lon+','+dest.lat+'?overview=false');
+      const rJson = await rRes.json();
+      if(rJson.code==='Ok' && rJson.routes && rJson.routes[0]) oneWay = rJson.routes[0].distance/1609.344;
+      else throw new Error('no route');
+    }catch(e){ oneWay = qbHaversineMi(QB_SHOP, dest)*1.25; est=true; }
+    const roundTrip = Math.round(oneWay*2);
+    qbAutoMiles = { oneWay, roundTrip, place: placeLabel, est };
+    document.getElementById('extra-miles').value = roundTrip;
+    renderQuote();
+  }catch(e){
+    qbAutoMiles = null;
+    if(statusEl) statusEl.textContent = (e && e.message==='City not found')
+      ? '⚠️ Couldn\'t find "'+noZip+'" — check the spelling (City, ST) or type the round-trip miles manually.'
+      : '⚠️ Couldn\'t reach the map service — try again in a minute or type the round-trip miles manually.';
+  }
+}
+
+function qbUpdateMilesStatus(miles, isFlat, deliveryCost){
+  const el = document.getElementById('extra-miles-status');
+  if(!el) return;
+  if(!(miles>0)){ el.textContent = 'Fills in automatically when you enter the Ship To city. Under 70 mi one-way = flat $250 delivery.'; return; }
+  const oneWay = qbAutoMiles ? qbAutoMiles.oneWay : miles/2;
+  const src = qbAutoMiles ? ('from shop to '+qbAutoMiles.place+(qbAutoMiles.est?' (straight-line est.)':' (driving)')) : '(manual entry)';
+  el.innerHTML = Math.round(oneWay)+' mi one-way / '+Math.round(miles)+' mi round trip '+src+' → '+
+    (isFlat ? '<b>flat $'+RATES.jobLevel.flatDeliveryPrice+'</b> (under '+RATES.jobLevel.flatDeliveryUnderMi+' mi)'
+            : '<b>$'+deliveryCost.toLocaleString()+'</b> ('+Math.round(miles)+' RT × $'+RATES.jobLevel.deliveryRate+'/mi)')+
+    ' — rolled into the Installation line.';
+}
+
 function renderQuote(){
   const list = document.getElementById('quote-list');
   const countLabel = document.getElementById('item-count-label');
@@ -3814,7 +3892,12 @@ function renderQuote(){
 
   const laborSubtotal = quoteItems.reduce((s,i)=>s+(i.labor||0),0);
   const miles = parseFloat(document.getElementById('extra-miles').value)||0;
-  const deliveryCost = Math.ceil(miles*RATES.jobLevel.deliveryRate);
+  // Delivery: under the flat zone (one-way = round-trip/2 < 70 mi) it's a flat $250;
+  // beyond that it's round-trip miles × $/mile as before. 0 miles = no delivery charge.
+  const oneWayMi = miles/2;
+  const deliveryFlat = miles>0 && oneWayMi < RATES.jobLevel.flatDeliveryUnderMi;
+  const deliveryCost = miles<=0 ? 0 : (deliveryFlat ? RATES.jobLevel.flatDeliveryPrice : Math.ceil(miles*RATES.jobLevel.deliveryRate));
+  qbUpdateMilesStatus(miles, deliveryFlat, deliveryCost);
   const installation = laborSubtotal + deliveryCost; // labor + mileage combined, one line — not taxed
 
   const surveyOn = document.getElementById('extra-survey-on').checked;
