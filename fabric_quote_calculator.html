@@ -4081,7 +4081,7 @@ function buildAirtableLogText(){
       const specLines = buildSpecLines(i, height).map(l=>l.replace(/^  /,''));
       if(specLines.length){ lines.push(...specLines); lines.push(''); }
     });
-    mfgLines.push(`MFG (${totalQty}) ${labels.short}: ${fmtDecimal(groupTotal)}`);
+    if(type!=='recover') mfgLines.push(`MFG (${totalQty}) ${labels.short}: ${fmtDecimal(groupTotal)}`);
   });
 
   s.groups.standalone.forEach(i=>{
@@ -4090,8 +4090,18 @@ function buildAirtableLogText(){
     lines.push(`(${(i.spec&&i.spec.qty)||1}) ${labels.header}`);
     lines.push('');
     if(specLines.length){ lines.push(...specLines); lines.push(''); }
-    mfgLines.push(`MFG (${(i.spec&&i.spec.qty)||1}) ${labels.short}: ${fmtDecimal(i.amount)}`);
+    if(i.type!=='recover') mfgLines.push(`MFG (${(i.spec&&i.spec.qty)||1}) ${labels.short}: ${fmtDecimal(i.amount)}`);
   });
+
+  // ALL recovers — every size and quantity — combine into ONE MFG line (per Mike 09/26)
+  const _recItems = [];
+  Object.values(s.groups.groups).forEach(items=>items.forEach(i=>{ if(i.type==='recover') _recItems.push(i); }));
+  s.groups.standalone.forEach(i=>{ if(i.type==='recover') _recItems.push(i); });
+  if(_recItems.length){
+    const recCount = _recItems.reduce((n,i)=>n+((i.spec&&i.spec.qty)||1),0);
+    const recTotal = _recItems.reduce((a,i)=>a+i.amount,0);
+    mfgLines.unshift(`MFG (${recCount}) recovers: ${fmtDecimal(recTotal)}`);
+  }
 
   if(s.survey>0) lines.push(`Survey: ${fmtDecimal(s.survey)}`);
   mfgLines.forEach(l=>lines.push(l));
