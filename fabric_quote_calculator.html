@@ -458,17 +458,19 @@ let RATES = {
   sunshade:      { mfgPerSqft:95, laborPerFt:65 },
   recover: {
     fabrics: {
-      sunbrella: { yd:40, label:'Sunbrella 60"' },
-      ferrari:   { yd:45, label:'Ferrari 74"' },
-      majestic:  { yd:35, label:'Majestic 80" (translucent)' },
-      cooley:    { yd:65, label:'Cooley 70"' },
+      sunbrella: { yd:33, label:'Sunbrella 60"' },
+      ferrari:   { yd:38, label:'Ferrari 74"' },
+      majestic:  { yd:30, label:'Majestic 80" (translucent)' },
+      cooley:    { yd:55, label:'Cooley 70"' },
     },
     markup: 2.5,
     graphic1: 150,
     graphic2: 250,
-    retrofitRate: 30,
-    skinRate: 15,
-    takedownRate: 30,
+    retrofitRate: 15,   // $/ft of width, additional, when selected (09/26)
+    skinRate: 10,       // $/ft; covered ends add projection x 2 ft (09/26)
+    takedownRate: 20,   // $/ft of width - take down / rehang (09/26)
+    surveyDefault: 450, // recover survey default (09/26)
+    dropExtraFt: 0.5,   // +6" of fabric width per pass for the drop - pricing only
     deliveryRate: 3.75,
   }
 };
@@ -2856,7 +2858,7 @@ function renderRecover(){
   area.innerHTML = `
     <div class="card inputs">
       <h2>Recover</h2>
-      <div class="sub">Yardage = (width × passes + ends×2) / 3. Fabric cost = yardage × $/yd × 2.5 markup. Patio Canopy switches pricing to sqft × $35.</div>
+      <div class="sub">Yardage = ((width + 6&Prime; drop) × passes + ends×2) / 3. Fabric cost = yardage × $/yd × 2.5 markup. Take down/rehang $20/ft · Skin $10/ft (+proj×2 if ends covered) · Retro +$15/ft. Patio Canopy switches pricing to sqft × $35.</div>
       <div class="checkline"><input type="checkbox" id="rc-patio" onchange="computeRecover()"><label for="rc-patio">Patio Canopy — price by sqft ($35/sqft)</label></div>
       <div class="grid3">
         ${ftInField('rc-width','Width')}
@@ -2873,14 +2875,13 @@ function renderRecover(){
         <div class="field"><label>Graphic — 1 color (qty)</label><input type="number" id="rc-g1" value="0"></div>
         <div class="field"><label>Graphic — 2 color (qty)</label><input type="number" id="rc-g2" value="0"></div>
       </div>
-      <div class="grid3">
-        <div class="field"><label>Retrofit (qty)</label><input type="number" id="rc-retrofit" value="0"></div>
-        <div class="field"><label>Skin (qty)</label><input type="number" id="rc-skin" value="0"></div>
-        <div class="field"><label>Takedown/Hang (qty)</label><input type="number" id="rc-takedown" value="0"></div>
-      </div>
+      <div class="checkline"><input type="checkbox" id="rc-takedown-on" onchange="computeRecover()"><label for="rc-takedown-on">Take down / Rehang — $20/ft of width</label></div>
+      <div class="checkline"><input type="checkbox" id="rc-skin-on" onchange="computeRecover()"><label for="rc-skin-on">Skin — $10/ft of width</label></div>
+      <div class="checkline" style="margin-left:22px;"><input type="checkbox" id="rc-skin-ends" onchange="computeRecover()"><label for="rc-skin-ends">Ends are covered (adds projection × 2 ft to skin)</label></div>
+      <div class="checkline"><input type="checkbox" id="rc-retrofit-on" onchange="computeRecover()"><label for="rc-retrofit-on">Retro — additional $15/ft of width</label></div>
       <div class="grid2">
         <div class="field"><label>Delivery (qty)</label><input type="number" id="rc-delivery" value="0"></div>
-        <div class="field"><label>Survey ($)</label><input type="number" id="rc-survey" value="0"></div>
+        <div class="field"><label>Survey ($)</label><input type="number" id="rc-survey" value="450"></div>
       </div>
       <div class="field"><label>Job / item label</label><input type="text" id="rc-name" placeholder="e.g. Awning fabric recover"></div>
       ${groupField('rc')}
@@ -2892,7 +2893,7 @@ function renderRecover(){
   bindFtIn('rc-width', computeRecover);
   bindFtIn('rc-height', computeRecover);
   bindFtIn('rc-proj', computeRecover);
-  ['rc-passes','rc-ends','rc-qty','rc-g1','rc-g2','rc-retrofit','rc-skin','rc-takedown','rc-delivery','rc-survey']
+  ['rc-passes','rc-ends','rc-qty','rc-g1','rc-g2','rc-delivery','rc-survey']
     .forEach(id=>document.getElementById(id).addEventListener('input', computeRecover));
   document.getElementById('rc-fabric').addEventListener('change', computeRecover);
   computeRecover();
@@ -2907,14 +2908,15 @@ function computeRecover(){
   const fabricKey = document.getElementById('rc-fabric').value;
   const g1 = parseFloat(document.getElementById('rc-g1').value)||0;
   const g2 = parseFloat(document.getElementById('rc-g2').value)||0;
-  const retrofit = parseFloat(document.getElementById('rc-retrofit').value)||0;
-  const skin = parseFloat(document.getElementById('rc-skin').value)||0;
-  const takedown = parseFloat(document.getElementById('rc-takedown').value)||0;
+  const retrofitOn = document.getElementById('rc-retrofit-on').checked;
+  const skinOn = document.getElementById('rc-skin-on').checked;
+  const skinEnds = document.getElementById('rc-skin-ends').checked;
+  const takedownOn = document.getElementById('rc-takedown-on').checked;
   const delivery = parseFloat(document.getElementById('rc-delivery').value)||0;
   const survey = parseFloat(document.getElementById('rc-survey').value)||0;
   const qty = Math.max(1, parseInt(document.getElementById('rc-qty').value)||1);
 
-  const yardage = (widthFt*passes + ends*2)/3;
+  const yardage = ((widthFt + cfg.dropExtraFt)*passes + ends*2)/3; // +6" of fabric width per pass for the drop (pricing only)
   const sqft = widthFt*projFt;
   const fabricRate = cfg.fabrics[fabricKey].yd;
   const graphicCost = g1*cfg.graphic1 + g2*cfg.graphic2;
@@ -2922,9 +2924,10 @@ function computeRecover(){
   const materialCost = patio ? (sqft*35) : ((yardage*fabricRate)*cfg.markup);
   const mfgTotal = materialCost + graphicCost;
 
-  const retrofitCost = retrofit*cfg.retrofitRate;
-  const skinCost = skin*cfg.skinRate;
-  const takedownCost = takedown*cfg.takedownRate;
+  const retrofitCost = retrofitOn ? widthFt*cfg.retrofitRate : 0;
+  const skinFt = widthFt + (skinEnds ? projFt*2 : 0);
+  const skinCost = skinOn ? skinFt*cfg.skinRate : 0;
+  const takedownCost = takedownOn ? widthFt*cfg.takedownRate : 0;
   const deliveryCost = delivery*cfg.deliveryRate;
   const installTotal = retrofitCost + skinCost + takedownCost;
 
@@ -2939,7 +2942,7 @@ function computeRecover(){
   document.getElementById('rc-breakdown').innerHTML = `
     ${matRow}
     <div class="row"><span>Graphics</span>${fmtCopy(graphicCost)}</div>
-    <div class="row"><span>Retrofit / Skin / Takedown</span>${fmtCopy(installTotal)}</div>
+    <div class="row"><span>Take down/Rehang${takedownOn ? ` (${widthFt.toFixed(1)}ft × $20)` : ''} / Skin${skinOn ? ` (${skinFt.toFixed(1)}ft × $10)` : ''} / Retro${retrofitOn ? ` (${widthFt.toFixed(1)}ft × $15)` : ''}</span>${fmtCopy(installTotal)}</div>
     <div class="row"><span>Delivery</span>${fmtCopy(deliveryCost)}</div>
     <div class="row"><span>Survey</span>${fmtCopy(survey)}</div>
     ${qty>1 ? `<div class="row"><span>Per Unit Total</span>${fmtCopy(unitTotal)}</div>` : ''}
