@@ -3710,11 +3710,140 @@ function renderCostSheet(){
   body.innerHTML = banner + html +
     `<div style="font-size:11px;color:#888;line-height:1.5;margin-top:4px">● = downspouts / C-channel (added to material &amp; sell). Excludes shop labor, paint, freight, and anchor hardware (pending real pricing). Lights &amp; posts are billed as separate lines and aren't in this margin.</div>`;
 }
+/* ---- v102: INSTALLER LABOR FEED (from Installer Pay app — same origin) ----
+   Installer Pay (awningmike.github.io/installer-pay) writes a labor-cost feed to
+   localStorage "sommer-installer-pay-labor" every time it saves. We read it fresh
+   on every margin render so new saves show up on the next recalc. If it's missing,
+   the margin check stays material-only and says how to load it. */
+const INSTALLER_FEED_KEY = 'sommer-installer-pay-labor';
+// quoteItems type → feed products key ('patiocanopy' is 'patio' in Installer Pay)
+const INSTALLER_TYPE_MAP = { canopy:'canopy', sunshade:'sunshade', standingSeam:'standingSeam',
+                             fabric:'fabric', recover:'recover', patiocanopy:'patio', patiorailing:'patiorailing' };
+let qbCrewChoice = null;   // crew picked in the margin check; null = use feed.defaultCrew
+
+function getInstallerFeed(){
+  try{
+    const raw = localStorage.getItem(INSTALLER_FEED_KEY);
+    if(!raw) return null;
+    const f = JSON.parse(raw);
+    if(!f || typeof f !== 'object' || !f.products) return null;
+    return f;
+  }catch(e){ return null; }
+}
+function qbSelectedCrew(feed){
+  const crews = feed.crews || [];
+  const want = qbCrewChoice || feed.defaultCrew;
+  return crews.find(c=>c.name===want)
+      || crews.find(c=>c.name===feed.defaultCrew)
+      || crews[0]
+      || { name:'—', laborMult:1, travelMult:1 };
+}
+// "12'-6\"" | "12'" | "6\"" (ftInLabel format) → decimal feet
+function qbParseFtIn(str){
+  if(typeof str !== 'string') return 0;
+  let ft = 0, inch = 0;
+  const mf = str.match(/(\d+(?:\.\d+)?)\s*'/);  if(mf) ft = parseFloat(mf[1]);
+  const mi = str.match(/(\d+(?:\.\d+)?)\s*(?:"|”)/); if(mi) inch = parseFloat(mi[1]);
+  return ft + inch/12;
+}
+function qbItemWidthFt(i){
+  const s = i.spec || {};
+  if(typeof s.widthFt === 'number' && s.widthFt > 0) return s.widthFt;   // canopy, patio canopy
+  if(typeof s.lenFt   === 'number' && s.lenFt   > 0) return s.lenFt;     // patio railing (lineal ft)
+  if(s.widthStr)  return qbParseFtIn(s.widthStr);                        // standing seam / fabric / sunshade / recover
+  if(s.lengthStr) return qbParseFtIn(s.lengthStr);
+  return 0;
+}
+/* installerLabor per item = Σ over products[type].items of rate × (perFt×widthFt×qty + perUnit×qty), × crew.laborMult.
+   Travel: qbAutoMiles.oneWay (or manual round-trip ÷ 2). Under travel.threshold → tripQty × Trip rate;
+   otherwise one-way miles (×2 if milesMode "round") × Miles rate. × crew.travelMult. */
+function computeInstallerCost(feed, crew){
+  let labor = 0; const missing = [];
+  quoteItems.forEach(i=>{
+    if(!i.type) return;
+    const key = INSTALLER_TYPE_MAP[i.type];
+    const prod = key && feed.products ? feed.products[key] : null;
+    if(!prod || !Array.isArray(prod.items)){ missing.push(i.title); return; }
+    const w = qbItemWidthFt(i), qty = (i.spec && i.spec.qty) || 1;
+    prod.items.forEach(t=>{
+      labor += (t.rate||0) * ((t.perFt||0)*w*qty + (t.perUnit||0)*qty);
+    });
+  });
+  labor *= (crew.laborMult || 1);
+  let travel = 0, travelNote = 'no mileage entered';
+  const rates = feed.rates || {}, tv = feed.travel || {};
+  const tripRate = (rates.Trip  && rates.Trip.rate)  || 0;
+  const mileRate = (rates.Miles && rates.Miles.rate) || 0;
+  const oneWay = qbAutoMiles ? qbAutoMiles.oneWay
+               : ((parseFloat((document.getElementById('extra-miles')||{}).value)||0)/2);
+  if(oneWay > 0){
+    if(oneWay < (tv.threshold || 0)){
+      const trips = tv.tripQty || 1;
+      travel = trips * tripRate;
+      travelNote = trips+' trip'+(trips>1?'s':'')+' × $'+tripRate+' (under '+tv.threshold+' mi)';
+    } else {
+      const mi = tv.milesMode === 'round' ? oneWay*2 : oneWay;
+      travel = mi * mileRate;
+      travelNote = Math.round(mi)+' mi × $'+mileRate+'/mi'+(tv.milesMode==='round'?' (round trip)':' (one-way)');
+    }
+    travel *= (crew.travelMult || 1);
+  }
+  return { labor, travel, missing, travelNote, oneWay };
+}
+// The installer-labor strip appended to the margin check. sell/mat = the material-only
+// check's numbers (canopy sell excl. paint, true material cost).
+function installerMarginBlock(sell, mat){
+  const wrap = (inner)=>`<div style="margin-top:8px;padding:7px 9px;background:#f3efe4;border:1px solid #e0d8bf;border-radius:6px;line-height:1.55;">${inner}</div>`;
+  const feed = getInstallerFeed();
+  if(!feed) return wrap(`<b style="color:#7a6a2f;">🧰 Installer labor</b> — <span style="color:#8a6d1a;">Open Installer Pay once to load labor costs.</span> Margin above stays material-only until then.`);
+  const crew = qbSelectedCrew(feed);
+  const crews = feed.crews || [];
+  const picker = `<select id="mc-crew" onchange="qbCrewChoice=this.value;renderQuote()" style="font-size:11px;padding:2px 4px;">${
+    crews.map(c=>`<option value="${c.name.replace(/"/g,'&quot;')}"${c.name===crew.name?' selected':''}>${c.name}</option>`).join('')
+  }</select>`;
+  const r = computeInstallerCost(feed, crew);
+  const installation = (lastQuoteSummary && lastQuoteSummary.installation) || 0;
+  const instCost = r.labor + r.travel;
+  const spread = installation - instCost;
+  const sCol = spread >= 0 ? '#1f6b33' : '#c0392b';
+  const sellAll = sell + installation;
+  const marginL = sellAll > 0 ? (sellAll - mat - r.labor - r.travel)/sellAll : 0;
+  const target = (parseFloat((document.getElementById('mc-target')||{}).value)||42.5)/100;
+  const mCol = marginL >= target ? '#1f6b33' : (marginL >= target-0.05 ? '#b8860b' : '#c0392b');
+  // actuals: what installers really got paid on this job number (from Installer Pay)
+  let actualHtml = '';
+  const jobNo = (typeof _atHdr==='function') ? _atHdr('hdr-projno') : '';
+  const act = jobNo && feed.jobActuals && feed.jobActuals[jobNo];
+  if(act) actualHtml = `<div style="margin-top:4px;color:#1f3b6e;"><b>Actual installer pay on this job:</b> $${Math.round(act.total||0).toLocaleString()}${act.labor!=null?` <span style="color:#8a94a6;">(labor $${Math.round(act.labor).toLocaleString()} · travel $${Math.round(act.travel||0).toLocaleString()}${act.other?` · other $${Math.round(act.other).toLocaleString()}`:''})</span>`:''}</div>`;
+  const missingHtml = r.missing.length ? `<div style="margin-top:4px;color:#b8860b;font-size:11px;">⚠️ No installer rate card for: ${r.missing.join(', ')} — not in this estimate.</div>` : '';
+  return wrap(
+    `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+       <b style="color:#7a6a2f;">🧰 Installer labor</b>
+       <span style="font-size:11px;color:#8a94a6;">crew ${picker} <span title="crew is paid $${(crew.laborMult||1).toFixed(2)} per $1 of rate-card work">×${(crew.laborMult||1).toFixed(2)} labor · ×${(crew.travelMult||1).toFixed(2)} travel</span></span>
+     </div>
+     <div style="margin-top:5px;">
+       Installation charged <b>$${Math.round(installation).toLocaleString()}</b> vs installer cost <b>$${Math.round(instCost).toLocaleString()}</b>
+       <span style="color:${sCol};font-weight:700;">(${spread>=0?'+':'−'}$${Math.round(Math.abs(spread)).toLocaleString()})</span><br>
+       <span style="color:#8a94a6;font-size:11px;">labor $${Math.round(r.labor).toLocaleString()} · travel $${Math.round(r.travel).toLocaleString()} (${r.travelNote})</span>
+     </div>
+     <div style="margin-top:5px;">
+       Margin after material + installer labor:
+       <b style="font-size:15px;color:${mCol};">${(marginL*100).toFixed(1)}%</b>
+       <span style="color:#8a94a6;font-size:11px;">= (sell incl. installation $${Math.round(sellAll).toLocaleString()} − material − installer labor − travel) ÷ sell</span>
+     </div>
+     ${actualHtml}${missingHtml}`
+  );
+}
+
 function updateMarginCheck(){
   const el = document.getElementById('mc-body'); if(!el) return;
   const target = (parseFloat(document.getElementById('mc-target').value)||42.5)/100;
   const cans = quoteItems.filter(i=>i.type==='canopy');
-  if(!cans.length){ el.innerHTML = 'Add a canopy to see its margin against your true cost.'; return; }
+  if(!cans.length){
+    el.innerHTML = 'Add a canopy to see its margin against your true cost.' +
+      ((quoteItems.length || !getInstallerFeed()) ? installerMarginBlock(0, 0) : '');
+    return;
+  }
   // MATERIAL ONLY for now — labor/finish/freight are held out until hard numbers are set.
   // (canopyTrueCost still computes them so they can be switched on later without rework.)
   let sell=0, mat=0;
@@ -3758,7 +3887,8 @@ function updateMarginCheck(){
          ${row(3.25)}
          ${row(3)}
        </div>`; })()}
-     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> — shop/install labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing. The $9/sqft paint adder is excluded from both sides of this check.</div>`;
+     ${installerMarginBlock(sell, mat)}
+     <div style="margin-top:5px;color:#9aa3b2;font-size:11px;"><b>Material only</b> (top number) — shop labor, freight &amp; finish are held out until we lock hard numbers. Material is the framing-recipe BOM at proportional lineal-ft pricing. The $9/sqft paint adder is excluded from both sides of this check. Installer labor strip uses the live rate card from Installer Pay.</div>`;
 }
 
 /* ---- v96: DELIVERY MILES AUTO-CALC ----
@@ -3938,7 +4068,6 @@ function renderQuote(){
   setCopyableTotal('q-stamped', stamped);
   setCopyableTotal('q-tax', tax);
   setCopyableTotal('q-total', total);
-  updateMarginCheck();
 
   lastQuoteSummary = {
     groups: (()=>{
@@ -3954,6 +4083,7 @@ function renderQuote(){
     downspoutsTotal, downspoutsQty, lightsTotal, lightsQty, postsTotal, postsQty,
     laborSubtotal, deliveryCost, installation, survey, lift, stamped, taxOn, taxRatePercent, taxAllLines, tax, total
   };
+  updateMarginCheck(); // after lastQuoteSummary so the installer-labor strip sees the fresh Installation number
 }
 let lastQuoteSummary = null;
 
@@ -4293,7 +4423,7 @@ async function pushToCurrentBase(){
     // Phase 2: append a margin snapshot to the Margin Log (material-only for now)
     let marginNote = '';
     const ml = await writeMarginLog(token);
-    if(ml.ok) marginNote = `\n• Margin logged: ${ml.marginPct.toFixed(1)}% material`;
+    if(ml.ok) marginNote = `\n• Margin logged: ${ml.marginPct.toFixed(1)}% material${ml.marginLPct!=null?` · ${ml.marginLPct.toFixed(1)}% w/ install labor`:''}`;
     else if(ml.error) marginNote = '\n• Margin log NOT written: '+ml.error;
     const svc = serviceFromQuote();
     alert(`Uploaded to current base ✓\n${(target && target.name) || p.projName} — $${p.grand.toLocaleString()}\n(${target ? (target.type==='close' ? 'quote added to existing project (matched by name)' : 'updated existing project')+(target.status?` · status kept: ${target.status}`:'') : 'new project · Status '+CURRENT_BASE_CFG.defaultStatus+' · Service: '+(svc.join(', ')||'—')})${pdfNote}${marginNote}`);
@@ -4313,7 +4443,10 @@ const MARGIN_LOG_CFG = {
     project:'fldyISCg5dLaMNjjx', date:'fld2asBrDsVXVIWSW', qbNo:'fldzRHM8cBlaT4Wo0',
     company:'fldtaVAZrc5zvG0G0', sale:'flddKi3HEnX91kO9i', matCost:'fldxFCrDaaP8C4xaU',
     margin:'fldgOznisIw6CXVTE', target:'fldYLbU4freqXRuVp', basis:'fldhPBM1K5lXQkHii',
-    sqft:'fldmBIEBUsjzsXJCv', source:'fldmyKeKfSFZaOxOn'
+    sqft:'fldmBIEBUsjzsXJCv', source:'fldmyKeKfSFZaOxOn',
+    // v102 — labor-inclusive numbers, SAME record (material-only fields stay as-is)
+    laborCost:'fldFz84mm50RsEUzr', travelCost:'fldO6PYhH0B8yFRDk',
+    marginLabor:'fldtniAOtXYJwxJeA', crew:'fldCnBjlwrMcAiOal', laborBasis:'fldXH6gPSt9UN0kZG'
   }
 };
 async function writeMarginLog(token){
@@ -4338,13 +4471,30 @@ async function writeMarginLog(token){
     f[F.basis]   = 'Material only';
     f[F.sqft]    = Math.round(sqft);
     f[F.source]  = 'Quote Builder';
+    // v102 — add the labor-inclusive numbers to the SAME record when the Installer Pay feed is loaded
+    let marginLPct = null;
+    const feed = getInstallerFeed();
+    if(feed){
+      const crew = qbSelectedCrew(feed);
+      const r = computeInstallerCost(feed, crew);
+      const installation = (lastQuoteSummary && lastQuoteSummary.installation) || 0;
+      const sellAll = sell + installation;
+      if(sellAll > 0){
+        marginLPct = (sellAll - mat - r.labor - r.travel)/sellAll*100;
+        f[F.laborCost]   = Math.round(r.labor);
+        f[F.travelCost]  = Math.round(r.travel);
+        f[F.marginLabor] = Math.round(marginLPct*10)/10;
+        f[F.crew]        = crew.name;
+        f[F.laborBasis]  = 'Material + install labor';
+      }
+    }
     const resp = await fetch(`https://api.airtable.com/v0/${MARGIN_LOG_CFG.baseId}/${MARGIN_LOG_CFG.table}`, {
       method:'POST',
       headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
       body: JSON.stringify({ records:[{ fields:f }], typecast:true })
     }).then(r=>r.json());
     if(resp.error) return { ok:false, error: resp.error.message||JSON.stringify(resp.error) };
-    return { ok:true, marginPct, sell, mat };
+    return { ok:true, marginPct, marginLPct, sell, mat };
   } catch(e){ return { ok:false, error:e.message }; }
 }
 
