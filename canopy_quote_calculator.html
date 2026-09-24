@@ -431,7 +431,7 @@
 
 let RATES = {
   jobLevel: {
-    deliveryRate: 4.25,  // $/mile (round-trip miles) — applies only beyond the flat zone
+    deliveryRate: 4.25,  // $/mile (ONE-WAY miles, per Mike 09/24/26) — applies only beyond the flat zone
     flatDeliveryUnderMi: 70,   // one-way miles — under this, delivery is a flat charge
     flatDeliveryPrice: 250,    // the flat delivery charge inside the zone
   },
@@ -3959,7 +3959,7 @@ function qbUpdateMilesStatus(miles, isFlat, deliveryCost){
   const src = qbAutoMiles ? ('from shop to '+qbAutoMiles.place+(qbAutoMiles.est?' (straight-line est.)':' (driving)')) : '(manual entry)';
   el.innerHTML = Math.round(oneWay)+' mi one-way / '+Math.round(miles)+' mi round trip '+src+' → '+
     (isFlat ? '<b>flat $'+RATES.jobLevel.flatDeliveryPrice+'</b> (under '+RATES.jobLevel.flatDeliveryUnderMi+' mi)'
-            : '<b>$'+deliveryCost.toLocaleString()+'</b> ('+Math.round(miles)+' RT × $'+RATES.jobLevel.deliveryRate+'/mi)')+
+            : '<b>$'+deliveryCost.toLocaleString()+'</b> ('+Math.round(miles/2)+' mi one-way × $'+RATES.jobLevel.deliveryRate+'/mi)')+
     ' — rolled into the Installation line.';
 }
 
@@ -4026,10 +4026,10 @@ function renderQuote(){
   const laborSubtotal = quoteItems.reduce((s,i)=>s+(i.labor||0),0);
   const miles = parseFloat(document.getElementById('extra-miles').value)||0;
   // Delivery: under the flat zone (one-way = round-trip/2 < 70 mi) it's a flat $250;
-  // beyond that it's round-trip miles × $/mile as before. 0 miles = no delivery charge.
+  // beyond that it's ONE-WAY miles × $/mile (per Mike 09/24/26 — was round-trip). 0 miles = no charge.
   const oneWayMi = miles/2;
   const deliveryFlat = miles>0 && oneWayMi < RATES.jobLevel.flatDeliveryUnderMi;
-  const deliveryCost = miles<=0 ? 0 : (deliveryFlat ? RATES.jobLevel.flatDeliveryPrice : Math.ceil(miles*RATES.jobLevel.deliveryRate));
+  const deliveryCost = miles<=0 ? 0 : (deliveryFlat ? RATES.jobLevel.flatDeliveryPrice : Math.ceil(oneWayMi*RATES.jobLevel.deliveryRate));
   qbUpdateMilesStatus(miles, deliveryFlat, deliveryCost);
   const installation = laborSubtotal + deliveryCost; // labor + mileage combined, one line — not taxed
 
