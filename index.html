@@ -1,14 +1,1047 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=canopy_quote_calculator.html">
-  <link rel="canonical" href="canopy_quote_calculator.html">
-  <title>APMG Quote Calculator</title>
-  <script>window.location.replace('canopy_quote_calculator.html');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Sommer Installer Pay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F3F5F2; --surface:#FFFFFF; --sunk:#E9EDE8; --ink:#1B2320; --muted:#5E6B65; --line:#D5DCD6; --line-strong:#B9C3BB;
+  --accent:#1E6B50; --accent-ink:#FFFFFF; --accent-soft:#DCEEE5; --stripe:#E7E0CC;
+  --warn:#9A5B00; --warn-soft:#F7ECD7; --bad:#A3322A; --bad-soft:#F6E1DE; --good:#1E6B50;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#111614; --surface:#18201C; --sunk:#1F2924; --ink:#E4EAE6; --muted:#98A6A0; --line:#2B3731; --line-strong:#3C4B44;
+    --accent:#4DB38A; --accent-ink:#0C1511; --accent-soft:#1E3A2E; --stripe:#3A3626;
+    --warn:#E0A64A; --warn-soft:#3A2E17; --bad:#E07A70; --bad-soft:#3D1F1C; --good:#4DB38A;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#111614; --surface:#18201C; --sunk:#1F2924; --ink:#E4EAE6; --muted:#98A6A0; --line:#2B3731; --line-strong:#3C4B44;
+  --accent:#4DB38A; --accent-ink:#0C1511; --accent-soft:#1E3A2E; --stripe:#3A3626;
+  --warn:#E0A64A; --warn-soft:#3A2E17; --bad:#E07A70; --bad-soft:#3D1F1C; --good:#4DB38A;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.45 var(--body)}
+button,input,select{font:inherit;color:inherit}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* header with awning valance */
+header.top{background:var(--accent);color:var(--accent-ink);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+.top-in{max-width:1240px;margin:0 auto;padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.brand{font-family:var(--display);font-weight:700;font-size:24px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand small{display:block;font-family:var(--body);font-weight:500;font-size:11px;letter-spacing:.12em;opacity:.8;margin-top:3px}
+.period-pick{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.period-pick select{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);color:inherit;border-radius:var(--r);padding:6px 8px;max-width:230px}
+:root[data-theme="dark"] .period-pick select, :root:not([data-theme="light"]) .period-pick select{background:rgba(0,0,0,.12)}
+.period-pick option{color:#1B2320;background:#fff}
+.tabs{display:flex;gap:4px;margin-left:auto}
+.tabs button{background:transparent;border:0;color:inherit;padding:7px 12px;border-radius:var(--r);font-weight:600;cursor:pointer;opacity:.85}
+.tabs button[aria-selected="true"]{background:var(--accent-ink);color:var(--accent);opacity:1}
+.valance{height:12px;background:repeating-linear-gradient(90deg,var(--accent) 0 22px,var(--stripe) 22px 44px);
+  -webkit-mask:radial-gradient(circle at 11px 0,#000 11px,transparent 11.5px) 0 0/22px 12px repeat-x;
+          mask:radial-gradient(circle at 11px 0,#000 11px,transparent 11.5px) 0 0/22px 12px repeat-x}
+
+main{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:14px 60px;display:flex;flex-direction:column;gap:18px}
+.banner{border-radius:var(--r);padding:10px 14px;background:var(--warn-soft);color:var(--ink);border:1px solid var(--line)}
+.banner b{color:var(--warn)}
+
+/* period summary bar */
+.pbar{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.pbar h1{font-family:var(--display);font-weight:600;font-size:32px;line-height:1.05;margin:0;text-wrap:balance}
+.pbar .meta{color:var(--muted);font-size:13px;margin-top:2px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:3px 10px;border:1px solid transparent;cursor:pointer;background:transparent}
+.pill.open{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.pill.paid{background:var(--accent-soft);color:var(--accent)}
+.totals-strip{display:flex;flex-wrap:wrap;gap:6px}
+.tchip{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:5px 10px;display:flex;flex-direction:column;min-width:96px}
+.tchip span{font-size:12px;color:var(--muted)}
+.tchip b{font-family:var(--mono);font-weight:600;font-size:15px}
+.tchip.grand{background:var(--ink);color:var(--ground);border-color:var(--ink)}
+.tchip.grand span{color:inherit;opacity:.7}
+
+/* buttons */
+.btn{border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:6px 12px;cursor:pointer;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 8px}
+.btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn.danger{color:var(--bad)}
+.btn.danger.confirm{background:var(--bad);color:#fff;border-color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* crew card */
+.crew{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.crew-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.crew-head .cname{font-family:var(--display);font-weight:600;font-size:22px;background:transparent;border:1px solid transparent;border-radius:4px;padding:0 4px;width:190px}
+.crew-head .cname:hover,.crew-head .cname:focus{border-color:var(--line)}
+.crew-head .ctotal{margin-left:auto;text-align:right;font-size:12px;color:var(--muted)}
+.crew-head .ctotal b{display:block;font-family:var(--mono);font-size:16px;color:var(--ink)}
+.members{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.mchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--sunk);border-radius:99px;padding:3px 4px 3px 10px;font-size:13px;font-weight:600;cursor:pointer}
+.mchip .pct{font-family:var(--mono);font-weight:500;font-size:12px;color:var(--muted)}
+.mchip .pct em{font-style:normal;color:var(--accent);font-weight:600}
+.mchip[aria-expanded="true"]{border-color:var(--accent)}
+.medit{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:10px 14px;background:var(--sunk);border-bottom:1px solid var(--line);font-size:13px}
+.medit label{display:inline-flex;align-items:center;gap:6px}
+.medit input[type=number]{width:64px}
+.addsel{border:1px dashed var(--line-strong);background:transparent;border-radius:99px;padding:3px 8px;font-size:13px;color:var(--muted)}
+
+.tablewrap{overflow-x:auto}
+table.grid{border-collapse:collapse;width:100%;min-width:860px;font-size:14px}
+.grid th{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface)}
+.grid td{padding:2px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+.grid tr.jobstart td{border-top:1px solid var(--line-strong)}
+.grid th.r,.grid td.r{text-align:right}
+.grid input,.grid select{width:100%;border:1px solid transparent;background:transparent;border-radius:4px;padding:5px 5px;min-width:0}
+.grid input:hover,.grid select:hover{border-color:var(--line)}
+.grid input:focus,.grid select:focus{border-color:var(--accent);background:var(--surface);outline:none}
+.grid input.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.grid .w-job{width:70px}.grid .w-loc{min-width:230px}.grid .w-task{width:170px}.grid .w-qty{width:74px}.grid .w-rate{width:78px}
+.typetag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:3px;padding:1px 5px;white-space:nowrap}
+.typetag.Labor{background:var(--accent-soft);color:var(--accent)}
+.typetag.Travel{background:var(--warn-soft);color:var(--warn)}
+.typetag.Hourly,.typetag.Other,.typetag.PerDiem{background:var(--sunk);color:var(--muted)}
+.amt{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;padding-inline:6px}
+button.mpay{white-space:nowrap;font-family:var(--mono);font-variant-numeric:tabular-nums;background:transparent;border:1px solid transparent;border-radius:4px;padding:4px 6px;width:100%;text-align:right;cursor:pointer}
+button.mpay:hover{border-color:var(--line)}
+button.mpay.out{color:var(--muted);text-decoration:line-through;opacity:.6}
+.grid tfoot td{font-weight:700;border-bottom:0;padding:8px 6px;background:var(--sunk)}
+.del{opacity:.35}.grid tr:hover .del{opacity:1}
+.crew-foot{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;align-items:center}
+.hint{font-size:12px;color:var(--muted)}
+
+section h2{font-family:var(--display);font-weight:600;font-size:22px;margin:0 0 6px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.panel-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between}
+
+/* stubs */
+.stubs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:16px}
+.stub{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stub-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;padding:14px 16px 10px;border-bottom:2px solid var(--ink)}
+.stub-head h3{margin:0;font-family:var(--display);font-weight:700;font-size:26px;line-height:1}
+.stub-head .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.stub-head .big{font-family:var(--mono);font-size:24px;font-weight:600;text-align:right}
+.stub-head .big span{display:block;font-family:var(--body);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+table.stubt{width:100%;border-collapse:collapse;font-size:13px}
+.stubt td,.stubt th{padding:4px 8px;border-bottom:1px solid var(--line)}
+.stubt th{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-align:left;font-weight:700}
+.stubt .r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.stubt tr.jobrow td{background:var(--sunk);font-weight:700;font-size:12px}
+.stubt tr.jobrow td .r{font-weight:600}
+.stubt tfoot td{font-weight:700;border-bottom:0;padding:8px}
+.byjob td.r,.byjob th.r{text-align:right}
+
+/* setup */
+.setup-grid{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:1080px){.setup-grid{grid-template-columns:1.25fr 1fr}}
+.setup-grid table.grid{min-width:560px}
+
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.inline-form{display:flex;flex-wrap:wrap;gap:10px;align-items:end;padding:12px 14px;background:var(--sunk);border-radius:var(--r);border:1px solid var(--line)}
+.inline-form label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:3px}
+.inline-form input{border:1px solid var(--line-strong);border-radius:4px;padding:5px 7px;background:var(--surface)}
+.pdate{border:1px solid transparent;background:transparent;border-radius:4px;padding:1px 3px;color:var(--muted);font-size:13px}
+.pdate:hover:not(:disabled),.pdate:focus{border-color:var(--line-strong);color:var(--ink)}
+.plantag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:3px;padding:1px 5px;border:1px solid var(--accent);color:var(--accent);cursor:help}
+.plantag.est{border-style:dashed;border-color:var(--warn);color:var(--warn)}
+.dw-cta{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:12px 14px;border:1px dashed var(--line-strong);border-radius:8px;background:var(--surface)}
+.dw-cta div{display:flex;flex-direction:column;gap:2px;max-width:70ch}
+.dw{border-color:var(--accent)}
+.dw-body{padding:14px;display:flex;flex-direction:column;gap:14px}
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding:2px}
+.thumb{position:relative;display:flex;flex-direction:column;gap:4px;border:2px solid var(--line);border-radius:6px;padding:6px;cursor:pointer;background:var(--sunk);font-size:11px;color:var(--muted)}
+.thumb.on{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.thumb img{width:100%;aspect-ratio:17/11;object-fit:contain;background:#fff;border-radius:3px;max-width:100%}
+.thumb input{position:absolute;top:10px;left:10px;width:18px;height:18px;accent-color:var(--accent)}
+.thumb span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dw-form{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.dw-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.dw-form label.grow{flex:1 1 240px}
+.dw-form input,.dw-form select{border:1px solid var(--line-strong);border-radius:4px;padding:6px 8px;background:var(--surface);min-width:0}
+.dw-form input#dwJob{width:110px}
+.dw-status{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.spin{width:16px;height:16px;border:2px solid var(--line-strong);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.conf{font-size:11px;font-weight:700;border-radius:3px;padding:1px 6px;white-space:nowrap}
+.conf.yes{background:var(--accent-soft);color:var(--accent)}
+.conf.no{background:var(--warn-soft);color:var(--warn)}
+.dwres td.basis{font-size:13px;color:var(--muted);min-width:260px;padding:6px}
+.dw-status.warn{color:var(--warn)}
+.dw-notes{margin:0;padding-left:20px;color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:3px}
+.banner.info{background:var(--accent-soft)}
+.banner .btn{margin-left:6px}
+@media print{
+  header.top,.tabs,.banner,.row,.pbar,.dw-cta,.panel,.toast{display:none!important}
+  body{background:#fff;color:#000}
+  main{padding:0;max-width:none}
+  .stubs{display:block}
+  .stub{break-after:page;border:0;border-radius:0}
+  .stub:last-child{break-after:auto}
+  .stub-head{border-bottom:2px solid #000}
+  .stubt td,.stubt th{border-color:#bbb}
+  .stubt tr.jobrow td{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--ground);padding:8px 14px;border-radius:var(--r);font-size:14px;z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.saving{font-size:12px;opacity:.85}
+@media (max-width:640px){.tabs{margin-left:0;width:100%}.tabs button{flex:1}.pbar h1{font-size:26px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
 </head>
-<body style="font-family:Arial,sans-serif;padding:40px;">
-  Redirecting to the <a href="canopy_quote_calculator.html">APMG Quote Calculator</a>&hellip;
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">Installer Pay<small>Sommer Awning · by PO</small></div>
+    <div class="period-pick">
+      <select id="periodSel" aria-label="Pay period"></select>
+      <button class="btn" id="newPeriodBtn" type="button" style="background:transparent;color:inherit;border-color:rgba(255,255,255,.4)">+ New period</button>
+      <span class="saving" id="saveState"></span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="entry" aria-selected="true" type="button">Enter work</button>
+      <button role="tab" data-tab="stubs" aria-selected="false" type="button">Pay stubs</button>
+      <button role="tab" data-tab="setup" aria-selected="false" type="button">Settings</button>
+    </nav>
+  </div>
+  <div class="valance" aria-hidden="true"></div>
+</header>
+
+<main id="app"><div class="empty">Loading payroll…</div></main>
+<div class="toast" id="toast" hidden></div>
+
+<datalist id="taskList"></datalist>
+<input type="file" id="restoreFile" accept="application/json,.json" hidden>
+
+<script>
+(function(){
+"use strict";
+const S = { db:null, mode:"loading", rates:[], installers:[], periods:{}, cur:null, tab:"entry",
+  sample:null, sampleLimits:null, dwAvail:false,
+  dw:{open:false, pages:[], busy:false, ctl:null, err:"", results:null, job:"", loc:"", crewId:"", loading:false},
+  openMember:null, newPeriodOpen:false, confirmDel:null, stubFilter:"all", writable:true };
+const $ = (s,el=document)=>el.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = n => (n<0?"-":"")+"$"+Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const num = v => { const n=parseFloat(v); return isFinite(n)?n:0; };
+const uid = p => p+Math.random().toString(36).slice(2,9);
+const periodLabel = (s,e) => { const a=fmtD(s), b=fmtD(e); return (a.slice(6)===b.slice(6)?a.slice(0,5):a)+" – "+b; };
+const fmtD = iso => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${m}/${d}/${y.slice(2)}`; };
+try{ const t=localStorage.getItem("ip_tab"); if(t) S.tab=t; }catch(e){}
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,2600); }
+const inst = id => S.installers.find(i=>i.id===id);
+const iname = id => inst(id)?.name || "Removed installer";
+const period = () => S.periods[S.cur];
+const locked = () => period()?.status==="Paid" || !S.writable;
+
+/* ---------- pay math (same rules as the old workbook) ---------- */
+function lineAmt(l){ return num(l.qty)*num(l.rate); }
+function memberPay(l,m){
+  if((l.out||[]).includes(m.id)) return 0;
+  const b = (l.type==="Labor" || (m.bonusTravel && l.type!=="Labor")) ? num(m.bonus) : 0;
+  return lineAmt(l)*(num(m.share)+b)/100;
+}
+function extraAmt(x){ return num(x.qty)*num(x.rate); }
+function periodTotals(p){
+  const t={};
+  (p.crews||[]).forEach(c=>c.lines.forEach(l=>c.members.forEach(m=>{ t[m.id]=(t[m.id]||0)+memberPay(l,m); })));
+  (p.extras||[]).forEach(x=>{ t[x.installer]=(t[x.installer]||0)+extraAmt(x); });
+  return t;
+}
+
+/* ---------- persistence: this browser (localStorage) ---------- */
+const STORE="sommer-installer-pay-v1", KEYSTORE="sommer-installer-pay-key", MODELSTORE="sommer-installer-pay-model", BKSTORE="sommer-installer-pay-lastbackup";
+const FEEDSTORE="sommer-installer-pay-labor";   // labor-cost feed the Quote Builder margin check reads (same origin)
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+let saveT=null;
+function markSaving(txt){ const el=$("#saveState"); if(el) el.textContent = txt || (S.mode==="local"?"Saved on this computer":"Not saving — see note"); }
+function snapshot(){ return {app:"sommer-installer-pay",version:1,savedAt:new Date().toISOString(),rates:S.rates,installers:S.installers,periods:S.periods,products:S.products}; }
+function persist(){
+  markSaving("Saving…");
+  clearTimeout(saveT); saveT=setTimeout(()=>{
+    const ok=lsSet(STORE, JSON.stringify(snapshot()));
+    if(!ok){ S.mode="nostore"; markSaving(); toast("Couldn't save in this browser — download a backup now so nothing is lost."); render(); }
+    else markSaving();
+    writeQuoteFeed();
+  },300);
+}
+
+/* ---------- Quote Builder labor feed ----------
+   Every save also writes a compact labor-cost feed to localStorage (FEEDSTORE).
+   The Quote Builder (same origin) reads it to show projected install-labor margin
+   while quoting: per-product rate-card recipes, crew multipliers, travel rules,
+   and actual installer pay by job #. */
+function defaultProducts(){
+  const it=(task,perFt,perUnit=0)=>({task,perFt,perUnit});
+  return [
+    {key:"canopy",       label:"Metal Canopy",   items:[it("Install Canopy",1)]},
+    {key:"patio",        label:"Patio Canopy",   items:[it("Install Canopy",1)]},
+    {key:"sunshade",     label:"Sunshade",       items:[it("Install Base",1)]},
+    {key:"standingSeam", label:"Standing Seam",  items:[it("Install Base",1)]},
+    {key:"fabric",       label:"Fabric Awning",  items:[it("Install Base",1)]},
+    {key:"recover",      label:"Recover",        items:[it("Skin",1)]},
+    {key:"patiorailing", label:"Patio Railing",  items:[it("Install Base",1)]}
+  ];
+}
+function crewMults(c){
+  const lab=(c.members||[]).reduce((s,m)=>s+(num(m.share)+num(m.bonus))/100,0);
+  const trv=(c.members||[]).reduce((s,m)=>s+(num(m.share)+(m.bonusTravel?num(m.bonus):0))/100,0);
+  return {lab,trv};
+}
+function writeQuoteFeed(){
+  try{
+    const pid=sortedPeriodIds()[0]; const p=pid?S.periods[pid]:null;
+    const crews=((p&&p.crews)||[]).map(c=>{ const m=crewMults(c);
+      return {name:c.name, members:c.members.map(x=>iname(x.id)),
+              laborMult:+m.lab.toFixed(4), travelMult:+m.trv.toFixed(4)}; });
+    const rates={}; S.rates.forEach(r=>{ rates[r.task]={rate:num(r.rate),unit:r.unit,type:r.type}; });
+    const def=crews[0]||{name:"",laborMult:1,travelMult:1};
+    const products={};
+    (S.products||[]).forEach(pr=>{
+      const items=(pr.items||[]).map(i=>({task:i.task,perFt:num(i.perFt),perUnit:num(i.perUnit),rate:num(rates[i.task]?rates[i.task].rate:0)}));
+      const aF=items.reduce((s,i)=>s+i.perFt*i.rate,0), aU=items.reduce((s,i)=>s+i.perUnit*i.rate,0);
+      products[pr.key]={items, crewAmtPerFt:+aF.toFixed(4), crewAmtPerUnit:+aU.toFixed(4),
+        costPerFt:+(aF*def.laborMult).toFixed(4), costPerUnit:+(aU*def.laborMult).toFixed(4)};
+    });
+    const jobActuals={};
+    Object.keys(S.periods).forEach(id=>{
+      const per=S.periods[id]; const label=per.label||periodLabel(per.start,per.end); const touched={};
+      (per.crews||[]).forEach(c=>c.lines.forEach(l=>{
+        const j=String(l.job||"").trim(); if(!j) return;
+        const pay=c.members.reduce((s,m)=>s+memberPay(l,m),0);
+        const a=jobActuals[j]=jobActuals[j]||{loc:"",labor:0,travel:0,other:0,total:0,periods:[]};
+        if(!a.loc && l.loc) a.loc=l.loc;
+        if(l.type==="Travel") a.travel+=pay; else a.labor+=pay;
+        a.total+=pay; touched[j]=1;
+      }));
+      (per.extras||[]).forEach(x=>{
+        const j=String(x.job||"").trim(); if(!j) return;
+        const a=jobActuals[j]=jobActuals[j]||{loc:"",labor:0,travel:0,other:0,total:0,periods:[]};
+        a.other+=extraAmt(x); a.total+=extraAmt(x); touched[j]=1;
+      });
+      Object.keys(touched).forEach(j=>{ if(!jobActuals[j].periods.includes(label)) jobActuals[j].periods.push(label); });
+    });
+    Object.values(jobActuals).forEach(a=>{ ["labor","travel","other","total"].forEach(k=>a[k]=Math.round(a[k]*100)/100); });
+    lsSet(FEEDSTORE, JSON.stringify({app:"sommer-installer-pay",v:1,savedAt:new Date().toISOString(),
+      defaultCrew:def.name||"", crews, rates, products, travel:travelCfg(), jobActuals}));
+  }catch(e){}
+}
+const saveRates = ()=>persist();
+const saveInstallers = ()=>persist();
+const savePeriod = ()=>persist();
+const queue = (path)=>persist();   // period deletes etc.
+
+function loadData(obj){
+  S.rates=Array.isArray(obj.rates)?obj.rates:[]; S.installers=Array.isArray(obj.installers)?obj.installers:[];
+  S.periods=(obj.periods&&typeof obj.periods==="object")?obj.periods:{};
+  S.products=Array.isArray(obj.products)&&obj.products.length?obj.products:defaultProducts();
+  S.cur=sortedPeriodIds()[0]||null; refreshTaskList();
+}
+function defaultData(){
+  const r=(task,rate,unit,type,notes="")=>({id:uid("r"),task,rate,unit,type,notes});
+  return {rates:[r("Takedown",1,"ft","Labor","Includes load & unload"),r("Skin",2.5,"ft","Labor"),r("Skin Pies",5,"each","Labor"),r("Skin Valance",1,"ft","Labor"),
+    r("Rehang",1,"ft","Labor","Use existing brackets"),r("Rehang Canopy",3,"ft","Labor"),r("Caulk",0.5,"ft","Labor"),r("Install Base",2.5,"ft","Labor","All styles except canopy"),
+    r("Install Canopy",6,"ft","Labor"),r("Retrofit",1.75,"ft","Labor"),r("Arms",7,"each","Labor"),r("Braces",3.5,"each","Labor"),r("Posts - Above Ground",15,"each","Labor"),
+    r("Posts - Into Ground",35,"each","Labor"),r("Trip",25,"trip","Travel"),r("Miles",1.1,"mile","Travel"),r("Delivery",50,"each","Travel")],installers:[],periods:{}};
+}
+
+/* ---------- boot ---------- */
+function boot(){
+  S.apiKey=lsGet(KEYSTORE)||""; S.model=lsGet(MODELSTORE)||"claude-sonnet-5";
+  S.dwAvail=!!S.apiKey; S.dwWhy=S.apiKey?"":"Add your Claude API key under Settings first.";
+  const test=lsSet("__t","1"); lsDel("__t");
+  S.mode = test ? "local" : "nostore";
+  const raw=lsGet(STORE);
+  if(raw){ try{ loadData(JSON.parse(raw)); }catch(e){ toast("Saved data couldn't be read — restore your latest backup."); loadData(defaultData()); } }
+  else { S.firstRun=true; loadData(defaultData()); }
+  writeQuoteFeed();   // refresh the Quote Builder feed every time the app opens
+  render(); markSaving();
+}
+function sortedPeriodIds(){ return Object.keys(S.periods).sort((a,b)=>(S.periods[b].end||"").localeCompare(S.periods[a].end||"")); }
+function refreshTaskList(){ $("#taskList").innerHTML = S.rates.map(r=>`<option value="${esc(r.task)}">`).join(""); }
+
+/* ---------- backup / restore ---------- */
+function saveFile(filename,data,type){
+  const blob=new Blob([data],{type}); const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+function backupNow(){
+  const d=new Date(); const tag=d.toISOString().slice(0,10);
+  saveFile(`installer-pay-backup-${tag}.json`, JSON.stringify(snapshot(),null,1), "application/json");
+  lsSet(BKSTORE, d.toISOString()); render(); toast("Backup downloaded — keep it somewhere safe (email it to yourself or put it in OneDrive).");
+}
+function daysSinceBackup(){ const v=lsGet(BKSTORE); if(!v) return null; return Math.floor((Date.now()-new Date(v).getTime())/864e5); }
+async function restoreFile(file){
+  try{
+    const obj=JSON.parse(await file.text());
+    if(obj.app!=="sommer-installer-pay" || !obj.periods){ toast("That file isn't an Installer Pay backup."); return; }
+    S.pendingRestore=obj; render();
+  }catch(e){ toast("Couldn't read that file."); }
+}
+async function download(filename,data){ saveFile(filename,data, filename.endsWith(".csv")?"text/csv":"text/html"); toast("Downloaded "+filename); }
+
+/* ---------- Claude API (drawings) ---------- */
+async function callClaude(prompt, blobs, signal){
+  const b64=async b=>{ const buf=new Uint8Array(await b.arrayBuffer()); let s=""; for(let i=0;i<buf.length;i+=0x8000) s+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000)); return btoa(s); };
+  const content=[];
+  for(const b of blobs) content.push({type:"image",source:{type:"base64",media_type:"image/jpeg",data:await b64(b)}});
+  content.push({type:"text",text:prompt});
+  let res;
+  try{
+    res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal,headers:{"content-type":"application/json","x-api-key":S.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:S.model,max_tokens:6000,messages:[{role:"user",content}]})});
+  }catch(e){ if(signal.aborted) throw {code:"cancelled"}; throw {code:"network"}; }
+  let body=null; try{ body=await res.json(); }catch(e){}
+  if(!res.ok){
+    const m=(body&&body.error&&body.error.message)||"";
+    if(res.status===401) throw {code:"bad_key"};
+    if(res.status===400 && /credit|balance|billing/i.test(m)) throw {code:"no_credit"};
+    if(res.status===404 || /model/i.test(m)&&res.status===400) throw {code:"bad_model",message:m};
+    if(res.status===429) throw {code:"rate_limited"};
+    if(res.status===413) throw {code:"too_big"};
+    if(res.status>=500) throw {code:"overloaded"};
+    throw {code:"api",message:m||("HTTP "+res.status)};
+  }
+  const text=(body.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("\n");
+  const i=text.indexOf("{"), j=text.lastIndexOf("}");
+  if(i<0||j<i) throw {code:"invalid_json"};
+  try{ return JSON.parse(text.slice(i,j+1)); }catch(e){ throw {code:"invalid_json"}; }
+}
+
+/* ---------- render ---------- */
+function render(){
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===S.tab)));
+  const sel=$("#periodSel"); const ids=sortedPeriodIds();
+  sel.innerHTML = ids.length? ids.map(id=>`<option value="${id}" ${id===S.cur?"selected":""}>${esc(S.periods[id].label)}${S.periods[id].status==="Paid"?" · Paid":""}</option>`).join("") : `<option>No pay periods yet</option>`;
+  markSaving();
+  const app=$("#app"); let h="";
+  if(S.mode==="nostore") h+=`<div class="banner"><b>Not saving.</b> This browser is blocking storage (private window or site data turned off), so changes will be lost when you close it. Use a normal window, or download a backup before you leave.</div>`;
+  if(S.pendingRestore) h+=restoreConfirm();
+  else if(S.firstRun && !Object.keys(S.periods).length) h+=`<div class="banner info"><b>Welcome.</b> If you have a backup file, restore it to bring in your installers, rates and pay periods. <button class="btn" data-act="restore-pick" type="button">Restore a backup</button> Or set up installers under Settings and start a new period.</div>`;
+  else { const d=daysSinceBackup(); if(Object.keys(S.periods).length && (d===null || d>=14)) h+=`<div class="banner"><b>${d===null?"No backup yet.":"Last backup was "+d+" days ago."}</b> Payroll is only saved in this browser — download a backup so a cleared browser or new computer doesn't lose it. <button class="btn" data-act="backup" type="button">Download backup</button></div>`; }
+  if(S.newPeriodOpen) h+=newPeriodForm();
+  if(S.tab==="setup") h+=renderSettings()+renderSetup();
+  else if(!period()) h+=`<div class="panel empty">No pay periods yet. Use <b>+ New period</b> at the top to start one.</div>`;
+  else if(S.tab==="entry") h+=renderEntry();
+  else h+=renderStubs();
+  app.innerHTML=h;
+}
+
+function newPeriodForm(){
+  const last = S.periods[sortedPeriodIds()[0]];
+  let s="",e="";
+  if(last && last.end){ const d=new Date(last.end+"T12:00:00"); d.setDate(d.getDate()+1); s=d.toISOString().slice(0,10); d.setDate(d.getDate()+13); e=d.toISOString().slice(0,10); }
+  return `<form class="inline-form" id="npForm">
+    <label>Start<input type="date" id="npStart" value="${s}" required></label>
+    <label>End<input type="date" id="npEnd" value="${e}" required></label>
+    <label style="flex-direction:row;align-items:center;gap:6px;color:var(--ink)"><input type="checkbox" id="npCopy" checked> Same crews as last period</label>
+    <button class="btn primary" type="submit">Create period</button>
+    <button class="btn ghost" type="button" data-act="np-cancel">Cancel</button>
+  </form>`;
+}
+
+function totalsStrip(p){
+  const t=periodTotals(p); const ids=Object.keys(t).filter(id=>Math.abs(t[id])>0.004);
+  ids.sort((a,b)=>iname(a).localeCompare(iname(b)));
+  const g=ids.reduce((s,id)=>s+t[id],0);
+  return `<div class="totals-strip">${ids.map(id=>`<div class="tchip"><span>${esc(iname(id))}</span><b data-tot="${id}">${money(t[id])}</b></div>`).join("")}
+    <div class="tchip grand"><span>Total payroll</span><b data-tot="__all">${money(g)}</b></div></div>`;
+}
+
+function periodBar(p){
+  return `<div class="pbar"><div>
+      <h1>${esc(p.label)}</h1>
+      <div class="meta"><input type="date" class="pdate" id="pStart" data-pf="start" value="${esc(p.start)}" aria-label="Period start" ${locked()?"disabled":""}> to <input type="date" class="pdate" id="pEnd" data-pf="end" value="${esc(p.end)}" aria-label="Period end" ${locked()?"disabled":""}> · <button class="pill ${p.status==="Paid"?"paid":"open"}" data-act="toggle-status" type="button" ${S.writable?"":"disabled"} title="Click to mark ${p.status==="Paid"?"open":"paid"}">${p.status==="Paid"?"Paid · locked":"Open"}</button>
+      ${S.confirmDel==="period"?`<button class="btn danger confirm" data-act="del-period-yes" type="button">Delete this period for good</button> <button class="btn ghost" data-act="cancel-del" type="button">Keep it</button>`:`<button class="btn ghost danger" data-act="del-period" type="button" ${locked()?"disabled":""}>Delete period</button>`}</div>
+    </div>${totalsStrip(p)}</div>`;
+}
+
+function renderEntry(){
+  const p=period(); const L=locked(); const dis=L?"disabled":"";
+  let h=periodBar(p);
+  if(!L && S.dw.open) h+=renderDrawings(p);
+  else if(!L) h+=`<div class="dw-cta"><div><b>Pay from drawings</b><span class="hint">Upload the plans for a job and Claude (your API key) measures the canopy footage, arms and posts, then fills in pay lines for you to check.</span></div><button class="btn primary" data-act="dw-open" type="button">Upload drawings</button></div>`;
+  (p.crews||[]).forEach(c=>{ h+=renderCrew(c,L); });
+  h+=`<div class="row">${L?"":`<button class="btn" data-act="add-crew" type="button">+ Add crew</button>`}</div>`;
+  // extras
+  h+=`<section class="panel"><div class="panel-head"><div><h2>Hours, per diem &amp; one-off pay</h2><div class="hint">Paid to one person only — not split across the crew.</div></div></div>
+  <div class="tablewrap"><table class="grid"><thead><tr><th style="width:150px">Installer</th><th class="w-job">Job #</th><th>Description</th><th style="width:120px">Type</th><th class="r w-qty">Hrs / Qty</th><th class="r w-rate">Rate</th><th class="r" style="width:110px">Pay</th><th style="width:36px"></th></tr></thead><tbody>`;
+  (p.extras||[]).forEach(x=>{
+    h+=`<tr data-extra="${x.id}">
+      <td><select data-xf="installer" ${dis}>${S.installers.map(i=>`<option value="${i.id}" ${i.id===x.installer?"selected":""}>${esc(i.name)}</option>`).join("")}</select></td>
+      <td><input data-xf="job" value="${esc(x.job)}" ${dis}></td>
+      <td><input data-xf="desc" value="${esc(x.desc)}" ${dis}></td>
+      <td><select data-xf="type" ${dis}>${["Hourly","Per Diem","Other"].map(t=>`<option ${t===x.type?"selected":""}>${t}</option>`).join("")}</select></td>
+      <td><input class="n" data-xf="qty" inputmode="decimal" value="${x.qty??""}" ${dis}></td>
+      <td><input class="n" data-xf="rate" inputmode="decimal" value="${x.rate??""}" ${dis}></td>
+      <td class="amt" data-xamt="${x.id}">${money(extraAmt(x))}</td>
+      <td>${L?"":`<button class="btn ghost del" data-act="del-extra" type="button" aria-label="Remove">✕</button>`}</td></tr>`;
+  });
+  if(!(p.extras||[]).length) h+=`<tr><td colspan="8" class="hint" style="padding:10px">Nothing yet.</td></tr>`;
+  h+=`</tbody></table></div>${L?"":`<div class="crew-foot"><button class="btn" data-act="add-extra" data-type="Hourly" type="button">+ Hours</button><button class="btn" data-act="add-extra" data-type="Per Diem" type="button">+ Per diem</button><button class="btn" data-act="add-extra" data-type="Other" type="button">+ Other amount</button></div>`}</section>`;
+  return h;
+}
+
+function crewTotal(c){ return c.lines.reduce((s,l)=>s+c.members.reduce((a,m)=>a+memberPay(l,m),0),0); }
+
+function renderCrew(c,L){
+  const dis=L?"disabled":"";
+  const avail=S.installers.filter(i=>i.active!==false && !c.members.some(m=>m.id===i.id));
+  let h=`<section class="crew" data-crew="${c.id}"><div class="crew-head">
+    <input class="cname" data-cf="name" value="${esc(c.name)}" aria-label="Crew name" ${dis}>
+    <div class="members">${c.members.map(m=>`<button type="button" class="mchip" data-act="member" data-mid="${m.id}" aria-expanded="${S.openMember===c.id+":"+m.id}">${esc(iname(m.id))} <span class="pct">${num(m.share)}%${num(m.bonus)?` <em>+${num(m.bonus)}%</em>`:""}</span></button>`).join("")}
+    ${L||!avail.length?"":`<select class="addsel" data-act="add-member" aria-label="Add installer to crew"><option value="">+ Add installer</option>${avail.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join("")}</select>`}</div>
+    <div class="ctotal">Crew pay<b data-crewtot="${c.id}">${money(crewTotal(c))}</b></div></div>`;
+  const om = S.openMember && S.openMember.startsWith(c.id+":") ? c.members.find(m=>c.id+":"+m.id===S.openMember) : null;
+  if(om){
+    h+=`<div class="medit" data-mid="${om.id}"><b>${esc(iname(om.id))}</b>
+      <label>Share <input type="number" step="1" min="0" data-mf="share" value="${num(om.share)}" ${dis}>%</label>
+      <label>Lead bonus <input type="number" step="1" min="0" data-mf="bonus" value="${num(om.bonus)}" ${dis}>%</label>
+      <label><input type="checkbox" data-mf="bonusTravel" ${om.bonusTravel?"checked":""} ${dis}> Bonus on trips &amp; miles too</label>
+      <span class="hint">Changes here apply to this period only. Defaults live under Rates &amp; crew.</span>
+      ${L?"":`<button class="btn ghost danger" data-act="rm-member" type="button">Remove from crew</button>`}
+      <button class="btn ghost" data-act="member" data-mid="${om.id}" type="button">Done</button></div>`;
+  }
+  h+=`<div class="tablewrap"><table class="grid"><thead><tr><th class="w-job">Job #</th><th class="w-loc">Job / location</th><th class="w-task">Task</th><th></th><th class="r w-qty">Qty</th><th class="r w-rate">Rate</th><th class="r">Crew amt</th>
+    ${c.members.map(m=>`<th class="r" style="width:96px">${esc(iname(m.id))}</th>`).join("")}<th style="width:36px"></th></tr></thead><tbody>`;
+  let prevJob=null;
+  c.lines.forEach(l=>{
+    const js = prevJob!==null && (l.job||"")!==prevJob; prevJob=l.job||"";
+    h+=`<tr data-line="${l.id}" class="${js?"jobstart":""}">
+      <td><input data-lf="job" value="${esc(l.job)}" ${dis} aria-label="Job number"></td>
+      <td><input data-lf="loc" value="${esc(l.loc)}" ${dis} aria-label="Job and location"></td>
+      <td><input data-lf="task" list="taskList" value="${esc(l.task)}" ${dis} aria-label="Task"></td>
+      <td style="white-space:nowrap"><span class="typetag ${l.type.replace(" ","")}" data-ltype="${l.id}">${esc(l.type)}</span>${l.src==="plans"?` <span class="plantag ${l.confirmed?"":"est"}" title="${esc((l.confirmed?"Called out on drawings: ":"Estimated from drawings — check: ")+(l.basis||""))}">${l.confirmed?"plans":"plans?"}</span>`:""}</td>
+      <td><input class="n" data-lf="qty" inputmode="decimal" value="${l.qty??""}" ${dis} aria-label="Quantity"></td>
+      <td><input class="n" data-lf="rate" inputmode="decimal" value="${l.rate??""}" ${dis} aria-label="Rate"></td>
+      <td class="amt" data-lamt="${l.id}">${money(lineAmt(l))}</td>
+      ${c.members.map(m=>{ const out=(l.out||[]).includes(m.id); return `<td><button type="button" class="mpay ${out?"out":""}" data-act="toggle-out" data-mid="${m.id}" data-mp="${l.id}:${m.id}" ${dis} title="${out?"Not on this line — click to add back":"Click if "+esc(iname(m.id))+" wasn't on this line"}">${out?"off":money(memberPay(l,m))}</button></td>`; }).join("")}
+      <td>${L?"":`<button class="btn ghost del" data-act="del-line" type="button" aria-label="Remove line">✕</button>`}</td></tr>`;
+  });
+  if(!c.lines.length) h+=`<tr><td colspan="${8+c.members.length}" class="hint" style="padding:12px">No work entered for this crew yet.</td></tr>`;
+  h+=`</tbody><tfoot><tr><td colspan="6">Crew totals</td><td class="amt" data-crewamt="${c.id}">${money(c.lines.reduce((s,l)=>s+lineAmt(l),0))}</td>
+    ${c.members.map(m=>`<td class="amt" data-cm="${c.id}:${m.id}">${money(c.lines.reduce((s,l)=>s+memberPay(l,m),0))}</td>`).join("")}<td></td></tr></tfoot></table></div>`;
+  if(!L) h+=`<div class="crew-foot"><button class="btn primary" data-act="add-line" type="button">+ Add line</button>
+    <button class="btn" data-act="add-job" type="button">+ New job</button>
+    <span class="hint">New lines copy the job above. Pick a task and its rate fills in. Click someone's amount if they weren't on that line.</span>
+    <span style="margin-left:auto">${S.confirmDel===c.id?`<button class="btn danger confirm" data-act="del-crew-yes" type="button">Delete crew and its lines</button> <button class="btn ghost" data-act="cancel-del" type="button">Keep</button>`:`<button class="btn ghost danger" data-act="del-crew" type="button">Delete crew</button>`}</span></div>`;
+  h+=`</section>`;
+  return h;
+}
+
+/* live recompute without re-render (keeps focus while typing) */
+function refreshNumbers(){
+  const p=period(); if(!p) return;
+  p.crews.forEach(c=>{
+    c.lines.forEach(l=>{
+      const a=$(`[data-lamt="${l.id}"]`); if(a) a.textContent=money(lineAmt(l));
+      const tt=$(`[data-ltype="${l.id}"]`); if(tt){ tt.textContent=l.type; tt.className="typetag "+l.type.replace(" ",""); }
+      c.members.forEach(m=>{ const b=$(`[data-mp="${l.id}:${m.id}"]`); if(b && !(l.out||[]).includes(m.id)) b.textContent=money(memberPay(l,m)); });
+    });
+    const ct=$(`[data-crewtot="${c.id}"]`); if(ct) ct.textContent=money(crewTotal(c));
+    const ca=$(`[data-crewamt="${c.id}"]`); if(ca) ca.textContent=money(c.lines.reduce((s,l)=>s+lineAmt(l),0));
+    c.members.forEach(m=>{ const e=$(`[data-cm="${c.id}:${m.id}"]`); if(e) e.textContent=money(c.lines.reduce((s,l)=>s+memberPay(l,m),0)); });
+  });
+  (p.extras||[]).forEach(x=>{ const e=$(`[data-xamt="${x.id}"]`); if(e) e.textContent=money(extraAmt(x)); });
+  const t=periodTotals(p); let g=0;
+  Object.keys(t).forEach(id=>{ g+=t[id]; const e=$(`[data-tot="${id}"]`); if(e) e.textContent=money(t[id]); });
+  const ge=$(`[data-tot="__all"]`); if(ge) ge.textContent=money(g);
+}
+
+/* ---------- stubs ---------- */
+function stubData(p,id){
+  const rows=[];
+  p.crews.forEach(c=>{ const m=c.members.find(x=>x.id===id); if(!m) return;
+    c.lines.forEach(l=>{ const pay=memberPay(l,m); if((l.out||[]).includes(id)) return;
+      const b=(l.type==="Labor"||(m.bonusTravel&&l.type!=="Labor"))?num(m.bonus):0;
+      rows.push({job:l.job||"",loc:l.loc||"",task:l.task,qty:num(l.qty),rate:num(l.rate),crew:lineAmt(l),pct:num(m.share)+b,pay}); }); });
+  (p.extras||[]).filter(x=>x.installer===id).forEach(x=>rows.push({job:x.job||"",loc:x.type,task:x.desc||x.type,qty:num(x.qty),rate:num(x.rate),crew:null,pct:null,pay:extraAmt(x)}));
+  const groups=[]; const gi={};
+  rows.forEach(r=>{ const k=r.job||"—"; if(!(k in gi)){ gi[k]=groups.length; groups.push({job:r.job,loc:r.crew===null&&!r.job?"Hours & other":r.loc,rows:[],total:0}); } const g=groups[gi[k]]; g.rows.push(r); g.total+=r.pay; if(r.crew!==null && r.loc && (!g.loc||g.loc==="Hourly"||g.loc==="Per Diem"||g.loc==="Other")) g.loc=r.loc; });
+  const total=rows.reduce((s,r)=>s+r.pay,0);
+  return {groups,total};
+}
+function stubsPeople(p){ const t=periodTotals(p); return Object.keys(t).filter(id=>Math.abs(t[id])>0.004).sort((a,b)=>iname(a).localeCompare(iname(b))); }
+
+function stubHTML(p,id){
+  const {groups,total}=stubData(p,id);
+  let h=`<article class="stub"><div class="stub-head"><div><h3>${esc(iname(id))}</h3><div class="sub">Pay period ${esc(p.label)} · ${fmtD(p.start)}–${fmtD(p.end)}</div></div><div class="big"><span>Total pay</span>${money(total)}</div></div>
+  <table class="stubt"><thead><tr><th>Task</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Crew amt</th><th class="r">Share</th><th class="r">Pay</th></tr></thead><tbody>`;
+  groups.forEach(g=>{
+    h+=`<tr class="jobrow"><td colspan="5">${g.job?`PO ${esc(g.job)} · `:""}${esc(g.loc)}</td><td class="r">${money(g.total)}</td></tr>`;
+    g.rows.forEach(r=>{ h+=`<tr><td>${esc(r.task)}</td><td class="r">${r.qty.toLocaleString("en-US",{maximumFractionDigits:2})}</td><td class="r">${money(r.rate)}</td><td class="r">${r.crew===null?"":money(r.crew)}</td><td class="r">${r.pct===null?"":r.pct+"%"}</td><td class="r">${money(r.pay)}</td></tr>`; });
+  });
+  h+=`</tbody><tfoot><tr><td colspan="5">Total for ${esc(iname(id))}</td><td class="r">${money(total)}</td></tr></tfoot></table></article>`;
+  return h;
+}
+function byJob(p){
+  const m={};
+  p.crews.forEach(c=>c.lines.forEach(l=>{ const k=l.job||"(no job #)"; m[k]=m[k]||{loc:l.loc,amt:0}; if(!m[k].loc) m[k].loc=l.loc; m[k].amt+=c.members.reduce((s,x)=>s+memberPay(l,x),0); }));
+  (p.extras||[]).forEach(x=>{ const k=x.job||"(no job #)"; m[k]=m[k]||{loc:"",amt:0}; m[k].amt+=extraAmt(x); });
+  return Object.entries(m).sort((a,b)=>b[1].amt-a[1].amt);
+}
+function renderStubs(){
+  const p=period(); const people=stubsPeople(p);
+  let h=periodBar(p);
+  h+=`<div class="row"><select id="stubFilter" aria-label="Show stubs for" class="btn"><option value="all">Everyone</option>${people.map(id=>`<option value="${id}" ${S.stubFilter===id?"selected":""}>${esc(iname(id))}</option>`).join("")}</select>
+    <button class="btn primary" data-act="print" type="button">Print stubs</button>
+    <button class="btn" data-act="dl-stubs" type="button">Download stubs (.html)</button>
+    <button class="btn" data-act="dl-csv" type="button">Download totals (.csv)</button>
+    <button class="btn" data-act="copy-totals" type="button">Copy totals</button></div>`;
+  const show = S.stubFilter==="all"||!people.includes(S.stubFilter) ? people : [S.stubFilter];
+  h+=`<div class="stubs">${show.map(id=>stubHTML(p,id)).join("")||`<div class="panel empty">No pay entered for this period yet.</div>`}</div>`;
+  const jobs=byJob(p);
+  h+=`<section class="panel"><div class="panel-head"><div><h2>Install labor by job</h2><div class="hint">What each PO cost in installer pay this period — use it for job costing.</div></div></div>
+    <div class="tablewrap"><table class="stubt byjob"><thead><tr><th>Job #</th><th>Job / location</th><th class="r">Installer pay</th></tr></thead><tbody>
+    ${jobs.map(([k,v])=>`<tr><td class="num">${esc(k)}</td><td>${esc(v.loc)}</td><td class="r">${money(v.amt)}</td></tr>`).join("")}
+    </tbody></table></div></section>`;
+  return h;
+}
+
+/* downloadable printable stubs */
+function printableDoc(p,ids){
+  const css=`body{font:13px/1.4 -apple-system,Segoe UI,Arial,sans-serif;color:#111;margin:24px}h1{font-size:18px;margin:0 0 16px}.stub{page-break-after:always;margin-bottom:28px}.stub:last-child{page-break-after:auto}
+  .hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:6px}.hd h2{margin:0;font-size:22px}.big{font-size:20px;font-weight:700}
+  table{width:100%;border-collapse:collapse}td,th{padding:3px 6px;border-bottom:1px solid #ccc;text-align:left}th{font-size:10px;text-transform:uppercase;color:#555}.r{text-align:right;font-variant-numeric:tabular-nums}
+  .job td{background:#eee;font-weight:700}tfoot td{font-weight:700;border-bottom:0}.sig{margin-top:18px;display:flex;gap:40px;font-size:12px;color:#444}.sig div{flex:1;border-top:1px solid #999;padding-top:4px}`;
+  let body=`<h1>Sommer Awning — Installer pay · ${esc(p.label)}</h1>`;
+  ids.forEach(id=>{ const {groups,total}=stubData(p,id);
+    body+=`<div class="stub"><div class="hd"><div><h2>${esc(iname(id))}</h2><div>Pay period ${fmtD(p.start)} – ${fmtD(p.end)}</div></div><div class="big">${money(total)}</div></div>
+    <table><thead><tr><th>Task</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Crew amt</th><th class="r">Share</th><th class="r">Pay</th></tr></thead><tbody>`;
+    groups.forEach(g=>{ body+=`<tr class="job"><td colspan="5">${g.job?"PO "+esc(g.job)+" · ":""}${esc(g.loc)}</td><td class="r">${money(g.total)}</td></tr>`;
+      g.rows.forEach(r=>{ body+=`<tr><td>${esc(r.task)}</td><td class="r">${r.qty}</td><td class="r">${money(r.rate)}</td><td class="r">${r.crew===null?"":money(r.crew)}</td><td class="r">${r.pct===null?"":r.pct+"%"}</td><td class="r">${money(r.pay)}</td></tr>`; }); });
+    body+=`</tbody><tfoot><tr><td colspan="5">Total</td><td class="r">${money(total)}</td></tr></tfoot></table><div class="sig"><div>Installer signature</div><div>Date</div></div></div>`; });
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Installer pay ${esc(p.label)}</title><style>${css}</style></head><body>${body}</body></html>`;
+}
+const fileTag = p => (p.end||"period").replace(/-/g,"");
+
+/* ---------- setup ---------- */
+function restoreConfirm(){
+  const o=S.pendingRestore; const n=Object.keys(o.periods||{}).length;
+  return `<div class="banner"><b>Restore this backup?</b> It has ${n} pay period${n===1?"":"s"}, ${(o.installers||[]).length} installers and ${(o.rates||[]).length} rates${o.savedAt?", saved "+new Date(o.savedAt).toLocaleString():""}. It replaces everything currently in this browser.
+    <div class="row" style="margin-top:8px"><button class="btn primary" data-act="restore-yes" type="button">Replace with backup</button><button class="btn ghost" data-act="restore-no" type="button">Cancel</button></div></div>`;
+}
+async function saveTravel(){
+  const c=travelCfg(); const origin=$("#trOrigin").value.trim()||"46202";
+  const next={...c, origin, threshold:Math.max(1,num($("#trThresh").value)||50), tripQty:Math.max(0,num($("#trTripQty").value)), milesMode:$("#trMiles").value};
+  if(origin!==c.origin){
+    try{ const g=/^\d{5}$/.test(origin)
+        ? await (await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&postalcode="+origin)).json().then(j=>j[0]?{lat:+j[0].lat,lon:+j[0].lon}:null)
+        : await geocode(origin);
+      if(!g){ toast("Couldn't find that shop location on the map — travel settings not saved."); return; }
+      next.lat=g.lat; next.lon=g.lon;
+    }catch(e){ toast("Map lookup failed — check your connection and save again."); return; }
+  }
+  lsSet(TRAVELSTORE, JSON.stringify(next)); writeQuoteFeed(); render(); toast("Travel settings saved");
+}
+function renderSettings(){
+  const d=daysSinceBackup();
+  return `<div class="setup-grid"><section class="panel"><div class="panel-head"><div><h2>Backup &amp; restore</h2><div class="hint">Payroll is saved in this browser on this computer. A backup file lets you move it to another computer or recover it.</div></div></div>
+    <div class="dw-body"><div class="row"><button class="btn primary" data-act="backup" type="button">Download backup</button><button class="btn" data-act="restore-pick" type="button">Restore from backup…</button>
+    <span class="hint">${d===null?"No backup downloaded yet.":"Last backup: "+(d===0?"today":d+" day"+(d===1?"":"s")+" ago")+"."}</span></div></div></section>
+  <section class="panel"><div class="panel-head"><div><h2>Travel pay</h2><div class="hint">When drawings are read, the job site's driving distance from the shop decides the travel line.</div></div></div>
+    <div class="dw-body"><div class="dw-form">${(()=>{ const c=travelCfg(); return `
+      <label>Shop ZIP or address<input id="trOrigin" value="${esc(c.origin)}"></label>
+      <label>Mileage starts at<input id="trThresh" type="number" min="1" value="${c.threshold}" style="width:90px"> mi</label>
+      <label>Trip charges per local job<input id="trTripQty" type="number" min="0" step="1" value="${c.tripQty}" style="width:90px"></label>
+      <label>Miles paid<select id="trMiles"><option value="oneway" ${c.milesMode==="oneway"?"selected":""}>One-way</option><option value="round" ${c.milesMode==="round"?"selected":""}>Round trip</option></select></label>
+      <button class="btn primary" data-act="save-travel" type="button">Save</button>`; })()}</div>
+      <div class="hint">Under the limit: Trip line at the rate-card price. At or over: Miles line at the rate-card price per mile. Distances come from OpenStreetMap.</div></div></section>
+  <section class="panel"><div class="panel-head"><div><h2>Reading drawings</h2><div class="hint">Uses your own Claude API key from console.anthropic.com. The key is saved only in this browser — never in the code on GitHub.</div></div></div>
+    <div class="dw-body"><div class="dw-form">
+      <label class="grow">Claude API key<input type="password" id="apiKey" autocomplete="off" placeholder="sk-ant-..." value="${esc(S.apiKey)}"></label>
+      <label>Model<select id="apiModel">${[["claude-sonnet-5","Sonnet 5 — fast, lower cost"],["claude-opus-5-5","Opus 5.5 — most careful"]].map(([v,t])=>`<option value="${v}" ${v===S.model?"selected":""}>${t}</option>`).join("")}</select></label>
+      <button class="btn primary" data-act="save-key" type="button">Save</button>${S.apiKey?`<button class="btn ghost danger" data-act="clear-key" type="button">Remove key</button>`:""}</div>
+      <div class="hint">${S.apiKey?"Key saved. Drawing reading is on.":"No key yet — drawing reading is off."} Each read costs a few cents to about a dollar on your API account, depending on sheets and model.</div></div></section></div>`;
+}
+function renderSetup(){
+  const W=S.writable?"":"disabled";
+  let h=`<div class="setup-grid"><section class="panel"><div class="panel-head"><div><h2>Rate card</h2><div class="hint">Changing a rate here only affects lines you enter from now on — past periods keep the rate they were paid at.</div></div><button class="btn" data-act="add-rate" type="button" ${W}>+ Add task</button></div>
+  <div class="tablewrap"><table class="grid"><thead><tr><th>Task</th><th class="r w-rate">Rate</th><th style="width:90px">Per</th><th style="width:100px">Type</th><th>Notes</th><th style="width:36px"></th></tr></thead><tbody>`;
+  S.rates.forEach(r=>{ h+=`<tr data-rate="${r.id}"><td><input data-rf="task" value="${esc(r.task)}" ${W}></td><td><input class="n" data-rf="rate" inputmode="decimal" value="${r.rate}" ${W}></td>
+    <td><select data-rf="unit" ${W}>${["ft","each","trip","mile","hour","day"].map(u=>`<option ${u===r.unit?"selected":""}>${u}</option>`).join("")}</select></td>
+    <td><select data-rf="type" ${W}>${["Labor","Travel"].map(u=>`<option ${u===r.type?"selected":""}>${u}</option>`).join("")}</select></td>
+    <td><input data-rf="notes" value="${esc(r.notes)}" ${W}></td><td>${S.writable?`<button class="btn ghost del" data-act="del-rate" type="button" aria-label="Remove">✕</button>`:""}</td></tr>`; });
+  h+=`</tbody></table></div><div class="crew-foot hint">Labor lines get the lead bonus. Travel lines (trips, miles, delivery) don't, unless an installer is set to get it on travel too.</div></section>`;
+  h+=`<section class="panel"><div class="panel-head"><div><h2>Installers</h2><div class="hint">Defaults used when someone is added to a crew.</div></div><button class="btn" data-act="add-inst" type="button" ${W}>+ Add installer</button></div>
+  <div class="tablewrap"><table class="grid"><thead><tr><th>Name</th><th class="r" style="width:70px">Share %</th><th class="r" style="width:70px">Bonus %</th><th style="width:70px" title="Bonus applies to trips &amp; miles too">On travel</th><th class="r" style="width:80px">$/hr</th><th style="width:60px">Active</th></tr></thead><tbody>`;
+  S.installers.forEach(i=>{ h+=`<tr data-inst="${i.id}"><td><input data-if="name" value="${esc(i.name)}" ${W}></td><td><input class="n" data-if="share" value="${i.share}" ${W}></td><td><input class="n" data-if="bonus" value="${i.bonus}" ${W}></td>
+    <td style="text-align:center"><input type="checkbox" data-if="bonusTravel" ${i.bonusTravel?"checked":""} ${W} style="width:auto"></td><td><input class="n" data-if="hourly" value="${i.hourly}" ${W}></td>
+    <td style="text-align:center"><input type="checkbox" data-if="active" ${i.active!==false?"checked":""} ${W} style="width:auto"></td></tr>`; });
+  h+=`</tbody></table></div><div class="crew-foot hint">Uncheck Active when someone leaves — their past pay stays on the old periods.</div></section>`;
+  h+=renderQuoteFeedPanel(W);
+  h+=`</div>`;
+  return h;
+}
+function renderQuoteFeedPanel(W){
+  const rateOpts = t => `<option value=""></option>`+S.rates.map(r=>`<option ${r.task===t?"selected":""}>${esc(r.task)}</option>`).join("");
+  let h=`<section class="panel"><div class="panel-head"><div><h2>Quote Builder margin feed</h2>
+    <div class="hint">For each product the Quote Builder sells, list the rate-card work per foot of width (or per unit). The Quote Builder on this computer reads this automatically to show projected install-labor margin while quoting — it refreshes every time this app saves. Crew cost multipliers come from the newest pay period's crews (first crew = default).</div></div></div>
+  <div class="tablewrap"><table class="grid"><thead><tr><th>Product</th><th>Task</th><th class="r" style="width:90px">Per ft</th><th class="r" style="width:90px">Per unit</th><th style="width:36px"></th></tr></thead><tbody>`;
+  (S.products||[]).forEach((pr,pi)=>{
+    (pr.items||[]).forEach((it,ii)=>{
+      h+=`<tr data-qprod="${pi}" data-qitem="${ii}">
+        <td>${ii===0?`<b>${esc(pr.label)}</b>`:""}</td>
+        <td><select data-qf="task" ${W}>${rateOpts(it.task)}</select></td>
+        <td><input class="n" data-qf="perFt" inputmode="decimal" value="${it.perFt}" ${W}></td>
+        <td><input class="n" data-qf="perUnit" inputmode="decimal" value="${it.perUnit}" ${W}></td>
+        <td>${S.writable&&pr.items.length>1?`<button class="btn ghost del" data-act="qfeed-del" type="button" aria-label="Remove">✕</button>`:""}</td></tr>`;
+    });
+    if(S.writable) h+=`<tr data-qprod="${pi}"><td></td><td colspan="4"><button class="btn ghost" data-act="qfeed-add" type="button" style="font-size:12px">+ Add task to ${esc(pr.label)}</button></td></tr>`;
+  });
+  h+=`</tbody></table></div><div class="crew-foot hint">Example: a canopy priced per foot of width = Install Canopy 1 per ft. Add Caulk, Arms (per unit), trips etc. as your crews actually get paid. Travel is priced separately from the Travel pay settings.</div></section>`;
+  return h;
+}
+
+/* ---------- pay from drawings ---------- */
+const PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+const pdfDocs={};  // key -> pdf.js document (kept out of saved state)
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("script")); document.head.appendChild(s); }); }
+async function pdfLib(){
+  if(window.pdfjsLib && window.pdfjsWorker) return window.pdfjsLib;
+  if(!window.pdfjsLib) await loadScript(PDFJS+"pdf.min.js");
+  if(!window.pdfjsWorker) await loadScript(PDFJS+"pdf.worker.min.js");  // runs in-page; no separate worker needed
+  return window.pdfjsLib;
+}
+function canvasBlob(cv,q=.86){ return new Promise(r=>cv.toBlob(b=>r(b),"image/jpeg",q)); }
+async function renderPdfPage(key,num,longSide){
+  const page=await pdfDocs[key].getPage(num);
+  const v1=page.getViewport({scale:1}); const scale=longSide/Math.max(v1.width,v1.height);
+  const vp=page.getViewport({scale}); const cv=document.createElement("canvas"); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
+  const ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);
+  await page.render({canvasContext:ctx,viewport:vp}).promise; return cv;
+}
+async function renderImageFile(file,longSide){
+  const bmp=await createImageBitmap(file); const s=Math.min(1,longSide/Math.max(bmp.width,bmp.height));
+  const cv=document.createElement("canvas"); cv.width=Math.round(bmp.width*s); cv.height=Math.round(bmp.height*s);
+  const ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height); ctx.drawImage(bmp,0,0,cv.width,cv.height); return cv;
+}
+function crop(src,x,y,w,h){ const cv=document.createElement("canvas"); cv.width=Math.round(w); cv.height=Math.round(h); cv.getContext("2d").drawImage(src,x,y,w,h,0,0,cv.width,cv.height); return cv; }
+function shrink(src,longSide){ const s=Math.min(1,longSide/Math.max(src.width,src.height)); const cv=document.createElement("canvas"); cv.width=Math.round(src.width*s); cv.height=Math.round(src.height*s); cv.getContext("2d").drawImage(src,0,0,cv.width,cv.height); return cv; }
+
+async function addDrawingFiles(files){
+  const dw=S.dw; dw.err=""; dw.loading=true; render();
+  for(const f of files){
+    const isPdf=/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name);
+    if(isPdf){
+      try{
+        const lib=await pdfLib(); const key=uid("f");
+        pdfDocs[key]=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;
+        const n=pdfDocs[key].numPages;
+        for(let i=1;i<=n;i++) dw.pages.push({id:uid("p"),key,num:i,name:f.name,label:`${f.name} · p${i}`,thumb:"",selected:n===1,kind:"pdf"});
+        render();
+        for(const pg of dw.pages.filter(p=>p.key===key)){
+          try{ const cv=await renderPdfPage(key,pg.num,240); pg.thumb=cv.toDataURL("image/jpeg",.7); const img=document.querySelector(`[data-thumb="${pg.id}"]`); if(img) img.src=pg.thumb; }catch(e){}
+        }
+      }catch(e){ dw.err=`Couldn't open ${f.name}. If it's password-protected, save an unlocked copy and try again.`; }
+    } else if(/^image\//.test(f.type)){
+      try{ const key=uid("f"); pdfDocs[key]=f; const cv=await renderImageFile(f,240);
+        dw.pages.push({id:uid("p"),key,num:1,name:f.name,label:f.name,thumb:cv.toDataURL("image/jpeg",.7),selected:true,kind:"img"}); }
+      catch(e){ dw.err=`Couldn't read ${f.name}.`; }
+    } else dw.err=`${f.name} isn't a PDF or image.`;
+  }
+  dw.loading=false; render();
+}
+
+function dwBudget(n){
+  const max=20;
+  if(!n) return {per:0,ok:false,max};
+  if(n*5<=max) return {per:5,ok:true,max};
+  if(n*3<=max) return {per:3,ok:true,max};
+  if(n<=max) return {per:1,ok:true,max};
+  return {per:0,ok:false,max};
+}
+
+async function buildImages(sel,per){
+  const blobs=[], desc=[];
+  for(const pg of sel){
+    const big = pg.kind==="pdf" ? await renderPdfPage(pg.key,pg.num,per===1?1600:3400) : await renderImageFile(pdfDocs[pg.key], per===1?1600:3400);
+    const W=big.width, H=big.height, land=W>=H;
+    blobs.push(await canvasBlob(shrink(big,1500))); desc.push(`${pg.label} — whole sheet (overview, reduced)`);
+    if(per===3){
+      const o=0.06;
+      if(land){ blobs.push(await canvasBlob(crop(big,0,0,W*(0.5+o),H))); desc.push(`${pg.label} — left half, zoomed`);
+                blobs.push(await canvasBlob(crop(big,W*(0.5-o),0,W*(0.5+o),H))); desc.push(`${pg.label} — right half, zoomed`); }
+      else { blobs.push(await canvasBlob(crop(big,0,0,W,H*(0.5+o)))); desc.push(`${pg.label} — top half, zoomed`);
+             blobs.push(await canvasBlob(crop(big,0,H*(0.5-o),W,H*(0.5+o)))); desc.push(`${pg.label} — bottom half, zoomed`); }
+    }
+    if(per===5){
+      const o=0.05, w=W*(0.5+o), h=H*(0.5+o);
+      for(const [nm,x,y] of [["top-left",0,0],["top-right",W-w,0],["bottom-left",0,H-h],["bottom-right",W-w,H-h]]){
+        blobs.push(await canvasBlob(crop(big,x,y,w,h))); desc.push(`${pg.label} — ${nm} quarter, zoomed`);
+      }
+    }
+  }
+  return {blobs,desc};
+}
+
+function drawingPrompt(desc){
+  const tasks=S.rates.filter(r=>r.type==="Labor").map(r=>`- ${r.task} — paid per ${r.unit}${r.notes?` (${r.notes})`:""}`).join("\n");
+  const dw=S.dw;
+  return `You are helping Sommer Awning, an awning and metal canopy company, work out piece-rate pay for its field installers from a job's construction drawings.
+
+The images, in order:
+${desc.map((d,i)=>`Image ${i+1}: ${d}`).join("\n")}
+Zoomed images are crops of the overview so small dimension text is readable; do not double-count the same item seen in an overview and a crop.
+${dw.job||dw.loc?`The office says this is job #${dw.job||"?"} — ${dw.loc||"?"}.`:""}
+
+Find every awning / canopy / sunshade / metal canopy this company would install and measure the quantities installer pay is based on.
+
+How to read the drawings:
+- Look first at exterior elevations, wall sections, the roof plan and the reflected ceiling plan; use schedules and details for counts (hanger rods/tie-backs = arms, posts, braces).
+- Cross-reference each dimension across more than one sheet when possible.
+- Mark an item "confirmed": true ONLY when its size or count is called out directly on the drawings (a dimension string or leader with a number, or a schedule quantity). If you measured it from scale, inferred it, or read it from only a partial view, set "confirmed": false and say so in "basis".
+- Linear-foot tasks: the canopy/awning length along the wall, in feet (convert 24'-6" to 24.5). Add up units of the same kind. Count tasks: whole numbers.
+- Include companion work the scope obviously needs (for wall-mounted canopies, Caulk footage equal to the length along the wall). For recovers of existing awnings, the usual set is Takedown, Skin, Rehang and Caulk.
+- Do NOT include Trip, Miles, Delivery, hours or per diem as items — the office figures travel from the site address.
+- Find the PROJECT SITE street address (where the work is, not the architect's or owner's office) on the cover sheet, title block or site plan and return it in "address" as "street, city, ST ZIP". If only the city is shown, return "city, ST".
+- If something has no matching task, use task "OTHER" and describe it in basis.
+
+Pay tasks (use these names exactly):
+${tasks}
+
+Reply with only JSON in this shape:
+{"project":"project name from the title block","location":"City ST","address":"123 Main St, Plainfield, IN 46168","jobNumber":"","items":[{"task":"Install Canopy","qty":24.5,"sheet":"A-201","basis":"North elevation: canopy dimensioned 24'-6\\"","confirmed":true}],"notes":["anything the office should double-check"]}
+If you cannot find any canopy or awning scope on these sheets, return an empty items array and explain in notes.`;
+}
+
+async function readDrawings(){
+  const dw=S.dw; const sel=dw.pages.filter(p=>p.selected); const b=dwBudget(sel.length);
+  if(!b.ok){ dw.err=sel.length?`Pick at most ${b.max} sheets at a time.`:"Pick at least one sheet."; render(); return; }
+  dw.err=""; dw.busy=true; dw.results=null; dw.ctl=new AbortController(); dw.stage="Preparing sheets…"; render();
+  try{
+    const {blobs,desc}=await buildImages(sel,b.per);
+    if(dw.ctl.signal.aborted) throw {code:"cancelled"};
+    dw.stage=`Reading ${sel.length} sheet${sel.length>1?"s":""}… this usually takes one to three minutes.`; render();
+    const out=await callClaude(drawingPrompt(desc),blobs,dw.ctl.signal);
+    const items=Array.isArray(out?.items)?out.items:[];
+    dw.results={travel:{address:String(out?.address||"").trim(),status:"",msg:""}, notes:Array.isArray(out?.notes)?out.notes.map(String):[], items:items.filter(it=>!/^(trip|miles?|delivery)$/i.test(String(it.task||"").trim())).map(it=>{
+      const r=S.rates.find(x=>x.task.toLowerCase()===String(it.task||"").toLowerCase());
+      return {task:r?r.task:"", other:r?"":String(it.task||""), qty:num(it.qty), sheet:String(it.sheet||""), basis:String(it.basis||""), confirmed:!!it.confirmed, include:!!r && num(it.qty)>0};
+    })};
+    if(!dw.job && out?.jobNumber) dw.job=String(out.jobNumber);
+    if(!dw.loc) dw.loc=[out?.project,out?.location].filter(Boolean).join(" ").trim();
+  }catch(e){
+    const c=e&&e.code;
+    const msg={cancelled:"",bad_key:"Your API key was rejected. Check it under Settings.",no_credit:"Your Claude API account is out of credit. Add credit at console.anthropic.com → Billing.",
+      bad_model:"That model isn't available on your API account. Pick the other model under Settings.",rate_limited:"Too many requests right now. Wait a minute and try again.",
+      too_big:"Too much to send at once. Pick fewer sheets.",overloaded:"Claude is busy right now. Try again in a minute.",network:"Couldn't reach Claude. Check your internet connection.",
+      invalid_json:"The answer came back incomplete. Click Read drawings again, or pick fewer sheets."}[c];
+    dw.err = msg===undefined ? ("Reading failed: "+((e&&e.message)||"unknown error")+". Try again.") : msg;
+  }finally{ dw.busy=false; dw.ctl=null; render(); }
+  if(S.dw.results) computeTravel();
+}
+
+/* ---------- travel: trip charge vs mileage from the shop ---------- */
+const TRAVELSTORE="sommer-installer-pay-travel";
+function travelCfg(){ let c={}; try{ c=JSON.parse(lsGet(TRAVELSTORE)||"{}"); }catch(e){} return Object.assign({origin:"46202",lat:39.7846,lon:-86.1570,threshold:50,tripQty:2,milesMode:"oneway"},c); }
+async function geocode(q){
+  const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q="+encodeURIComponent(q));
+  const j=await r.json(); return j&&j[0]?{lat:+j[0].lat,lon:+j[0].lon,name:j[0].display_name}:null;
+}
+function crowMiles(a,b){ const R=3958.8,t=x=>x*Math.PI/180; const dLa=t(b.lat-a.lat), dLo=t(b.lon-a.lon);
+  const h=Math.sin(dLa/2)**2+Math.cos(t(a.lat))*Math.cos(t(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+async function driveMiles(o,d){
+  try{ const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${o.lon},${o.lat};${d.lon},${d.lat}?overview=false`); const j=await r.json();
+    if(j&&j.routes&&j.routes[0]) return {miles:j.routes[0].distance/1609.34,est:false}; }catch(e){}
+  return {miles:crowMiles(o,d)*1.2,est:true};
+}
+async function computeTravel(){
+  const R=S.dw.results; if(!R||!R.travel) return; const T=R.travel; const cfg=travelCfg();
+  R.items=R.items.filter(it=>!it.travel);
+  if(!T.address.trim()){ T.status="err"; T.msg="No job site address found on these sheets. Type it in and click Figure travel."; render(); return; }
+  T.status="busy"; T.msg=`Figuring the drive from ${cfg.origin}…`; render();
+  try{
+    let d=await geocode(T.address);
+    if(!d){ const m=T.address.match(/([A-Za-z .'-]+),\s*([A-Z]{2})\b\s*(\d{5})?/); if(m) d=await geocode(`${m[1].trim()}, ${m[2]}${m[3]?" "+m[3]:""}`); }
+    if(!d){ T.status="err"; T.msg="Couldn't find that address on the map. Check it, or type just the city and state, then click Figure travel."; render(); return; }
+    const {miles,est}=await driveMiles({lat:cfg.lat,lon:cfg.lon},d);
+    const one=Math.round(miles), local=one<cfg.threshold;
+    const rate=S.rates.find(r=>r.task===(local?"Trip":"Miles"));
+    const qty=local?num(cfg.tripQty):(cfg.milesMode==="round"?one*2:one);
+    const place=d.name.split(",").slice(0,3).join(",").trim();
+    const how=`${est?"About ":""}${one} mi one-way from ${cfg.origin} to ${place}${est?" (straight-line estimate — map route unavailable, check it)":" by road"}: ${local?`under ${cfg.threshold} mi, so trip charge × ${qty}`:`${cfg.threshold} mi or more, so mileage (${cfg.milesMode==="round"?"round trip":"one-way"})`}`;
+    R.items.push({task:rate?rate.task:"", other:rate?"":(local?"Trip":"Miles"), qty, sheet:"", basis:how, confirmed:!est, include:!!rate, travel:true});
+    T.status="ok"; T.msg=how;
+  }catch(e){ T.status="err"; T.msg="The map lookup failed. Check your internet connection and click Figure travel again."; }
+  render();
+}
+
+function renderDrawings(p){
+  const dw=S.dw; const sel=dw.pages.filter(x=>x.selected).length; const b=dwBudget(sel);
+  if(!dw.crewId || !p.crews.some(c=>c.id===dw.crewId)) dw.crewId=p.crews[0]?.id||"";
+  let h=`<section class="panel dw"><div class="panel-head"><div><h2>Pay from drawings</h2><div class="hint">Upload the plan set, tick the sheets that show the canopies (elevations, roof plan, wall sections, reflected ceiling plan), and Claude will measure them.</div></div>
+    <button class="btn ghost" data-act="dw-close" type="button">Close</button></div><div class="dw-body">`;
+  if(!S.dwAvail) h+=`<div class="banner"><b>Add your Claude API key first.</b> Go to <button class="btn" data-act="goto-settings" type="button">Settings</button> and paste it under Reading drawings.</div>`;
+  h+=`<div class="row"><label class="btn" for="dwFile">Choose PDF or photos</label><input type="file" id="dwFile" accept="application/pdf,image/*" multiple hidden>
+      ${dw.loading?`<span class="hint">Opening files…</span>`:""}
+      ${dw.pages.length?`<span class="hint">${sel} of ${dw.pages.length} sheets picked${b.max?` · up to ${b.max} per read`:""}</span><button class="btn ghost" data-act="dw-clear" type="button">Clear files</button>`:""}</div>`;
+  if(dw.pages.length) h+=`<div class="thumbs">${dw.pages.map(pg=>`<label class="thumb ${pg.selected?"on":""}"><input type="checkbox" data-dwpage="${pg.id}" ${pg.selected?"checked":""} ${dw.busy?"disabled":""}><img data-thumb="${pg.id}" alt="" src="${pg.thumb||"data:image/gif;base64,R0lGODlhAQABAAAAACw="}"><span>${esc(pg.label)}</span></label>`).join("")}</div>`;
+  h+=`<div class="dw-form">
+      <label>Job #<input id="dwJob" data-dw="job" value="${esc(dw.job)}" placeholder="e.g. 4144"></label>
+      <label class="grow">Job / location<input id="dwLoc" data-dw="loc" value="${esc(dw.loc)}" placeholder="Read from the title block if blank"></label>
+      <label>Add lines to<select id="dwCrew" data-dw="crewId">${p.crews.map(c=>`<option value="${c.id}" ${c.id===dw.crewId?"selected":""}>${esc(c.name)}</option>`).join("")}</select></label>
+      ${dw.busy?`<button class="btn" data-act="dw-stop" type="button">Stop</button>`:`<button class="btn primary" data-act="dw-read" type="button" ${sel&&S.dwAvail?"":"disabled"}>Read drawings</button>`}</div>`;
+  if(dw.busy) h+=`<div class="dw-status"><span class="spin" aria-hidden="true"></span>${esc(dw.stage||"Working…")}</div>`;
+  if(dw.err) h+=`<div class="banner">${esc(dw.err)}</div>`;
+  if(dw.results){
+    const R=dw.results; const T=R.travel||{address:"",msg:""};
+    h+=`<div class="dw-form travel"><label class="grow">Job site address (sets trip charge or mileage)<input id="dwAddr" data-dw="addr" value="${esc(T.address)}" placeholder="Street, City, ST ZIP"></label>
+      <button class="btn" data-act="dw-travel" type="button" ${T.status==="busy"?"disabled":""}>Figure travel</button></div>
+      ${T.msg?`<div class="dw-status ${T.status==="err"?"warn":""}">${T.status==="busy"?`<span class="spin" aria-hidden="true"></span>`:""}${esc(T.msg)}</div>`:""}`;
+    if(!R.items.some(it=>!it.travel)) h+=`<div class="banner">No canopy or awning scope found on those sheets.</div>`;
+    if(R.items.length){
+      h+=`<div class="tablewrap"><table class="grid dwres"><thead><tr><th style="width:34px"></th><th style="width:190px">Task</th><th class="r w-qty">Qty</th><th class="r w-rate">Rate</th><th class="r" style="width:100px">Crew amt</th><th style="width:150px">Source</th><th>How it was measured</th></tr></thead><tbody>`;
+      R.items.forEach((it,i)=>{ const r=S.rates.find(x=>x.task===it.task);
+        h+=`<tr data-dwi="${i}"><td><input type="checkbox" data-dwr="include" ${it.include?"checked":""} style="width:auto" aria-label="Include"></td>
+          <td><select data-dwr="task"><option value="">${it.other?esc("Not on rate card: "+it.other):"Pick a task"}</option>${S.rates.map(x=>`<option ${x.task===it.task?"selected":""}>${esc(x.task)}</option>`).join("")}</select></td>
+          <td><input class="n" data-dwr="qty" inputmode="decimal" value="${it.qty}"></td><td class="amt">${r?money(r.rate):"—"}</td><td class="amt">${r?money(r.rate*num(it.qty)):"—"}</td>
+          <td style="white-space:nowrap">${it.travel?`<span class="conf ${it.confirmed?"yes":"no"}">${it.confirmed?"Map":"Map, estimated"}</span>`:`<span class="conf ${it.confirmed?"yes":"no"}">${it.confirmed?"Called out":"Estimated"}</span>`}${it.sheet?` <span class="hint">${esc(it.sheet)}</span>`:""}</td>
+          <td class="basis">${esc(it.basis)}</td></tr>`; });
+      h+=`</tbody></table></div>`;
+    }
+    if(R.notes.length) h+=`<ul class="dw-notes">${R.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul>`;
+    const n=R.items.filter(it=>it.include&&it.task).length;
+    if(R.items.length) h+=`<div class="row"><button class="btn primary" data-act="dw-add" type="button" ${n&&dw.crewId?"":"disabled"}>Add ${n} line${n===1?"":"s"} to ${esc(p.crews.find(c=>c.id===dw.crewId)?.name||"crew")}</button>
+      <span class="hint">"Estimated" means the size wasn't dimensioned on the sheet — check it against the field measure before you pay. Travel comes from the site address — multi-stop road trips still need miles entered by hand.</span></div>`;
+  }
+  return h+`</div></section>`;
+}
+
+/* ---------- events ---------- */
+function findLine(el){ const tr=el.closest("[data-line]"); const cs=el.closest("[data-crew]"); if(!tr||!cs) return {}; const c=period().crews.find(x=>x.id===cs.dataset.crew); return {c,l:c&&c.lines.find(x=>x.id===tr.dataset.line)}; }
+function findCrew(el){ const cs=el.closest("[data-crew]"); return cs && period().crews.find(x=>x.id===cs.dataset.crew); }
+
+document.addEventListener("input",e=>{
+  const t=e.target; const p=period();
+  if(t.dataset.dw==="job"||t.dataset.dw==="loc"){ S.dw[t.dataset.dw]=t.value; return; }
+  if(t.dataset.dw==="addr"){ if(S.dw.results&&S.dw.results.travel) S.dw.results.travel.address=t.value; return; }
+  if(t.dataset.dwr==="qty"){ const i=+t.closest("[data-dwi]").dataset.dwi; const it=S.dw.results.items[i]; it.qty=num(t.value);
+    const r=S.rates.find(x=>x.task===it.task); const cells=t.closest("tr").querySelectorAll(".amt"); if(r&&cells[1]) cells[1].textContent=money(r.rate*it.qty); return; }
+  if(t.dataset.lf){ const {l}=findLine(t); if(!l) return; const f=t.dataset.lf;
+    if(f==="qty"||f==="rate") l[f]=t.value===""?"":num(t.value);
+    else l[f]=t.value;
+    if(f==="task"){ const r=S.rates.find(x=>x.task.toLowerCase()===t.value.trim().toLowerCase()); if(r){ l.rate=r.rate; l.type=r.type; const ri=t.closest("tr").querySelector('[data-lf="rate"]'); if(ri) ri.value=r.rate; } }
+    refreshNumbers(); savePeriod(); return; }
+  if(t.dataset.xf){ const tr=t.closest("[data-extra]"); const x=p.extras.find(y=>y.id===tr.dataset.extra); const f=t.dataset.xf;
+    x[f]=(f==="qty"||f==="rate")?(t.value===""?"":num(t.value)):t.value; refreshNumbers(); savePeriod(); return; }
+  if(t.dataset.cf){ const c=findCrew(t); c.name=t.value; savePeriod(); return; }
+  if(t.dataset.mf && t.type!=="checkbox"){ const c=findCrew(t); const m=c.members.find(x=>x.id===t.closest("[data-mid]").dataset.mid); m[t.dataset.mf]=num(t.value);
+    const chip=t.closest("[data-crew]").querySelector(`.mchip[data-mid="${m.id}"] .pct`); if(chip) chip.innerHTML=`${num(m.share)}%${num(m.bonus)?` <em>+${num(m.bonus)}%</em>`:""}`;
+    refreshNumbers(); savePeriod(); return; }
+  if(t.dataset.rf){ const r=S.rates.find(x=>x.id===t.closest("[data-rate]").dataset.rate); const f=t.dataset.rf; r[f]=f==="rate"?num(t.value):t.value; refreshTaskList(); saveRates(); return; }
+  if(t.dataset.if && t.type!=="checkbox"){ const i=inst(t.closest("[data-inst]").dataset.inst); const f=t.dataset.if; i[f]=f==="name"?t.value:num(t.value); saveInstallers(); return; }
+  if(t.dataset.qf && t.dataset.qf!=="task"){ const tr=t.closest("[data-qprod]"); const it=S.products[+tr.dataset.qprod].items[+tr.dataset.qitem];
+    it[t.dataset.qf]=num(t.value); persist(); return; }
+});
+document.addEventListener("change",e=>{
+  const t=e.target; const p=period();
+  if(t.id==="restoreFile"){ const f=t.files[0]; t.value=""; if(f) restoreFile(f); return; }
+  if(t.id==="apiModel"){ S.model=t.value; lsSet(MODELSTORE,S.model); return; }
+  if(t.id==="dwFile"){ const fs=[...t.files]; t.value=""; if(fs.length) addDrawingFiles(fs); return; }
+  if(t.dataset.dwpage){ const pg=S.dw.pages.find(x=>x.id===t.dataset.dwpage); pg.selected=t.checked; render(); return; }
+  if(t.dataset.dw==="crewId"){ S.dw.crewId=t.value; render(); return; }
+  if(t.dataset.dwr==="task"||t.dataset.dwr==="include"){ const it=S.dw.results.items[+t.closest("[data-dwi]").dataset.dwi];
+    if(t.dataset.dwr==="task"){ it.task=t.value; if(t.value) it.include=true; } else it.include=t.checked; render(); return; }
+  if(t.dataset.pf){ if(!t.value) return; p[t.dataset.pf]=t.value; p.label=periodLabel(p.start,p.end); savePeriod(); render(); return; }
+  if(t.id==="periodSel"){ S.cur=t.value; S.openMember=null; S.confirmDel=null; render(); return; }
+  if(t.id==="stubFilter"){ S.stubFilter=t.value; render(); return; }
+  if(t.dataset.act==="add-member" && t.value){ const c=findCrew(t); const i=inst(t.value); c.members.push({id:i.id,share:num(i.share),bonus:num(i.bonus),bonusTravel:!!i.bonusTravel}); savePeriod(); render(); return; }
+  if(t.dataset.mf==="bonusTravel"){ const c=findCrew(t); const m=c.members.find(x=>x.id===t.closest("[data-mid]").dataset.mid); m.bonusTravel=t.checked; refreshNumbers(); savePeriod(); return; }
+  if(t.dataset.xf==="installer"||t.dataset.xf==="type"){ const x=p.extras.find(y=>y.id===t.closest("[data-extra]").dataset.extra); x[t.dataset.xf]=t.value;
+    if(t.dataset.xf==="installer" && x.type==="Hourly"){ x.rate=num(inst(x.installer)?.hourly); } savePeriod(); render(); return; }
+  if(t.dataset.rf==="unit"||t.dataset.rf==="type"){ const r=S.rates.find(x=>x.id===t.closest("[data-rate]").dataset.rate); r[t.dataset.rf]=t.value; saveRates(); return; }
+  if(t.dataset.if==="bonusTravel"||t.dataset.if==="active"){ const i=inst(t.closest("[data-inst]").dataset.inst); i[t.dataset.if]=t.checked; saveInstallers(); return; }
+  if(t.dataset.qf==="task"){ const tr=t.closest("[data-qprod]"); const it=S.products[+tr.dataset.qprod].items[+tr.dataset.qitem];
+    it.task=t.value; persist(); return; }
+});
+document.addEventListener("submit",e=>{
+  if(e.target.id!=="npForm") return; e.preventDefault();
+  const s=$("#npStart").value, en=$("#npEnd").value; if(!s||!en){ toast("Pick a start and end date."); return; }
+  const id=en; if(S.periods[id]){ toast("A period ending "+fmtD(en)+" already exists."); return; }
+  const last=S.periods[sortedPeriodIds()[0]];
+  const crews = ($("#npCopy").checked && last) ? last.crews.map(c=>({id:uid("c"),name:c.name,members:c.members.map(m=>{ const i=inst(m.id); return i?{id:i.id,share:num(i.share),bonus:num(i.bonus),bonusTravel:!!i.bonusTravel}:{...m}; }),lines:[]})) : [{id:uid("c"),name:"Crew 1",members:[],lines:[]}];
+  S.periods[id]={label:periodLabel(s,en),start:s,end:en,status:"Open",crews,extras:[],notes:""};
+  S.cur=id; S.newPeriodOpen=false; S.tab="entry"; savePeriod(id); render(); toast("Pay period created");
+});
+document.addEventListener("click",e=>{
+  const tab=e.target.closest(".tabs button"); if(tab){ S.tab=tab.dataset.tab; try{localStorage.setItem("ip_tab",S.tab)}catch(err){} S.confirmDel=null; render(); return; }
+  if(e.target.closest("#newPeriodBtn")){ S.newPeriodOpen=!S.newPeriodOpen; render(); return; }
+  const b=e.target.closest("[data-act]"); if(!b || b.tagName==="SELECT") return;
+  const act=b.dataset.act; const p=period();
+  const newLine = (c,copy)=>{ const prev=c.lines[c.lines.length-1]; return {id:uid("l"),job:copy&&prev?prev.job:"",loc:copy&&prev?prev.loc:"",task:"",type:"Labor",qty:"",rate:"",out:[]}; };
+  switch(act){
+    case "np-cancel": S.newPeriodOpen=false; render(); break;
+    case "dw-open": S.dw.open=true; render(); break;
+    case "goto-settings": S.tab="setup"; render(); break;
+    case "print": window.print(); break;
+    case "backup": backupNow(); break;
+    case "restore-pick": $("#restoreFile").click(); break;
+    case "restore-yes": loadData(S.pendingRestore); S.pendingRestore=null; S.firstRun=false; persist(); lsSet(BKSTORE,new Date().toISOString()); render(); toast("Backup restored"); break;
+    case "restore-no": S.pendingRestore=null; render(); break;
+    case "dw-travel": computeTravel(); break;
+    case "save-travel": saveTravel(); break;
+    case "save-key": { const k=$("#apiKey").value.trim(); S.apiKey=k; S.model=$("#apiModel").value; lsSet(KEYSTORE,k); lsSet(MODELSTORE,S.model); S.dwAvail=!!k; render(); toast(k?"API key saved in this browser":"Key cleared"); break; }
+    case "clear-key": S.apiKey=""; lsDel(KEYSTORE); S.dwAvail=false; render(); toast("API key removed"); break;
+    case "dw-close": if(S.dw.ctl) S.dw.ctl.abort(); S.dw.open=false; render(); break;
+    case "dw-clear": S.dw.pages.forEach(pg=>{ if(pdfDocs[pg.key]&&pdfDocs[pg.key].destroy) pdfDocs[pg.key].destroy(); delete pdfDocs[pg.key]; }); Object.assign(S.dw,{pages:[],results:null,err:"",job:"",loc:""}); render(); break;
+    case "dw-read": readDrawings(); break;
+    case "dw-stop": if(S.dw.ctl) S.dw.ctl.abort(); break;
+    case "dw-add": { const dw=S.dw; const c=p.crews.find(x=>x.id===dw.crewId); if(!c) break;
+      const add=dw.results.items.filter(it=>it.include&&it.task).map(it=>{ const r=S.rates.find(x=>x.task===it.task);
+        return {id:uid("l"),job:dw.job,loc:dw.loc,task:it.task,type:r?r.type:"Labor",qty:num(it.qty),rate:r?num(r.rate):0,out:[],src:"plans",confirmed:it.confirmed,basis:[it.sheet,it.basis].filter(Boolean).join(": ")}; });
+      c.lines.push(...add); savePeriod(); dw.results=null; dw.open=false; render(); toast(`Added ${add.length} line${add.length===1?"":"s"} to ${c.name} — check trips and miles`); break; }
+    case "toggle-status": p.status=p.status==="Paid"?"Open":"Paid"; savePeriod(); render(); toast(p.status==="Paid"?"Marked paid — this period is now locked":"Reopened for changes"); break;
+    case "del-period": S.confirmDel="period"; render(); break;
+    case "del-period-yes": { const id=S.cur; delete S.periods[id]; queue("periods/"+id,()=>null); S.cur=sortedPeriodIds()[0]||null; S.confirmDel=null; render(); toast("Pay period deleted"); break; }
+    case "cancel-del": S.confirmDel=null; render(); break;
+    case "add-crew": p.crews.push({id:uid("c"),name:"New crew",members:[],lines:[]}); savePeriod(); render(); break;
+    case "del-crew": S.confirmDel=findCrew(b).id; render(); break;
+    case "del-crew-yes": { const c=findCrew(b); p.crews=p.crews.filter(x=>x!==c); S.confirmDel=null; savePeriod(); render(); break; }
+    case "member": { const c=findCrew(b); const k=c.id+":"+b.dataset.mid; S.openMember=S.openMember===k?null:k; render(); break; }
+    case "rm-member": { const c=findCrew(b); const mid=b.closest("[data-mid]").dataset.mid; c.members=c.members.filter(m=>m.id!==mid); c.lines.forEach(l=>l.out=(l.out||[]).filter(x=>x!==mid)); S.openMember=null; savePeriod(); render(); break; }
+    case "add-line": case "add-job": { const c=findCrew(b); const l=newLine(c,act==="add-line"); c.lines.push(l); savePeriod(); render();
+      const tr=$(`[data-line="${l.id}"]`); if(tr) tr.querySelector(act==="add-job"?'[data-lf="job"]':'[data-lf="task"]').focus(); break; }
+    case "del-line": { const {c,l}=findLine(b); c.lines=c.lines.filter(x=>x!==l); savePeriod(); render(); break; }
+    case "toggle-out": { const {l}=findLine(b); const mid=b.dataset.mid; l.out=l.out||[]; l.out=l.out.includes(mid)?l.out.filter(x=>x!==mid):[...l.out,mid]; savePeriod(); render(); break; }
+    case "add-extra": { const ty=b.dataset.type; const first=S.installers.find(i=>i.active!==false); const x={id:uid("x"),installer:first?.id||"",job:"",desc:ty==="Hourly"?"Hours":ty==="Per Diem"?"Per diem":"",type:ty,qty:ty==="Hourly"?"":1,rate:ty==="Hourly"?num(first?.hourly):""};
+      p.extras=p.extras||[]; p.extras.push(x); savePeriod(); render(); break; }
+    case "del-extra": { const id=b.closest("[data-extra]").dataset.extra; p.extras=p.extras.filter(x=>x.id!==id); savePeriod(); render(); break; }
+    case "add-rate": S.rates.push({id:uid("r"),task:"New task",rate:0,unit:"ft",type:"Labor",notes:""}); saveRates(); refreshTaskList(); render(); break;
+    case "del-rate": { const id=b.closest("[data-rate]").dataset.rate; S.rates=S.rates.filter(r=>r.id!==id); saveRates(); refreshTaskList(); render(); break; }
+    case "add-inst": S.installers.push({id:uid("i"),name:"New installer",role:"Helper",share:50,bonus:0,bonusTravel:false,hourly:18,active:true,notes:""}); saveInstallers(); render(); break;
+    case "qfeed-add": { const pi=+b.closest("[data-qprod]").dataset.qprod; S.products[pi].items.push({task:"",perFt:0,perUnit:0}); persist(); render(); break; }
+    case "qfeed-del": { const tr=b.closest("[data-qprod]"); const pr=S.products[+tr.dataset.qprod]; pr.items.splice(+tr.dataset.qitem,1); if(!pr.items.length) pr.items.push({task:"",perFt:0,perUnit:0}); persist(); render(); break; }
+    case "dl-stubs": { const people=stubsPeople(p); const ids=S.stubFilter==="all"||!people.includes(S.stubFilter)?people:[S.stubFilter];
+      download(`installer-pay-${fileTag(p)}${ids.length===1?"-"+iname(ids[0]).replace(/\s+/g,"-").toLowerCase():""}.html`, printableDoc(p,ids)); break; }
+    case "dl-csv": { const t=periodTotals(p); const ids=stubsPeople(p); let csv="Installer,Period start,Period end,Total pay\n"+ids.map(id=>`"${iname(id)}",${p.start},${p.end},${t[id].toFixed(2)}`).join("\n")+`\nTotal,,,${ids.reduce((s,id)=>s+t[id],0).toFixed(2)}\n`;
+      csv+="\nJob #,Job / location,Installer pay\n"+byJob(p).map(([k,v])=>`"${k}","${(v.loc||"").replace(/"/g,'""')}",${v.amt.toFixed(2)}`).join("\n")+"\n";
+      download(`installer-pay-${fileTag(p)}.csv`, csv); break; }
+    case "copy-totals": { const t=periodTotals(p); const ids=stubsPeople(p); const txt=`Installer pay ${p.label}\n`+ids.map(id=>`${iname(id)}: ${money(t[id])}`).join("\n")+`\nTotal: ${money(ids.reduce((s,id)=>s+t[id],0))}`;
+      navigator.clipboard.writeText(txt).then(()=>toast("Totals copied"),()=>toast("Copy isn't allowed here — select the totals and copy them by hand.")); break; }
+  }
+});
+
+render();
+boot();
+})();
+</script>
 </body>
 </html>
