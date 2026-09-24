@@ -3734,8 +3734,9 @@ const DEFAULT_INSTALLER_FEED = (()=>{
   const prod = (task,perFt)=>({ items:[{task,perFt,perUnit:0,rate:rates[task].rate}],
     crewAmtPerFt:rates[task].rate*perFt, crewAmtPerUnit:0, costPerFt:rates[task].rate*perFt, costPerUnit:0 });
   return {
-    app:'builtin', builtin:true, defaultCrew:'Standard crew',
-    crews:[{name:'Standard crew',members:[],laborMult:1,travelMult:1}],
+    app:'builtin', builtin:true, defaultCrew:'Standard crew (3)',
+    // 3-man crew, each paid 50% of the rate-card crew amount -> crew costs 1.5x the rate card (per Mike 09/24/26)
+    crews:[{name:'Standard crew (3)',members:[],laborMult:1.5,travelMult:1.5}],
     rates,
     products:{ canopy:prod('Install Canopy',1), patio:prod('Install Canopy',1), sunshade:prod('Install Base',1),
                standingSeam:prod('Install Base',1), fabric:prod('Install Base',1), recover:prod('Skin',1),
