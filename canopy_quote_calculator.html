@@ -3716,6 +3716,34 @@ function renderCostSheet(){
    on every margin render so new saves show up on the next recalc. If it's missing,
    the margin check stays material-only and says how to load it. */
 const INSTALLER_FEED_KEY = 'sommer-installer-pay-labor';
+/* Built-in fallback (v104): the Installer Pay rate card ships inside the Quote Builder,
+   so projected install-labor margin shows with NO dependency on the Installer Pay app.
+   If Installer Pay has been opened/saved on this computer, its live feed (real crews,
+   edited rates, job actuals) overrides this. */
+const DEFAULT_INSTALLER_FEED = (()=>{
+  const rates = {
+    'Takedown':{rate:1,unit:'ft',type:'Labor'}, 'Skin':{rate:2.5,unit:'ft',type:'Labor'},
+    'Skin Pies':{rate:5,unit:'each',type:'Labor'}, 'Skin Valance':{rate:1,unit:'ft',type:'Labor'},
+    'Rehang':{rate:1,unit:'ft',type:'Labor'}, 'Rehang Canopy':{rate:3,unit:'ft',type:'Labor'},
+    'Caulk':{rate:0.5,unit:'ft',type:'Labor'}, 'Install Base':{rate:2.5,unit:'ft',type:'Labor'},
+    'Install Canopy':{rate:6,unit:'ft',type:'Labor'}, 'Retrofit':{rate:1.75,unit:'ft',type:'Labor'},
+    'Arms':{rate:7,unit:'each',type:'Labor'}, 'Braces':{rate:3.5,unit:'each',type:'Labor'},
+    'Posts - Above Ground':{rate:15,unit:'each',type:'Labor'}, 'Posts - Into Ground':{rate:35,unit:'each',type:'Labor'},
+    'Trip':{rate:25,unit:'trip',type:'Travel'}, 'Miles':{rate:1.1,unit:'mile',type:'Travel'}, 'Delivery':{rate:50,unit:'each',type:'Travel'}
+  };
+  const prod = (task,perFt)=>({ items:[{task,perFt,perUnit:0,rate:rates[task].rate}],
+    crewAmtPerFt:rates[task].rate*perFt, crewAmtPerUnit:0, costPerFt:rates[task].rate*perFt, costPerUnit:0 });
+  return {
+    app:'builtin', builtin:true, defaultCrew:'Standard crew',
+    crews:[{name:'Standard crew',members:[],laborMult:1,travelMult:1}],
+    rates,
+    products:{ canopy:prod('Install Canopy',1), patio:prod('Install Canopy',1), sunshade:prod('Install Base',1),
+               standingSeam:prod('Install Base',1), fabric:prod('Install Base',1), recover:prod('Skin',1),
+               patiorailing:prod('Install Base',1) },
+    travel:{ origin:'46202', lat:39.7846, lon:-86.157, threshold:50, tripQty:2, milesMode:'oneway' },
+    jobActuals:{}
+  };
+})();
 // quoteItems type → feed products key ('patiocanopy' is 'patio' in Installer Pay)
 const INSTALLER_TYPE_MAP = { canopy:'canopy', sunshade:'sunshade', standingSeam:'standingSeam',
                              fabric:'fabric', recover:'recover', patiocanopy:'patio', patiorailing:'patiorailing' };
@@ -3724,11 +3752,12 @@ let qbCrewChoice = null;   // crew picked in the margin check; null = use feed.d
 function getInstallerFeed(){
   try{
     const raw = localStorage.getItem(INSTALLER_FEED_KEY);
-    if(!raw) return null;
-    const f = JSON.parse(raw);
-    if(!f || typeof f !== 'object' || !f.products) return null;
-    return f;
-  }catch(e){ return null; }
+    if(raw){
+      const f = JSON.parse(raw);
+      if(f && typeof f === 'object' && f.products) return f;   // live feed from Installer Pay
+    }
+  }catch(e){}
+  return DEFAULT_INSTALLER_FEED;   // built-in rate card — works with Installer Pay closed / never opened
 }
 function qbSelectedCrew(feed){
   const crews = feed.crews || [];
@@ -3795,7 +3824,6 @@ function computeInstallerCost(feed, crew){
 function installerMarginBlock(sell, mat){
   const wrap = (inner)=>`<div style="margin-top:8px;padding:7px 9px;background:#f3efe4;border:1px solid #e0d8bf;border-radius:6px;line-height:1.55;">${inner}</div>`;
   const feed = getInstallerFeed();
-  if(!feed) return wrap(`<b style="color:#7a6a2f;">🧰 Installer labor</b> — <span style="color:#8a6d1a;">Open Installer Pay once to load labor costs.</span> Margin above stays material-only until then.`);
   const crew = qbSelectedCrew(feed);
   const crews = feed.crews || [];
   const picker = `<select id="mc-crew" onchange="qbCrewChoice=this.value;renderQuote()" style="font-size:11px;padding:2px 4px;">${
@@ -3816,6 +3844,7 @@ function installerMarginBlock(sell, mat){
   const act = jobNo && feed.jobActuals && feed.jobActuals[jobNo];
   if(act) actualHtml = `<div style="margin-top:4px;color:#1f3b6e;"><b>Actual installer pay on this job:</b> $${Math.round(act.total||0).toLocaleString()}${act.labor!=null?` <span style="color:#8a94a6;">(labor $${Math.round(act.labor).toLocaleString()} · travel $${Math.round(act.travel||0).toLocaleString()}${act.other?` · other $${Math.round(act.other).toLocaleString()}`:''})</span>`:''}</div>`;
   const missingHtml = r.missing.length ? `<div style="margin-top:4px;color:#b8860b;font-size:11px;">⚠️ No installer rate card for: ${r.missing.join(', ')} — not in this estimate.</div>` : '';
+  const srcHtml = feed.builtin ? `<div style="margin-top:4px;color:#9aa3b2;font-size:11px;">Built-in rate card. Open Installer Pay once on this computer to sync live crews, edited rates &amp; actual job pay.</div>` : '';
   return wrap(
     `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
        <b style="color:#7a6a2f;">🧰 Installer labor</b>
@@ -3831,7 +3860,7 @@ function installerMarginBlock(sell, mat){
        <b style="font-size:15px;color:${mCol};">${(marginL*100).toFixed(1)}%</b>
        <span style="color:#8a94a6;font-size:11px;">= (sell incl. installation $${Math.round(sellAll).toLocaleString()} − material − installer labor − travel) ÷ sell</span>
      </div>
-     ${actualHtml}${missingHtml}`
+     ${actualHtml}${missingHtml}${srcHtml}`
   );
 }
 
@@ -3841,7 +3870,7 @@ function updateMarginCheck(){
   const cans = quoteItems.filter(i=>i.type==='canopy');
   if(!cans.length){
     el.innerHTML = 'Add a canopy to see its margin against your true cost.' +
-      ((quoteItems.length || !getInstallerFeed()) ? installerMarginBlock(0, 0) : '');
+      (quoteItems.length ? installerMarginBlock(0, 0) : '');
     return;
   }
   // MATERIAL ONLY for now — labor/finish/freight are held out until hard numbers are set.
