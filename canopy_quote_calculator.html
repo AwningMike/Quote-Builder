@@ -337,6 +337,10 @@
             <div style="margin-top:5px;"><button type="button" class="btn" style="font-size:11px;padding:4px 8px;" onclick="calcDeliveryMiles()">📍 Auto-calc from Ship To city</button></div>
             <div id="extra-miles-status" style="font-size:11px;color:#9aa3b2;line-height:1.5;margin-top:4px;">Fills in automatically when you enter the Ship To city. Under 70 mi one-way = flat $250 delivery.</div>
           </div>
+          <div class="checkline">
+            <input type="checkbox" id="extra-delivery-only" onchange="renderQuote()">
+            <label for="extra-delivery-only">Delivery only — no installation (removes all install labor from the quote)</label>
+          </div>
           <div class="field">
             <label>Lift Charge $ (steps $250, $500–$5,000 — or type any amount)</label>
             <input type="number" id="extra-lift" value="" min="500" max="5000" step="250" oninput="renderQuote()">
@@ -382,7 +386,7 @@
           <div class="row" id="q-downspouts-row" style="display:none;"><span>Downspouts</span><span class="num" id="q-downspouts">$0</span></div>
           <div class="row" id="q-lights-row" style="display:none;"><span>Lights</span><span class="num" id="q-lights">$0</span></div>
           <div class="row" id="q-posts-row" style="display:none;"><span>Posts</span><span class="num" id="q-posts">$0</span></div>
-          <div class="row"><span>Installation</span><span class="num" id="q-labor-delivery">$0</span></div>
+          <div class="row"><span id="q-labor-delivery-label">Installation</span><span class="num" id="q-labor-delivery">$0</span></div>
           <div class="row" id="q-survey-row" style="display:none;"><span>Survey / PM</span><span class="num" id="q-survey">$0</span></div>
           <div class="row" id="q-lift-row" style="display:none;"><span>Lift Rental</span><span class="num" id="q-lift">$0</span></div>
           <div class="row" id="q-stamped-row" style="display:none;"><span>Stamped Engineering</span><span class="num" id="q-stamped">$0</span></div>
@@ -3062,7 +3066,7 @@ function newQuote(){
   qbAutoMiles = null;
   ['extra-miles','extra-lift','extra-color','extra-ohio-county'].forEach(id=>setV(id,''));
   setV('extra-survey','500.00'); setV('extra-stamped','1250');
-  ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items'].forEach(id=>setC(id,false));
+  ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items','extra-delivery-only'].forEach(id=>setC(id,false));
   renderCalc();      // reset the active calculator form
   renderQuote();     // clear the quote panel
   window.scrollTo(0,0);
@@ -3080,7 +3084,7 @@ const QB_STATE_VERSION = 1;
 const LS_QUOTES_KEY = 'apmg_saved_quotes';
 const QB_HDR_FIELDS   = ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to','hdr-terms','hdr-company','hdr-date'];
 const QB_EXTRA_VALS   = ['extra-miles','extra-lift','extra-color','extra-ohio-county','extra-survey','extra-stamped'];
-const QB_EXTRA_CHECKS = ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items'];
+const QB_EXTRA_CHECKS = ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items','extra-delivery-only'];
 
 function captureQuoteState(){
   const gv = id => { const el=document.getElementById(id); return el ? el.value : ''; };
@@ -3824,6 +3828,15 @@ function computeInstallerCost(feed, crew){
 // check's numbers (canopy sell excl. paint, true material cost).
 function installerMarginBlock(sell, mat){
   const wrap = (inner)=>`<div style="margin-top:8px;padding:7px 9px;background:#f3efe4;border:1px solid #e0d8bf;border-radius:6px;line-height:1.55;">${inner}</div>`;
+  if(lastQuoteSummary && lastQuoteSummary.deliveryOnly){
+    const delCharge = lastQuoteSummary.installation || 0; // delivery charge only — labor already zeroed
+    const sellAll = sell + delCharge;
+    const marginD = sellAll > 0 ? (sellAll - mat)/sellAll : 0;
+    return wrap(
+      `<b style="color:#7a6a2f;">🧰 Installer labor</b> — <b>Delivery only:</b> install labor removed from this quote, no installer cost on this job.<br>` +
+      `<span style="color:#8a94a6;font-size:11px;">Delivery charge $${Math.round(delCharge).toLocaleString()} · margin after material (incl. delivery) <b style="color:#1f6b33;">${(marginD*100).toFixed(1)}%</b></span>`
+    );
+  }
   const feed = getInstallerFeed();
   const crew = qbSelectedCrew(feed);
   const crews = feed.crews || [];
@@ -4053,7 +4066,8 @@ function renderQuote(){
   const postsQty = quoteItems.reduce((s,i)=>s+(i.postsQty||0),0);
   const taxableMaterials = canopyMaterials + downspoutsTotal + lightsTotal + postsTotal;
 
-  const laborSubtotal = quoteItems.reduce((s,i)=>s+(i.labor||0),0);
+  const deliveryOnly = !!(document.getElementById('extra-delivery-only')||{}).checked;
+  const laborSubtotal = deliveryOnly ? 0 : quoteItems.reduce((s,i)=>s+(i.labor||0),0);
   const miles = parseFloat(document.getElementById('extra-miles').value)||0;
   // Delivery: under the flat zone (one-way = round-trip/2 < 70 mi) it's a flat $250;
   // beyond that it's ONE-WAY miles × $/mile (per Mike 09/24/26 — was round-trip). 0 miles = no charge.
@@ -4061,7 +4075,9 @@ function renderQuote(){
   const deliveryFlat = miles>0 && oneWayMi < RATES.jobLevel.flatDeliveryUnderMi;
   const deliveryCost = miles<=0 ? 0 : (deliveryFlat ? RATES.jobLevel.flatDeliveryPrice : Math.ceil(oneWayMi*RATES.jobLevel.deliveryRate));
   qbUpdateMilesStatus(miles, deliveryFlat, deliveryCost);
-  const installation = laborSubtotal + deliveryCost; // labor + mileage combined, one line — not taxed
+  const installation = laborSubtotal + deliveryCost; // labor + mileage combined, one line — not taxed (delivery-only: labor already zeroed)
+  const instLabelEl = document.getElementById('q-labor-delivery-label');
+  if(instLabelEl) instLabelEl.textContent = deliveryOnly ? 'Delivery (no installation)' : 'Installation';
 
   const surveyOn = document.getElementById('extra-survey-on').checked;
   document.getElementById('extra-survey-wrap').style.display = surveyOn ? 'block' : 'none';
@@ -4111,7 +4127,7 @@ function renderQuote(){
     })(),
     hasNonCanopy: quoteItems.some(i=>i.type && i.type!=='canopy'),
     downspoutsTotal, downspoutsQty, lightsTotal, lightsQty, postsTotal, postsQty,
-    laborSubtotal, deliveryCost, installation, survey, lift, stamped, taxOn, taxRatePercent, taxAllLines, tax, total
+    laborSubtotal, deliveryCost, installation, deliveryOnly, survey, lift, stamped, taxOn, taxRatePercent, taxAllLines, tax, total
   };
   updateMarginCheck(); // after lastQuoteSummary so the installer-labor strip sees the fresh Installation number
 }
@@ -4647,6 +4663,7 @@ function serializeQuoteForAirtable(){
   const lines = [];
   const push = (invKey, invName, qty, lineTotal, desc) => {
     if(!lineTotal) return;               // skip zero components
+    if(invKey==='labor' && s.deliveryOnly) return; // delivery-only job: no install labor lines
     lines.push({ invKey, invName, qty: Math.round((qty||0)*100)/100, lineTotal: Math.round(lineTotal), desc: desc||'' });
   };
   let sqftTotal = 0;
@@ -4949,7 +4966,12 @@ function buildActivityRows(s, color, height){
 
   // Installation and delivery are always combined into ONE "Installation" line (labor + mileage),
   // for every quote type — matching how canopy-only quotes already read.
-  rows.push({ label:'Installation', desc:'', amt: fmtDecimal(s.installation), taxed: !!s.taxAllLines });
+  // Delivery-only jobs: labor is already zeroed, so the line is just the delivery charge — relabel it.
+  if(s.deliveryOnly){
+    rows.push({ label:'Delivery', desc:'Delivery only — installation by others. No install labor included in this quote.', amt: fmtDecimal(s.installation), taxed: !!s.taxAllLines });
+  } else {
+    rows.push({ label:'Installation', desc:'', amt: fmtDecimal(s.installation), taxed: !!s.taxAllLines });
+  }
   if(s.hasNonCanopy){
     rows.push({ label:'Engineering - If needed '+fmt(stampedAmt), desc:'', amt: fmtDecimal(s.stamped), taxed: !!s.taxAllLines });
   } else {
