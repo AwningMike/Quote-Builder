@@ -660,7 +660,8 @@ function renderCanopySection(sectionKey, faceLabel){
             <option value="5">5 legs — four corners</option>
           </select>
         </div>
-        ${[1,2,3,4,5].map(i=>`<div class="leg-row" id="c-legrow${i}"><div style="font-size:12px;font-weight:700;color:#4a5568;margin:6px 0 2px;">Leg ${i}</div><div class="grid2">${ftInField('c-legW'+i,'Width')}${ftInField('c-legP'+i,'Projection')}</div></div>`).join('')}
+        ${[1,2,3,4,5].map(i=>`<div class="leg-row" id="c-legrow${i}"><div style="font-size:12px;font-weight:700;color:#4a5568;margin:6px 0 2px;">Leg ${i}</div><div class="grid3">${ftInField('c-legW'+i,'Width')}${ftInField('c-legP'+i,'Projection (free end)')}${ftInField('c-legP2'+i,'Tapers to at corner (optional)')}</div></div>`).join('')}
+        <div style="font-size:11px;color:#9aa3b2;line-height:1.5;margin:2px 0 6px;">Tapered leg? Enter the depth at the leg's FREE end under Projection and the depth at the corner end under "Tapers to" — the leg prices on its average (exact for a straight taper); the deepest point sets the tier. Leave "Tapers to" blank for a constant-depth leg.</div>
       </div>
       <div class="field"><label>Quantity (identical units)</label><input type="number" id="c-qty" value="1" min="1" step="1"></div>
       <div class="checkline" style="margin-top:-2px;">
@@ -758,7 +759,7 @@ function renderCanopySection(sectionKey, faceLabel){
     document.getElementById('c-taper-wrap').style.display = e.target.checked ? '' : 'none';
     computeCanopy(sectionKey);
   });
-  for(let i=1;i<=5;i++){ bindFtIn('c-legW'+i, ()=>computeCanopy(sectionKey)); bindFtIn('c-legP'+i, ()=>computeCanopy(sectionKey)); }
+  for(let i=1;i<=5;i++){ bindFtIn('c-legW'+i, ()=>computeCanopy(sectionKey)); bindFtIn('c-legP'+i, ()=>computeCanopy(sectionKey)); bindFtIn('c-legP2'+i, ()=>computeCanopy(sectionKey)); }
   function updateLegRows(){
     const n = parseInt(document.getElementById('c-legcount').value)||2;
     for(let i=1;i<=5;i++){ const row=document.getElementById('c-legrow'+i); if(row) row.style.display = i<=n ? '' : 'none'; }
@@ -804,10 +805,19 @@ function computeCanopy(sectionKey){
   const legCount = mitered ? Math.min(5, Math.max(2, parseInt((document.getElementById('c-legcount')||{}).value)||2)) : 1;
   let legs = [];
   if(mitered){
-    for(let i=1;i<=legCount;i++){ legs.push({ wFt:getFtInInches('c-legW'+i)/12, pFt:getFtInInches('c-legP'+i)/12 }); }
+    // per-leg taper (per Mike 10/02/26): Projection = depth at the leg's FREE end,
+    // "Tapers to" = depth at the corner end. Leg prices on its AVERAGE (exact for a
+    // straight taper); the deepest point anywhere sets the tier.
+    for(let i=1;i<=legCount;i++){
+      const p1 = getFtInInches('c-legP'+i)/12;
+      const p2 = getFtInInches('c-legP2'+i)/12;
+      const lt = p2 > 0 && Math.abs(p2 - p1) > 0.001;
+      legs.push({ wFt:getFtInInches('c-legW'+i)/12, pFt: lt ? (p1+p2)/2 : p1, p1Ft:p1, p2Ft: lt ? p2 : null, taper: lt });
+    }
   } else {
-    legs = [{ wFt:getFtInInches('c-width')/12, pFt:getFtInInches('c-proj')/12 }];
+    legs = [{ wFt:getFtInInches('c-width')/12, pFt:getFtInInches('c-proj')/12, p1Ft:getFtInInches('c-proj')/12, p2Ft:null, taper:false }];
   }
+  const miterTapered = mitered && legs.some(l=>l.taper);
   // TAPERED PROJECTION (single-run only, per Mike 10/02/26): depth differs end to end.
   // Priced on the AVERAGE depth — exact for a straight taper (area = W×avg; fascia ends
   // sum to p1+p2 = 2×avg; tie-rod footage averages out). Deepest end picks the tier.
@@ -819,6 +829,7 @@ function computeCanopy(sectionKey){
   if(tapered) legs[0] = { wFt: legs[0].wFt, pFt: projAvgFt };   // area/perimeter/engine price on the average
   const widthFt = legs.reduce((a,l)=>a+l.wFt, 0);           // total running width
   const projFt  = tapered ? Math.max(proj1Ft, proj2Ft)
+                : mitered ? legs.reduce((m,l)=>Math.max(m, l.p1Ft||l.pFt, l.p2Ft||0), 0) // deepest point incl. tapered corner ends
                           : legs.reduce((m,l)=>Math.max(m,l.pFt), 0); // deepest projection (for tier/perimeter)
   const sqft    = legs.reduce((a,l)=>a + l.wFt*l.pFt, 0);   // Σ each leg's own area
   const widthIn = widthFt*12, projIn = projFt*12;
@@ -829,8 +840,9 @@ function computeCanopy(sectionKey){
   const outrigger = parseFloat(document.getElementById('c-outrigger').value)||0;
   const fascia = parseFloat(document.getElementById('c-fascia').value)||0;
 
-  // open perimeter (fascia / C-Channel run): single = W + 2×P (tapered: W + p1 + p2 = W + 2×avg); mitered = ΣW + first + last leg projections
-  const perimFt = mitered ? (widthFt + legs[0].pFt + legs[legs.length-1].pFt)
+  // open perimeter (fascia / C-Channel run): single = W + 2×P (tapered: W + p1 + p2 = W + 2×avg);
+  // mitered = ΣW + the two FREE-end projections (first + last legs' entered Projection)
+  const perimFt = mitered ? (widthFt + (legs[0].p1Ft||legs[0].pFt) + (legs[legs.length-1].p1Ft||legs[legs.length-1].pFt))
                 : tapered ? (widthFt + proj1Ft + proj2Ft)
                 : (widthFt + 2*projFt);
   const ccPerimEl = document.getElementById('c-cchannel-perimeter');
@@ -843,10 +855,10 @@ function computeCanopy(sectionKey){
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
   const customFasciaFt = perimFt;
   const customFasciaCost = (cfOn && cfIn>0) ? customFasciaFt * tier.cchannel * qty : 0;
-  const legDesc = mitered ? legs.map(l=>`${l.wFt.toFixed(1)}×${l.pFt.toFixed(1)}`).join(' + ') : '';
+  const legDesc = mitered ? legs.map(l=>`${l.wFt.toFixed(1)}×${l.taper ? l.p1Ft.toFixed(1)+'→'+l.p2Ft.toFixed(1) : l.pFt.toFixed(1)}`).join(' + ') : '';
   document.getElementById('tier-out').innerHTML = (cfOn && cfIn>0)
     ? `<b>${tier.name}</b> — MFG $${tier.mfg}/sqft · Custom fascia <b>${cfIn}″</b>: ${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} = $${Math.round(customFasciaCost)}${mitered?` · MITER ${legCount} legs`:''}${qty>1 ? ` · × ${qty}` : ''}`
-    : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${mitered ? ` · MITER ${legCount} legs (${legDesc}) = ${sqft.toFixed(1)} sqft` : ''}${tapered ? ` · TAPERED ${proj1Ft.toFixed(2)}′→${proj2Ft.toFixed(2)}′ (avg ${projAvgFt.toFixed(2)}′, tier on ${projFt.toFixed(2)}′)` : ''}${qty>1 ? ` · × ${qty} units` : ''}`;
+    : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${mitered ? ` · MITER ${legCount} legs (${legDesc}) = ${sqft.toFixed(1)} sqft` : ''}${tapered ? ` · TAPERED ${proj1Ft.toFixed(2)}′→${proj2Ft.toFixed(2)}′ (avg ${projAvgFt.toFixed(2)}′, tier on ${projFt.toFixed(2)}′)` : ''}${miterTapered ? ` · TAPERED legs (avg-priced, tier on ${projFt.toFixed(2)}′)` : ''}${qty>1 ? ` · × ${qty} units` : ''}`;
 
   const mfgBase = sqft*tier.mfg*qty;
   const lightsCost = lights*tier.lights*qty;
@@ -884,7 +896,7 @@ function computeCanopy(sectionKey){
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
   return { materialsTotal, labor, paintCost, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered, legs, legCount,
-    tapered, proj1Ft, proj2Ft, projAvgFt,
+    tapered, proj1Ft, proj2Ft, projAvgFt, miterTapered,
     // component breakdown (exact $ per category) for the Airtable line-item push
     bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost:0, miterQty:0, fasciaCost, paintCost, labor, laborFt: widthFt*qty } };
 }
@@ -900,7 +912,7 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
   if(cfOn && cfIn>0){ faceInches = cfIn; faceLabel = cfIn + '"'; }
   const legWLabels = r.mitered ? r.legs.map((l,i)=>ftInLabel('c-legW'+(i+1))) : [];
-  const legPLabels = r.mitered ? r.legs.map((l,i)=>ftInLabel('c-legP'+(i+1))) : [];
+  const legPLabels = r.mitered ? r.legs.map((l,i)=> l.taper ? `${ftInLabel('c-legP'+(i+1))} tapering to ${ftInLabel('c-legP2'+(i+1))}` : ftInLabel('c-legP'+(i+1))) : [];
   const widthStr = r.mitered ? legWLabels.join(' x ') : ftInLabel('c-width');
   const projStr  = r.mitered ? legPLabels.join(' / ')
                  : r.tapered ? `${ftInLabel('c-proj')} tapering to ${ftInLabel('c-proj2')}`
@@ -910,7 +922,7 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
   quoteItems.push({
     id: itemSeq++,
     title: name,
-    sub: `${faceLabel} · ${r.tier.name.split('·')[1].trim()} · ${r.widthFt.toFixed(1)}ft × ${r.tapered ? `${r.proj1Ft.toFixed(1)}–${r.proj2Ft.toFixed(1)}ft TAPERED` : `${r.projFt.toFixed(1)}ft`}${r.qty>1 ? ` · qty ${r.qty}` : ''}`,
+    sub: `${faceLabel} · ${r.tier.name.split('·')[1].trim()} · ${r.widthFt.toFixed(1)}ft × ${r.tapered ? `${r.proj1Ft.toFixed(1)}–${r.proj2Ft.toFixed(1)}ft TAPERED` : `${r.projFt.toFixed(1)}ft`}${r.miterTapered ? ' · TAPERED legs' : ''}${r.qty>1 ? ` · qty ${r.qty}` : ''}`,
     amount: Math.ceil(r.materialsTotal),
     paintCost: Math.ceil(r.paintCost||0),   // $9/sqft paint adder — baked into amount, held out of the margin check
     labor: Math.ceil(r.labor),
@@ -933,14 +945,19 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
       projStr: projStr,
       widthFt: r.widthFt,
       projFt: r.tapered ? r.projAvgFt : r.projFt,   // tapered: engine/drawing use AVERAGE depth (exact material for a straight taper)
-      tapered: r.tapered || false,
+      tapered: r.tapered || r.miterTapered || false,
       proj1Ft: r.tapered ? r.proj1Ft : null,
       proj2Ft: r.tapered ? r.proj2Ft : null,
       projMaxFt: r.projFt,
+      taperDesc: r.tapered
+        ? `projection varies ${r.proj1Ft.toFixed(2)}' to ${r.proj2Ft.toFixed(2)}' across the run`
+        : (r.miterTapered
+          ? r.legs.map((l,i)=>l.taper ? `Leg ${i+1}: ${l.p1Ft.toFixed(2)}' at free end to ${l.p2Ft.toFixed(2)}' at corner` : `Leg ${i+1}: ${l.pFt.toFixed(2)}' constant`).join('; ')
+          : null),
       face: faceInches,
       mitered: r.mitered,
       legCount: r.legCount,
-      legs: r.mitered ? r.legs.map((l,i)=>({ wFt:l.wFt, pFt:l.pFt, wIn:l.wFt*12, pIn:l.pFt*12, wLabel:legWLabels[i], pLabel:legPLabels[i] })) : null,
+      legs: r.mitered ? r.legs.map((l,i)=>({ wFt:l.wFt, pFt:l.pFt, wIn:l.wFt*12, pIn:l.pFt*12, wLabel:legWLabels[i], pLabel:legPLabels[i], taper:!!l.taper, p1Ft:l.p1Ft||l.pFt, p2Ft:l.p2Ft||null })) : null,
       widthSegments: r.mitered ? legWLabels : null,
       widthSegIn: r.mitered ? r.legs.map(l=>l.wFt*12) : null,
       downspoutPerUnit: r.downspoutPerUnit,
@@ -2025,7 +2042,7 @@ function notesSheetSVG(item){
       'Canopy assembled and fit-checked in the shop prior to shipment; sections match-marked.',
       'Front and rear support tubes concealed inside the fascia line.'
     ].concat(s0.tapered ? [
-      `TAPERED PLAN: projection varies ${(s0.proj1Ft||0).toFixed(2)}' to ${(s0.proj2Ft||0).toFixed(2)}' across the run — pans cut to length per plan; front fascia runs on the rake. Fabricate per architectural plan dimensions, not this sheet's rectangular geometry.`
+      `TAPERED PLAN: ${s0.taperDesc || `projection varies ${(s0.proj1Ft||0).toFixed(2)}' to ${(s0.proj2Ft||0).toFixed(2)}' across the run`} — pans cut to length per plan; front fascia runs on the rake. Fabricate per architectural plan dimensions, not this sheet's rectangular geometry.`
     ] : [])],
     ['ATTACHMENT', [
       attachNote,
