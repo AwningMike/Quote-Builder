@@ -259,6 +259,7 @@
         <button class="btn" id="save-quote-btn" style="background:#5a6b82;white-space:nowrap;" onclick="saveQuoteToDevice()">💾 Save</button>
         <button class="btn" id="open-quote-btn" style="background:#3f5878;white-space:nowrap;" onclick="openQuotesModal()">📂 Quotes</button>
         <button class="btn" id="new-quote-btn" style="background:#1a7f37;white-space:nowrap;" onclick="newQuote()">＋ New Quote</button>
+        <button class="btn" id="import-takeoff-btn" style="background:#8a5a00;white-space:nowrap;" onclick="openTakeoffImport()" title="Paste a takeoff from the drawing-scaling chat">📐 Import Takeoff</button>
       </div>
     </div>
     <div class="quote-panel">
@@ -5319,6 +5320,143 @@ function onSettingChange(e){
   renderCalc(); // recompute current calculator with new rates
 }
 
+/* ---------------- TAKEOFF IMPORT (from the drawing-scaling chat) ----------------
+   Format "APMG_TAKEOFF v1" — JSON. Entry points:
+     1) 📐 Import Takeoff button → paste the JSON (or the whole chat reply; the JSON block is found)
+     2) URL hash  #takeoff=<base64 JSON>  (UTF-8 safe)
+   Each canopy is pushed through the SAME form + addCanopyToQuote() path as a hand-entered one,
+   so tiers, rates, paint, drawings and the margin check all behave exactly as normal.
+   All sizes are in INCHES. */
+function _tkSetFtIn(prefix, inches){
+  let tot = Math.max(0, Math.round(+inches||0));
+  const ft = Math.floor(tot/12), inch = tot%12;
+  const f=document.getElementById(prefix+'-ft'), i=document.getElementById(prefix+'-in');
+  if(f) f.value=ft; if(i) i.value=inch;
+}
+function _tkSet(id, v){ const el=document.getElementById(id); if(el && v!==undefined && v!==null && v!=='') el.value=v; }
+function _tkCheck(id, on){ const el=document.getElementById(id); if(el && el.checked!==!!on){ el.checked=!!on; el.dispatchEvent(new Event('change')); } }
+function _tkExtractJSON(text){
+  text=String(text||'').trim();
+  try{ return JSON.parse(text); }catch(e){}
+  // pull the JSON out of a pasted chat reply: try every ``` fence, then every balanced {...} block
+  const ok=o=>o && typeof o==='object' && Array.isArray(o.canopies);
+  for(const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)){ try{ const o=JSON.parse(m[1]); if(ok(o)) return o; }catch(e){} }
+  for(let s=text.indexOf('{'); s>=0; s=text.indexOf('{', s+1)){
+    let depth=0, inStr=false, esc=false;
+    for(let k=s;k<text.length;k++){
+      const ch=text[k];
+      if(inStr){ if(esc) esc=false; else if(ch==='\\') esc=true; else if(ch==='"') inStr=false; continue; }
+      if(ch==='"') inStr=true; else if(ch==='{') depth++;
+      else if(ch==='}'){ if(--depth===0){ try{ const o=JSON.parse(text.slice(s,k+1)); if(ok(o)) return o; }catch(e){} break; } }
+    }
+  }
+  throw new Error('No takeoff JSON (with a "canopies" list) found in the pasted text.');
+}
+function importTakeoff(data){
+  if(typeof data==='string') data=_tkExtractJSON(data);
+  if(!data || !Array.isArray(data.canopies)) throw new Error('Takeoff has no "canopies" list.');
+  const job=data.job||{};
+  const fillBlank=(id,v)=>{ const el=document.getElementById(id); if(el && v && !String(el.value||'').trim()) el.value=v; };
+  fillBlank('hdr-projname', job.projectName); fillBlank('hdr-projno', job.projectNo);
+  fillBlank('hdr-gc', job.gc); fillBlank('hdr-to', job.to); fillBlank('hdr-shipname', job.shipName);
+  fillBlank('hdr-address1', job.address);
+  const cityEl=document.getElementById('hdr-address2');
+  if(cityEl && job.cityStateZip && !String(cityEl.value||'').trim()){ cityEl.value=job.cityStateZip; try{ calcDeliveryMiles(); }catch(e){} }
+  if(job.color){ const c=document.getElementById('extra-color'); if(c && (!c.value || c.value==='TBD')) c.value=job.color; }
+
+  const added=[], skipped=[];
+  const prevTab=activeTab;
+  data.canopies.forEach((c,idx)=>{
+    const label=c.name||c.mark||`Canopy ${idx+1}`;
+    const type=String(c.type||'canopy').toLowerCase();
+    if(type!=='canopy'){ skipped.push(`${label} — type "${c.type}" not auto-imported (enter by hand)`); return; }
+    const legs=Array.isArray(c.legs)?c.legs.filter(l=>+l.widthIn>0):[];
+    const mitered=legs.length>=2;
+    if(mitered && legs.length>5){ skipped.push(`${label} — ${legs.length} legs (builder max is 5)`); return; }
+    if(!mitered && !(+c.widthIn>0 && +c.projIn>0)){ skipped.push(`${label} — missing widthIn/projIn`); return; }
+    if(mitered && legs.some(l=>!(+l.projIn>0))){ skipped.push(`${label} — a leg is missing projIn`); return; }
+    const face=+c.face||8;
+    const key = face<=8 ? 'canopy8' : 'canopy12';
+    const faceLabel = key==='canopy8' ? '8" Face' : '12" Face';
+    activeTab=key; buildTabs(); renderCalc();
+    // face size: 6/8 on the 8" tab, 10/12 on the 12" tab, >12 = custom fascia
+    if(face>12){ _tkCheck('c-customface-toggle', true); _tkSet('c-customface-in', face); }
+    else { const fs=document.getElementById('c-facesize'); if(fs && [...fs.options].some(o=>+o.value===face)) fs.value=String(face); }
+    if(mitered){
+      _tkCheck('c-mitered-toggle', true);
+      const lc=document.getElementById('c-legcount'); lc.value=String(legs.length); lc.dispatchEvent(new Event('change'));
+      legs.forEach((l,i)=>{
+        _tkSetFtIn('c-legW'+(i+1), l.widthIn);
+        _tkSetFtIn('c-legP'+(i+1), l.projIn);
+        if(+l.projCornerIn>0 && Math.round(+l.projCornerIn)!==Math.round(+l.projIn)) _tkSetFtIn('c-legP2'+(i+1), l.projCornerIn);
+      });
+    } else {
+      _tkSetFtIn('c-width', c.widthIn);
+      _tkSetFtIn('c-proj', c.projIn);
+      if(+c.projEndIn>0 && Math.round(+c.projEndIn)!==Math.round(+c.projIn)){
+        _tkCheck('c-taper-toggle', true);
+        _tkSetFtIn('c-proj2', c.projEndIn);
+      }
+    }
+    _tkSet('c-qty', Math.max(1, parseInt(c.qty,10)||1));
+    _tkSet('c-lights', parseInt(c.lights,10)||0);
+    _tkSet('c-downspout', parseInt(c.downspouts,10)||0);
+    _tkSet('c-posts', parseInt(c.posts,10)||0);
+    if(['tierod','cchannel','topsupport'].includes(c.attach)) _tkSet('c-attach', c.attach);
+    if(+c.arms>=2 && +c.arms<=16) _tkSet('c-arms', String(parseInt(c.arms,10)));
+    if(c.paint) _tkSet('c-paint', c.paint);
+    if(['wood','masonry','metal'].includes(c.blocking)) _tkSet('c-blocking', c.blocking);
+    const nm = [c.mark, c.name].filter(Boolean).join(' — ') || label;
+    _tkSet('c-name', nm + (c.sheet ? ` (${c.sheet})` : ''));
+    if(c.group) _tkSet('c-group', c.group);
+    if(c.lineGroup){ _tkCheck('c-linegroup-on', true); document.getElementById('c-linegroup-wrap').style.display='block'; _tkSet('c-linegroup', c.lineGroup); }
+    computeCanopy(key);
+    addCanopyToQuote(key, faceLabel, key==='canopy8'?8:12);
+    const it=quoteItems[quoteItems.length-1];
+    if(it && (c.notes || c.confidence)) it.takeoffNote = [c.confidence?`scale confidence: ${c.confidence}`:'', c.notes||''].filter(Boolean).join(' · ');
+    added.push(`${nm}${c.qty>1?` ×${c.qty}`:''}`);
+  });
+  activeTab = (prevTab==='canopy8'||prevTab==='canopy12') ? prevTab : 'canopy8';
+  buildTabs(); renderCalc(); renderQuote();
+  return { added, skipped, warnings: Array.isArray(data.warnings)?data.warnings:[] };
+}
+function _tkReport(r){
+  let msg=`Imported ${r.added.length} canopy line${r.added.length===1?'':'s'}:\n• `+(r.added.join('\n• ')||'(none)');
+  if(r.skipped.length) msg+=`\n\nNOT imported — enter by hand:\n• `+r.skipped.join('\n• ');
+  if(r.warnings.length) msg+=`\n\nTakeoff warnings — verify before sending:\n• `+r.warnings.join('\n• ');
+  msg+=`\n\nCheck sizes against the drawings, then set delivery/lift/tax as usual.`;
+  alert(msg);
+}
+function openTakeoffImport(){
+  if(document.getElementById('takeoff-backdrop')) return;
+  const back=document.createElement('div');
+  back.className='drawing-modal-backdrop'; back.id='takeoff-backdrop';
+  back.addEventListener('click',e=>{ if(e.target===back) back.remove(); });
+  back.innerHTML=`<div class="drawing-modal" style="max-width:620px">
+    <h3>📐 Import Takeoff</h3>
+    <div class="dm-sub">Paste the APMG_TAKEOFF JSON from the drawing-scaling chat (pasting the whole reply is fine — the JSON block is pulled out). Each canopy is added to this quote through the normal calculator, so pricing, tiers and drawings work as if you typed it. Header fields only fill in if they're blank.</div>
+    <textarea id="takeoff-text" style="width:100%;min-height:260px;padding:10px;border:1px solid #bbb;border-radius:5px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#1a1a1a;background:#fff;box-sizing:border-box;" placeholder='{"format":"APMG_TAKEOFF","version":1,"job":{...},"canopies":[...]}'></textarea>
+    <div style="margin-top:8px;font-size:12px;color:#555;">or load a file: <input type="file" id="takeoff-file" accept=".json,.txt,application/json,text/plain"></div>
+    <div id="takeoff-err" style="color:#b23;font-size:12px;margin-top:8px;"></div>
+    <div class="dm-actions" style="margin-top:14px">
+      <button class="dm-pdf" id="takeoff-go">Add to Quote</button>
+      <button class="dm-close" onclick="document.getElementById('takeoff-backdrop').remove()">Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(back);
+  document.getElementById('takeoff-file').addEventListener('change', e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const rd=new FileReader(); rd.onload=()=>{ document.getElementById('takeoff-text').value=rd.result; }; rd.readAsText(f);
+  });
+  document.getElementById('takeoff-go').addEventListener('click', ()=>{
+    try{
+      const r=importTakeoff(document.getElementById('takeoff-text').value);
+      back.remove(); _tkReport(r);
+    }catch(err){ document.getElementById('takeoff-err').textContent='Could not import: '+err.message; }
+  });
+  document.getElementById('takeoff-text').focus();
+}
+
 /* ---------------- INIT ---------------- */
 buildTabs();
 renderCalc();
@@ -5361,6 +5499,17 @@ document.getElementById('hdr-repname').addEventListener('change', ()=>{
   document.getElementById('hdr-date').value = dateStr;
 })();
 renderQuote();
+// takeoff handoff via URL:  canopy_quote_calculator.html#takeoff=<base64 JSON>
+(function takeoffFromHash(){
+  const m=location.hash.match(/takeoff=([^&]+)/); if(!m) return;
+  try{
+    const raw=decodeURIComponent(m[1]).replace(/-/g,'+').replace(/_/g,'/');
+    const json=decodeURIComponent(escape(atob(raw)));
+    const r=importTakeoff(json);
+    history.replaceState(null,'',location.pathname+location.search);   // don't re-import on refresh
+    setTimeout(()=>_tkReport(r), 50);
+  }catch(e){ console.warn('takeoff hash import failed', e); alert('Takeoff link could not be read: '+e.message); }
+})();
 
 // Register service worker so this qualifies as an installable app.
 // Only works when served over http(s) — browsers block service workers
