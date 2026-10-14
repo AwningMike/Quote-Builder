@@ -271,6 +271,11 @@
           <div class="settings-body">
             <div class="field"><label>To — Customer / Attn <span style="text-transform:none;font-weight:400;">(fills the "TO:" box on the quote PDF)</span></label><input type="text" id="hdr-to" placeholder="e.g. Casey's General Stores — Attn: John Smith"></div>
             <div class="grid2">
+              <div class="field"><label>Customer Email <span style="text-transform:none;font-weight:400;">(prints under TO:)</span></label><input type="text" id="hdr-custemail" placeholder="e.g. jsmith@gcbuilder.com"></div>
+              <div class="field"><label>Customer Phone <span style="text-transform:none;font-weight:400;">(prints under TO:)</span></label><input type="text" id="hdr-custphone" placeholder="e.g. (317) 555-0100"></div>
+            </div>
+            <div class="field"><label>Bid Due <span style="text-transform:none;font-weight:400;">(from the invite email — not printed)</span></label><input type="text" id="hdr-biddue" placeholder="e.g. 10/24/2026 2:00 PM"></div>
+            <div class="grid2">
               <div class="field"><label>Ship To — Name</label><input type="text" id="hdr-shipname" placeholder="e.g. Speedway"></div>
               <div class="field"><label>Date</label><input type="text" id="hdr-date" placeholder="e.g. 7/21/2026"></div>
             </div>
@@ -3135,7 +3140,7 @@ function newQuote(){
   const setV=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
   const setC=(id,v)=>{ const el=document.getElementById(id); if(el) el.checked=v; };
   // header fields
-  ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to'].forEach(id=>setV(id,''));
+  ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to','hdr-custemail','hdr-custphone','hdr-biddue'].forEach(id=>setV(id,''));
   setV('hdr-terms','30% Down, Balance per Contract');
   setV('hdr-company','SA');
   try{ setV('hdr-date', new Date().toLocaleDateString('en-US')); }catch(e){ setV('hdr-date',''); }
@@ -3159,7 +3164,7 @@ function newQuote(){
    round-trips through localStorage and Airtable's Quote Builder State field with no data loss. */
 const QB_STATE_VERSION = 1;
 const LS_QUOTES_KEY = 'apmg_saved_quotes';
-const QB_HDR_FIELDS   = ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to','hdr-terms','hdr-company','hdr-date'];
+const QB_HDR_FIELDS   = ['hdr-shipname','hdr-address1','hdr-address2','hdr-projno','hdr-projname','hdr-gc','hdr-to','hdr-terms','hdr-company','hdr-date','hdr-custemail','hdr-custphone','hdr-biddue'];
 const QB_EXTRA_VALS   = ['extra-miles','extra-lift','extra-color','extra-ohio-county','extra-survey','extra-stamped'];
 const QB_EXTRA_CHECKS = ['extra-survey-on','extra-stamped-on','extra-tax','extra-scupper','extra-individual-items','extra-delivery-only'];
 
@@ -5101,7 +5106,7 @@ function populateFormalQuoteDoc(){
       <div class="pq-toship">
         <div>
           <div class="pq-label">TO:</div>
-          <div class="pq-block">${(document.getElementById('hdr-to')||{}).value ? (document.getElementById('hdr-to').value).replace(/</g,'&lt;').replace(/\n/g,'<br>') : ''}</div>
+          <div class="pq-block">${[(document.getElementById('hdr-to')||{}).value, (document.getElementById('hdr-custemail')||{}).value, (document.getElementById('hdr-custphone')||{}).value].filter(v=>v&&String(v).trim()).map(v=>String(v).replace(/</g,'&lt;').replace(/\n/g,'<br>')).join('<br>')}</div>
         </div>
         <div>
           <div class="pq-label">Ship To</div>
@@ -5352,8 +5357,48 @@ function _tkExtractJSON(text){
   }
   throw new Error('No takeoff JSON (with a "canopies" list) found in the pasted text.');
 }
+// Every takeoff JSON block in a pasted reply (several buildings/jobs pasted at once).
+function _tkExtractAll(text){
+  text=String(text||'').trim();
+  const ok=o=>o && typeof o==='object' && Array.isArray(o.canopies);
+  try{ const o=JSON.parse(text); if(Array.isArray(o)) return o.filter(ok); if(ok(o)) return [o]; }catch(e){}
+  const found=[];
+  for(const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)){ try{ const o=JSON.parse(m[1]); if(ok(o)) found.push(o); }catch(e){} }
+  if(found.length) return found;
+  return [_tkExtractJSON(text)];
+}
+// Ohio county / Indiana sales tax from job.state + job.county. Only sets tax if none is chosen yet.
+function _tkApplyTax(job){
+  const st=String(job.state||'').trim().toUpperCase();
+  const cty=String(job.county||'').replace(/\s*county\s*$/i,'').trim().toLowerCase();
+  if(!st) return '';
+  const sel=document.getElementById('extra-ohio-county'), inChk=document.getElementById('extra-tax');
+  const already=(sel && parseFloat(sel.value)>0) || (inChk && inChk.checked);
+  if(already) return 'Tax already set on this quote — left as is.';
+  if(st==='OH' || st==='OHIO'){
+    if(!sel) return '';
+    const idx=[...sel.options].findIndex(o=>o.textContent.toLowerCase().startsWith(cty+' county'));
+    if(cty && idx>0){ sel.selectedIndex=idx; if(inChk) inChk.checked=false; return `Ohio tax set: ${sel.options[idx].textContent} (all line items).`; }
+    return `Ohio job but county "${job.county||'?'}" not found — pick the county by hand.`;
+  }
+  if(st==='IN' || st==='INDIANA'){
+    if(inChk){ inChk.checked=true; if(sel) sel.value='0'; }
+    return 'Indiana job — 7% sales tax on materials turned on.';
+  }
+  return `${st} job — no tax set (only OH / IN are automatic). Check that state's tax.`;
+}
 function importTakeoff(data){
-  if(typeof data==='string') data=_tkExtractJSON(data);
+  if(typeof data==='string'){
+    const all=_tkExtractAll(data);
+    if(all.length>1){
+      const res={added:[],skipped:[],warnings:[],info:[]};
+      all.forEach((d,i)=>{ const r=importTakeoff(d); res.added.push(...r.added); res.skipped.push(...r.skipped); res.warnings.push(...r.warnings.map(w=>`[${(d.job&&d.job.shipName)||'takeoff '+(i+1)}] ${w}`)); res.info.push(...(r.info||[])); });
+      res.info.unshift(`${all.length} takeoff blocks imported into this one quote (job header from the first).`);
+      res.info=[...new Set(res.info)];
+      return res;
+    }
+    data=all[0];
+  }
   if(!data || !Array.isArray(data.canopies)) throw new Error('Takeoff has no "canopies" list.');
   const job=data.job||{};
   const fillBlank=(id,v)=>{ const el=document.getElementById(id); if(el && v && !String(el.value||'').trim()) el.value=v; };
@@ -5363,6 +5408,14 @@ function importTakeoff(data){
   const cityEl=document.getElementById('hdr-address2');
   if(cityEl && job.cityStateZip && !String(cityEl.value||'').trim()){ cityEl.value=job.cityStateZip; try{ calcDeliveryMiles(); }catch(e){} }
   if(job.color){ const c=document.getElementById('extra-color'); if(c && (!c.value || c.value==='TBD')) c.value=job.color; }
+  // customer from the bid-invite email
+  const cust=job.customer||{};
+  if(!job.to && (cust.company||cust.name)) fillBlank('hdr-to', [cust.company, cust.name?`Attn: ${cust.name}`:''].filter(Boolean).join(' — '));
+  if(!job.gc && cust.company) fillBlank('hdr-gc', cust.company);
+  fillBlank('hdr-custemail', cust.email); fillBlank('hdr-custphone', cust.phone); fillBlank('hdr-biddue', job.bidDue);
+  const info=[];
+  const taxMsg=_tkApplyTax(job); if(taxMsg) info.push(taxMsg);
+  if(job.bidDue) info.push(`Bid due: ${job.bidDue}`);
 
   const added=[], skipped=[];
   const prevTab=activeTab;
@@ -5418,13 +5471,14 @@ function importTakeoff(data){
   });
   activeTab = (prevTab==='canopy8'||prevTab==='canopy12') ? prevTab : 'canopy8';
   buildTabs(); renderCalc(); renderQuote();
-  return { added, skipped, warnings: Array.isArray(data.warnings)?data.warnings:[] };
+  return { added, skipped, warnings: Array.isArray(data.warnings)?data.warnings:[], info };
 }
 function _tkReport(r){
   let msg=`Imported ${r.added.length} canopy line${r.added.length===1?'':'s'}:\n• `+(r.added.join('\n• ')||'(none)');
+  if(r.info && r.info.length) msg+=`\n\n`+r.info.join('\n');
   if(r.skipped.length) msg+=`\n\nNOT imported — enter by hand:\n• `+r.skipped.join('\n• ');
   if(r.warnings.length) msg+=`\n\nTakeoff warnings — verify before sending:\n• `+r.warnings.join('\n• ');
-  msg+=`\n\nCheck sizes against the drawings, then set delivery/lift/tax as usual.`;
+  msg+=`\n\nCheck sizes against the drawings and the tax setting, then set delivery/lift as usual.`;
   alert(msg);
 }
 function openTakeoffImport(){
