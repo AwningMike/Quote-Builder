@@ -5432,7 +5432,8 @@ function importTakeoff(data){
       if(parseInt(c.posts,10)>0){ _tkCheck('fb-posts-on', true); _tkSet('fb-posts', parseInt(c.posts,10)); }
       const fnm=[c.mark, c.name].filter(Boolean).join(' — ') || label;
       _tkSet('fb-name', fnm + (c.sheet ? ` (${c.sheet})` : ''));
-      if(c.group) _tkSet('fb-group', c.group);
+      // metal canopies and fabric awnings always print as separate quote lines
+      _tkSet('fb-group', c.group ? `${c.group} — Fabric Awnings` : 'Fabric Awnings');
       computeFabric(); addFabricToQuote();
       const fit=quoteItems[quoteItems.length-1];
       if(fit && (c.notes || c.confidence)) fit.takeoffNote=[c.confidence?`scale confidence: ${c.confidence}`:'', c.notes||''].filter(Boolean).join(' · ');
@@ -5478,11 +5479,12 @@ function importTakeoff(data){
     if(['wood','masonry','metal'].includes(c.blocking)) _tkSet('c-blocking', c.blocking);
     const nm = [c.mark, c.name].filter(Boolean).join(' — ') || label;
     _tkSet('c-name', nm + (c.sheet ? ` (${c.sheet})` : ''));
-    if(c.group) _tkSet('c-group', c.group);
+    _tkSet('c-group', c.group ? `${c.group} — Metal-Tech Canopy - Fully welded construction` : 'Metal-Tech Canopy - Fully welded construction');
     if(c.lineGroup){ _tkCheck('c-linegroup-on', true); document.getElementById('c-linegroup-wrap').style.display='block'; _tkSet('c-linegroup', c.lineGroup); }
     computeCanopy(key);
     addCanopyToQuote(key, faceLabel, key==='canopy8'?8:12);
     const it=quoteItems[quoteItems.length-1];
+    if(it && face>12 && it.bd && it.bd.fasciaCost>0) it.sub += ` · incl. ${face}″ custom fascia upcharge $${Math.round(it.bd.fasciaCost).toLocaleString()}`;
     if(it && (c.notes || c.confidence)) it.takeoffNote = [c.confidence?`scale confidence: ${c.confidence}`:'', c.notes||''].filter(Boolean).join(' · ');
     added.push(`${nm}${c.qty>1?` ×${c.qty}`:''}`);
   });
