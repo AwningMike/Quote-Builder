@@ -5422,6 +5422,23 @@ function importTakeoff(data){
   data.canopies.forEach((c,idx)=>{
     const label=c.name||c.mark||`Canopy ${idx+1}`;
     const type=String(c.type||'canopy').toLowerCase();
+    if(type==='fabric'){
+      if(!(+c.widthIn>0)){ skipped.push(`${label} — fabric awning missing widthIn`); return; }
+      activeTab='fabric'; buildTabs(); renderCalc();
+      _tkSetFtIn('fb-width', c.widthIn);
+      if(+c.projIn>0) _tkSetFtIn('fb-proj', c.projIn);
+      if(+c.heightIn>0) _tkSetFtIn('fb-height', c.heightIn);
+      _tkSet('fb-qty', Math.max(1, parseInt(c.qty,10)||1));
+      if(parseInt(c.posts,10)>0){ _tkCheck('fb-posts-on', true); _tkSet('fb-posts', parseInt(c.posts,10)); }
+      const fnm=[c.mark, c.name].filter(Boolean).join(' — ') || label;
+      _tkSet('fb-name', fnm + (c.sheet ? ` (${c.sheet})` : ''));
+      if(c.group) _tkSet('fb-group', c.group);
+      computeFabric(); addFabricToQuote();
+      const fit=quoteItems[quoteItems.length-1];
+      if(fit && (c.notes || c.confidence)) fit.takeoffNote=[c.confidence?`scale confidence: ${c.confidence}`:'', c.notes||''].filter(Boolean).join(' · ');
+      added.push(`${fnm} (fabric)${c.qty>1?` ×${c.qty}`:''}`);
+      return;
+    }
     if(type!=='canopy'){ skipped.push(`${label} — type "${c.type}" not auto-imported (enter by hand)`); return; }
     const legs=Array.isArray(c.legs)?c.legs.filter(l=>+l.widthIn>0):[];
     const mitered=legs.length>=2;
