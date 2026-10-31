@@ -89,6 +89,18 @@ const _nbApi = (tbl, rest) => `https://api.airtable.com/v0/${NB.baseId}/${tbl}${
 const _nbH = token => ({ 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' });
 async function _nbJson(r){ let b = {}; try { b = await r.json(); } catch (e) {} if (!r.ok || b.error) throw new Error((b.error && (b.error.message || b.error.type)) || ('HTTP ' + r.status)); return b; }
 const _nbFirst = v => Array.isArray(v) ? v[0] : v;
+/* Scale line totals so they add up to the real pre-tax quote total (the per-line breakdown
+   doesn't include quote-level adjustments like the margin multiplier). Keeps the proportions;
+   rounding is settled on the biggest line. */
+function _nbScaleLines(lines, target){
+  target = Math.round(target || 0);
+  const sum = lines.reduce((a, l) => a + (l.lineTotal || 0), 0);
+  if (!target || !sum || Math.abs(sum - target) < 1) return lines;
+  const k = target / sum; let acc = 0, big = 0;
+  lines.forEach((l, i) => { l.lineTotal = Math.round(l.lineTotal * k); acc += l.lineTotal; if (l.lineTotal > lines[big].lineTotal) big = i; });
+  lines[big].lineTotal += target - acc;
+  return lines;
+}
 
 /* ---- relabel / add buttons once the page is up ---- */
 function _nbInitUi(){
@@ -304,6 +316,7 @@ async function pushToAirtable(opts){
     const cf = current.fields || {};
     // 2) replace this quote's line items
     const p = serializeQuoteForAirtable();
+    _nbScaleLines(p.lineItems, ((lastQuoteSummary || {}).total || 0) - ((lastQuoteSummary || {}).tax || 0));
     try { await fetchInventoryMap(token); } catch (e) {}
     const oldLines = cf[Q.lineLink] || [];
     for (let i = 0; i < oldLines.length; i += 10) {
@@ -347,6 +360,16 @@ async function pushToAirtable(opts){
     qf[Q.history] = ((cf[Q.history] || '').trimEnd() + '\n' + mLine).trim();
     qf[Q.pdf] = [];                                       // replaced by the fresh PDF below
     await _nbJson(await fetch(_nbApi(NB.t.quotes), { method: 'PATCH', headers: H, body: JSON.stringify({ records: [{ id: quoteId, fields: qf }], typecast: true }) }));
+    // fill blank Project Address / City / State / Zip / Bid Due on the Quote Request from this header (never overwrites)
+    try {
+      const reqId = _nbFirst(cf[Q.reqLink]);
+      if (reqId) {
+        const rq = await _nbJson(await fetch(_nbApi(NB.t.reqs, '/' + reqId + '?returnFieldsByFieldId=true'), { headers: H }));
+        const hdr = {}; ['hdr-address1','hdr-address2','hdr-biddue'].forEach(id => hdr[id] = _atHdr(id));
+        const rf = _nbReqFillFromHeader(hdr, rq.fields || {});
+        if (Object.keys(rf).length) { await _nbJson(await fetch(_nbApi(NB.t.reqs), { method: 'PATCH', headers: H, body: JSON.stringify({ records: [{ id: reqId, fields: rf }] }) })); step.push('filled blank ' + Object.keys(rf).length + ' field(s) on the Quote Request'); }
+      }
+    } catch (e) {}
     step.push('price $' + Math.round(s.total || 0).toLocaleString() + (qf[Q.bidStatus] ? ' · Bid Status → ' + qf[Q.bidStatus] : ''));
     if (m) step.push(`margin ${m.marginPct.toFixed(1)}% material${m.marginLPct != null ? ' · ' + m.marginLPct.toFixed(1) + '% w/ labor' : ''}`);
     // 4) quote PDF
@@ -459,4 +482,208 @@ async function nbOpenCloudQuote(quoteId){
       try { closeQuotesModal(); } catch (e) {}
     }
   } catch (e) { alert('Load failed: ' + e.message); }
+}
+
+/* =========================================================================
+   v3 — PRICE SYNC + BACKFILL  (buttons in ⚙ Airtable connection)
+   ========================================================================= */
+const NB_INV = { // Quote Inventory (sell prices) + inventory (supplier material costs)
+  qi: { tbl:'tblfsAblcEvPFWbKK', name:'fldfLIGLTdzyEQWop', notes:'fldgHHn4QksWBpeu9', price:'fldiFEBjklctP7HXu', type:'fldz6uyDXvXoAm6mt' },
+  mat:{ tbl:'tbl7Smg8bz7aLFhAR', sku:'fldDze0vJWMRiszyp', desc:'fld0E39lwvr5tX0De', cost:'fldeA4q2PbAFyqf54', eff:'fldHbfUEEq0Ea2vMm', prev:'fldlCza56xfm9Y4Fo' },
+};
+async function _nbAll(tbl, params, token){
+  let out = [], offset = '';
+  do {
+    const j = await _nbJson(await fetch(_nbApi(tbl, `?pageSize=100&returnFieldsByFieldId=true${params || ''}${offset ? '&offset=' + offset : ''}`), { headers: _nbH(token) }));
+    out = out.concat(j.records || []); offset = j.offset || '';
+  } while (offset);
+  return out;
+}
+async function _nbWrite(tbl, method, recs, token){
+  const ids = [];
+  for (let i = 0; i < recs.length; i += 10) {
+    const j = await _nbJson(await fetch(_nbApi(tbl), { method, headers: _nbH(token), body: JSON.stringify({ records: recs.slice(i, i + 10), typecast: true }) }));
+    (j.records || []).forEach(r => ids.push(r.id));
+    await new Promise(r => setTimeout(r, 220));
+  }
+  return ids;
+}
+const _nbUsDate = s => { const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (!m) return ''; const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; };
+
+/* Sell prices the builder actually uses, keyed by Quote Inventory item name */
+function nbBuilderSellPrices(){
+  const R = RATES, t8 = R.canopy8 && R.canopy8.tiers || [], t12 = R.canopy12 && R.canopy12.tiers || [];
+  const val = id => parseFloat((document.getElementById(id) || {}).value) || null;
+  const tiers = (arr, k, unit) => arr.map(t => `${t.name}: $${t[k]}${unit || ''}`).join(' | ');
+  const p = {};
+  if (t8.length) {
+    p['6"-8" Fascia Size']   = { price: t8[0].mfg, note: '8" face MFG $/sqft by tier — ' + tiers(t8, 'mfg') };
+    p['LEDs']                = { price: t8[0].lights, note: 'Lights $/ea — 8": ' + tiers(t8, 'lights') + ' || 12": ' + tiers(t12, 'lights') };
+    p['Outriggers']          = { price: t8[0].outrigger, note: 'Outrigger $ — 8": ' + tiers(t8, 'outrigger') + ' || 12": ' + tiers(t12, 'outrigger') };
+    p['C-Channel']           = { price: t8[0].cchannel, note: 'C-Channel $/ft — ' + tiers(t8, 'cchannel') };
+    p['Downspouts']          = { price: t8[0].downspout, note: 'Downspout $/ea — ' + tiers(t8, 'downspout') };
+    p['Miter']               = { price: t8[0].miter, note: 'Miter $/ea — 8": ' + tiers(t8, 'miter') + ' || 12": ' + tiers(t12, 'miter') };
+    p['Posts']               = { price: t8[0].post || 650, note: 'Post $/ea' };
+    p['Labor']               = { price: R.canopy8.laborPerFt, note: `Install labor $/ft — canopy ${R.canopy8.laborPerFt}, standing seam ${R.standingSeam && R.standingSeam.laborPerFt}, fabric ${R.fabric && R.fabric.laborPerFt}, sunshade ${R.sunshade && R.sunshade.laborPerFt}` };
+  }
+  if (t12.length) p['10"-12" Fascia Size'] = { price: t12[0].mfg, note: '12" face MFG $/sqft by tier — ' + tiers(t12, 'mfg') };
+  if (R.jobLevel) p['Travel Rate'] = { price: R.jobLevel.deliveryRate, note: `$/mile one way beyond ${R.jobLevel.flatDeliveryUnderMi} mi; flat $${R.jobLevel.flatDeliveryPrice} inside that` };
+  if (R.standingSeam) { p['Standing seam awning'] = { price: R.standingSeam.mfgPerFt, note: `MFG $/ft; ends $${R.standingSeam.endsRate}/ea, valance $${R.standingSeam.valancePerFt}/ft` }; p['Closed Ends'] = { price: R.standingSeam.endsRate, note: 'Standing seam closed ends $/ea' }; }
+  if (R.fabric) p['Fabric Awning'] = { price: R.fabric.mfgPerFt, note: `MFG $/lineal ft of width (or $${R.fabric.mfgPerSqft}/sqft mode)` };
+  if (R.sunshade) p['Sunshade'] = { price: R.sunshade.mfgPerSqft, note: `MFG $/sqft + $${R.sunshade.laborPerFt}/ft labor` };
+  const stamped = val('extra-stamped'); if (stamped) p['Engineering'] = { price: stamped, note: 'Stamped engineering (builder default)' };
+  const survey = val('extra-survey'); if (survey) p['Survey / PM'] = { price: survey, note: 'Survey / PM (builder default)' + (R.recover ? `; recover survey $${R.recover.surveyDefault}` : '') };
+  p['Lift'] = { price: 1500, note: 'Standard lift charge (entered per job in the builder)' };
+  if (R.recover) p['Recover'] = { price: null, note: 'Priced per job: fabric $/yd x markup ' + R.recover.markup + ' — ' + Object.values(R.recover.fabrics).map(f => `${f.label} $${f.yd}/yd`).join(', ') };
+  return p;
+}
+
+/* opts.apply=false → preview only. Returns the change list. */
+async function nbSyncPrices(opts){
+  opts = opts || {};
+  const token = _atToken(); if (!token) throw new Error('No Airtable token');
+  const out = { sell: [], matUpdate: [], matCreate: [], skipped: [] };
+  // 1) Quote Inventory sell prices
+  const qi = await _nbAll(NB_INV.qi.tbl, '', token), sell = nbBuilderSellPrices();
+  const byName = {}; qi.forEach(r => byName[_atNorm(r.fields[NB_INV.qi.name])] = r);
+  const qiPatch = [], qiCreate = [];
+  Object.entries(sell).forEach(([name, v]) => {
+    const r = byName[_atNorm(name)];
+    const f = {}; f[NB_INV.qi.notes] = v.note; if (v.price != null) f[NB_INV.qi.price] = v.price;
+    if (!r) { f[NB_INV.qi.name] = name; qiCreate.push({ fields: f }); out.sell.push(`+ ${name} $${v.price}`); return; }
+    const old = r.fields[NB_INV.qi.price];
+    if ((v.price != null && old !== v.price) || (r.fields[NB_INV.qi.notes] || '') !== v.note) { qiPatch.push({ id: r.id, fields: f }); if (v.price != null && old !== v.price) out.sell.push(`${name}: $${old == null ? '—' : old} → $${v.price}`); }
+  });
+  // 2) inventory supplier costs (canopy builder's Eastern Metal price book)
+  const matPatch = [], matCreate = [];
+  if (typeof EMS !== 'undefined' && typeof EMS_QUOTE !== 'undefined') {
+    const eff = _nbUsDate(EMS_QUOTE.date);
+    const mat = await _nbAll(NB_INV.mat.tbl, '', token);
+    const bySku = {}; mat.forEach(r => bySku[String(r.fields[NB_INV.mat.sku] || '').trim()] = r);
+    Object.entries(EMS).forEach(([sku, e]) => {
+      const stick = Math.round(e.ppf * e.len * 100) / 100;
+      const r = bySku[sku];
+      if (!r) { const f = {}; f[NB_INV.mat.sku] = sku; f[NB_INV.mat.desc] = e.d; f[NB_INV.mat.cost] = stick; f[NB_INV.mat.eff] = eff; matCreate.push({ fields: f }); out.matCreate.push(`${sku} ${e.d} $${stick}`); return; }
+      const old = r.fields[NB_INV.mat.cost], oldEff = r.fields[NB_INV.mat.eff] || '';
+      if (oldEff && oldEff > eff) { out.skipped.push(`${sku}: base price is newer (${oldEff})`); return; }
+      if (old == null || Math.abs(old - stick) > 0.005) { const f = {}; f[NB_INV.mat.cost] = stick; f[NB_INV.mat.eff] = eff; if (old != null) f[NB_INV.mat.prev] = old; matPatch.push({ id: r.id, fields: f }); out.matUpdate.push(`${sku}: $${old == null ? '—' : old} → $${stick}`); }
+    });
+  }
+  if (opts.apply) {
+    if (qiPatch.length) await _nbWrite(NB_INV.qi.tbl, 'PATCH', qiPatch, token);
+    if (qiCreate.length) await _nbWrite(NB_INV.qi.tbl, 'POST', qiCreate, token);
+    if (matPatch.length) await _nbWrite(NB_INV.mat.tbl, 'PATCH', matPatch, token);
+    if (matCreate.length) await _nbWrite(NB_INV.mat.tbl, 'POST', matCreate, token);
+    out.applied = true;
+    try { await fetchInventoryMap(token); } catch (e) {}
+  }
+  return out;
+}
+async function nbSyncPricesUi(){
+  try {
+    const p = await nbSyncPrices({ apply: false });
+    const n = p.sell.length + p.matUpdate.length + p.matCreate.length;
+    if (!n) { alert('Airtable prices already match the builder ✓'); return; }
+    const list = [...p.sell.map(s => 'SELL  ' + s), ...p.matUpdate.map(s => 'COST  ' + s), ...p.matCreate.map(s => 'NEW   ' + s)];
+    if (!confirm(`Sync prices to Airtable?\n\n${p.sell.length} sell price(s), ${p.matUpdate.length} material cost(s) to update, ${p.matCreate.length} new SKU(s):\n\n${list.slice(0, 25).join('\n')}${list.length > 25 ? `\n…and ${list.length - 25} more` : ''}`)) return;
+    await nbSyncPrices({ apply: true });
+    alert('Prices synced to Airtable ✓');
+  } catch (e) { alert('Price sync failed: ' + e.message); }
+}
+
+/* ---- request blanks: fill address/city/state/zip/bid due from a quote header (never overwrites) ---- */
+function _nbReqFillFromHeader(hdr, reqFields){
+  const R = NB.r, f = {};
+  const cs = _splitCityStateZip(hdr['hdr-address2'] || '');
+  if (!reqFields[R.address] && hdr['hdr-address1']) f[R.address] = hdr['hdr-address1'];
+  if (!reqFields[R.city] && cs.city) f[R.city] = cs.city;
+  if (!reqFields[R.state] && cs.state) f[R.state] = cs.state;
+  if (!reqFields[R.zip] && cs.zip) f[R.zip] = cs.zip;
+  const due = _nbUsDate(hdr['hdr-biddue']); if (!reqFields[R.bidDue] && due) f[R.bidDue] = due;
+  return f;
+}
+function _nbReqFillFromText(reqFields){
+  const R = NB.r, f = {};
+  const name = reqFields[R.projName] || '', det = reqFields[R.details] || '';
+  if (!reqFields[R.state]) {
+    const m = name.match(/(?:-|–|,)\s*([A-Za-z .'-]+?),\s*([A-Z]{2})\b(?!.*,\s*[A-Z]{2}\b)/);
+    if (m && /^(A[LKZR]|C[AOT]|D[EC]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]|N[CDEHJMVY]|O[HKR]|PA|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY])$/.test(m[2])) { f[R.state] = m[2]; if (!reqFields[R.city]) f[R.city] = m[1].trim(); }
+  }
+  if (!reqFields[R.bidDue]) {
+    const m = det.match(/(?:bid\s*)?due(?:\s*date)?[^0-9\n]{0,25}(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+    const d = m && _nbUsDate(m[1]); if (d) f[R.bidDue] = d;
+  }
+  return f;
+}
+
+/* Backfill: rebuild line items (→ Quote Total) from each quote's saved builder state, and fill
+   blank Project State / City / Address / Bid Due on the Quote Requests. Restores each quote on
+   screen while it works, so save what you're working on first. opts.limit for a test run. */
+async function nbBackfill(opts){
+  opts = opts || {};
+  const token = _atToken(); if (!token) throw new Error('No Airtable token');
+  const Q = NB.q, R = NB.r, L = NB.li;
+  const res = { quotesChecked: 0, linesBuilt: 0, quotesWithLines: 0, totalMismatch: [], reqFilled: 0, errors: [] };
+  window.__nbBackfill = res;
+  const quotes = await _nbAll(NB.t.quotes, `&filterByFormula=${encodeURIComponent("AND({Type}='Quote', {Quote Builder State}!='')")}&fields%5B%5D=${Q.name}&fields%5B%5D=${Q.state}&fields%5B%5D=${Q.lineLink}&fields%5B%5D=${Q.reqLink}&fields%5B%5D=${Q.contract}`, token);
+  const reqs = await _nbAll(NB.t.reqs, `&fields%5B%5D=${R.projName}&fields%5B%5D=${R.address}&fields%5B%5D=${R.city}&fields%5B%5D=${R.state}&fields%5B%5D=${R.zip}&fields%5B%5D=${R.bidDue}&fields%5B%5D=${R.details}`, token);
+  const reqById = {}; reqs.forEach(r => reqById[r.id] = r);
+  const reqPatch = {};
+  const saved = captureQuoteState();
+  try { await fetchInventoryMap(token); } catch (e) {}
+  let n = 0;
+  for (const q of quotes) {
+    if (opts.limit && n >= opts.limit) break;
+    res.quotesChecked++;
+    let st; try { st = JSON.parse(q.fields[Q.state]); } catch (e) { res.errors.push(q.id + ': unreadable state'); continue; }
+    const reqId = _nbFirst(q.fields[Q.reqLink]);
+    if (reqId && reqById[reqId] && st.hdr) {
+      const f = _nbReqFillFromHeader(st.hdr, reqById[reqId].fields);
+      if (Object.keys(f).length) { reqPatch[reqId] = Object.assign(reqPatch[reqId] || {}, f); Object.assign(reqById[reqId].fields, f); }
+    }
+    if ((q.fields[Q.lineLink] || []).length) { res.quotesWithLines++; continue; }
+    if (!Array.isArray(st.items) || !st.items.length) continue;
+    n++;
+    try {
+      quoteItems = []; if (!restoreQuoteState(st)) throw new Error('restore failed');
+      try { renderQuote(); } catch (e) {}
+      const p = serializeQuoteForAirtable();
+      const s2 = lastQuoteSummary || {}, contract = q.fields[Q.contract];
+      _nbScaleLines(p.lineItems, (contract || s2.total || 0) - (s2.tax || 0));   // match what was actually quoted
+      const recs = p.lineItems.map(l => { const f = {}; f[L.parent] = [q.id]; f[L.qty] = l.qty; f[L.desc] = l.desc; f[L.total] = l.lineTotal; const inv = resolveInv(l.invName, l.invKey); if (inv) f[L.inv] = [inv]; return { fields: f }; });
+      if (recs.length && !opts.dryRun) { await _nbWrite(NB.t.lines, 'POST', recs, token); }
+      res.linesBuilt += recs.length;
+      const recalc = Math.round(s2.total || 0);
+      if (contract && Math.abs(recalc - contract) > Math.max(25, contract * 0.02)) res.totalMismatch.push(`${q.fields[Q.name]}: today's rates $${recalc} vs quoted $${Math.round(contract)}`);
+    } catch (e) { res.errors.push((q.fields[Q.name] || q.id) + ': ' + e.message); }
+  }
+  // requests with no saved quote: fill from the project name / details text
+  reqs.forEach(r => { const f = _nbReqFillFromText(r.fields); if (Object.keys(f).length) { reqPatch[r.id] = Object.assign(reqPatch[r.id] || {}, f); } });
+  const rp = Object.entries(reqPatch).map(([id, fields]) => ({ id, fields }));
+  if (rp.length && !opts.dryRun) { await _nbWrite(NB.t.reqs, 'PATCH', rp, token); }
+  res.reqFilled = rp.length;
+  try { quoteItems = []; restoreQuoteState(saved); } catch (e) {}
+  res.done = true;
+  return res;
+}
+async function nbBackfillUi(){
+  if (!confirm('Backfill the new base?\n\n• Rebuild line items + Quote Total for saved quotes that have none\n• Fill blank Project State / City / Address / Bid Due on Quote Requests\n\nIt reopens each saved quote on screen while it works (your current quote is put back at the end). Takes a few minutes.')) return;
+  try {
+    const r = await nbBackfill();
+    alert(`Backfill done ✓\n\nQuotes checked: ${r.quotesChecked}\nLine items built: ${r.linesBuilt}\nQuote Requests filled: ${r.reqFilled}\nRe-priced differently today (lines kept at the quoted amount): ${r.totalMismatch.length}${r.totalMismatch.length ? '\n  ' + r.totalMismatch.slice(0, 8).join('\n  ') : ''}${r.errors.length ? '\nErrors: ' + r.errors.length : ''}`);
+  } catch (e) { alert('Backfill failed: ' + e.message); }
+}
+
+/* add the two buttons to ⚙ Airtable connection */
+if (typeof openAirtableSettings === 'function') {
+  const _nbOrigSettings = openAirtableSettings;
+  window.openAirtableSettings = function(){
+    _nbOrigSettings();
+    const ref = document.getElementById('at-refresh-inv');
+    if (ref && !document.getElementById('nb-sync-prices')) {
+      const a = document.createElement('button'); a.className = 'dm-download'; a.id = 'nb-sync-prices'; a.textContent = 'Sync prices to Airtable'; a.onclick = () => nbSyncPricesUi();
+      const b = document.createElement('button'); b.className = 'dm-download'; b.id = 'nb-backfill'; b.textContent = 'Backfill line items & blanks'; b.onclick = () => nbBackfillUi();
+      ref.parentNode.insertBefore(b, ref.nextSibling); ref.parentNode.insertBefore(a, ref.nextSibling);
+    }
+  };
 }
