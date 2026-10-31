@@ -89,6 +89,18 @@ const _nbApi = (tbl, rest) => `https://api.airtable.com/v0/${NB.baseId}/${tbl}${
 const _nbH = token => ({ 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' });
 async function _nbJson(r){ let b = {}; try { b = await r.json(); } catch (e) {} if (!r.ok || b.error) throw new Error((b.error && (b.error.message || b.error.type)) || ('HTTP ' + r.status)); return b; }
 const _nbFirst = v => Array.isArray(v) ? v[0] : v;
+/* Scale line totals so they add up to the real pre-tax quote total (the per-line breakdown
+   doesn't include quote-level adjustments like the margin multiplier). Keeps the proportions;
+   rounding is settled on the biggest line. */
+function _nbScaleLines(lines, target){
+  target = Math.round(target || 0);
+  const sum = lines.reduce((a, l) => a + (l.lineTotal || 0), 0);
+  if (!target || !sum || Math.abs(sum - target) < 1) return lines;
+  const k = target / sum; let acc = 0, big = 0;
+  lines.forEach((l, i) => { l.lineTotal = Math.round(l.lineTotal * k); acc += l.lineTotal; if (l.lineTotal > lines[big].lineTotal) big = i; });
+  lines[big].lineTotal += target - acc;
+  return lines;
+}
 
 /* ---- relabel / add buttons once the page is up ---- */
 function _nbInitUi(){
@@ -304,6 +316,7 @@ async function pushToAirtable(opts){
     const cf = current.fields || {};
     // 2) replace this quote's line items
     const p = serializeQuoteForAirtable();
+    _nbScaleLines(p.lineItems, ((lastQuoteSummary || {}).total || 0) - ((lastQuoteSummary || {}).tax || 0));
     try { await fetchInventoryMap(token); } catch (e) {}
     const oldLines = cf[Q.lineLink] || [];
     for (let i = 0; i < oldLines.length; i += 10) {
@@ -635,10 +648,13 @@ async function nbBackfill(opts){
       quoteItems = []; if (!restoreQuoteState(st)) throw new Error('restore failed');
       try { renderQuote(); } catch (e) {}
       const p = serializeQuoteForAirtable();
+      const s2 = lastQuoteSummary || {}, contract = q.fields[Q.contract];
+      _nbScaleLines(p.lineItems, (contract || s2.total || 0) - (s2.tax || 0));   // match what was actually quoted
       const recs = p.lineItems.map(l => { const f = {}; f[L.parent] = [q.id]; f[L.qty] = l.qty; f[L.desc] = l.desc; f[L.total] = l.lineTotal; const inv = resolveInv(l.invName, l.invKey); if (inv) f[L.inv] = [inv]; return { fields: f }; });
-      if (recs.length) { await _nbWrite(NB.t.lines, 'POST', recs, token); res.linesBuilt += recs.length; }
-      const sum = p.lineItems.reduce((a, l) => a + l.lineTotal, 0), contract = q.fields[Q.contract];
-      if (contract && Math.abs(sum - contract) > Math.max(25, contract * 0.02)) res.totalMismatch.push(`${q.fields[Q.name]}: lines $${Math.round(sum)} vs contract $${Math.round(contract)}`);
+      if (recs.length && !opts.dryRun) { await _nbWrite(NB.t.lines, 'POST', recs, token); }
+      res.linesBuilt += recs.length;
+      const recalc = Math.round(s2.total || 0);
+      if (contract && Math.abs(recalc - contract) > Math.max(25, contract * 0.02)) res.totalMismatch.push(`${q.fields[Q.name]}: today's rates $${recalc} vs quoted $${Math.round(contract)}`);
     } catch (e) { res.errors.push((q.fields[Q.name] || q.id) + ': ' + e.message); }
   }
   // requests with no saved quote: fill from the project name / details text
@@ -654,7 +670,7 @@ async function nbBackfillUi(){
   if (!confirm('Backfill the new base?\n\n• Rebuild line items + Quote Total for saved quotes that have none\n• Fill blank Project State / City / Address / Bid Due on Quote Requests\n\nIt reopens each saved quote on screen while it works (your current quote is put back at the end). Takes a few minutes.')) return;
   try {
     const r = await nbBackfill();
-    alert(`Backfill done ✓\n\nQuotes checked: ${r.quotesChecked}\nLine items built: ${r.linesBuilt}\nQuote Requests filled: ${r.reqFilled}\nLine total ≠ contract: ${r.totalMismatch.length}${r.totalMismatch.length ? '\n  ' + r.totalMismatch.slice(0, 8).join('\n  ') : ''}${r.errors.length ? '\nErrors: ' + r.errors.length : ''}`);
+    alert(`Backfill done ✓\n\nQuotes checked: ${r.quotesChecked}\nLine items built: ${r.linesBuilt}\nQuote Requests filled: ${r.reqFilled}\nRe-priced differently today (lines kept at the quoted amount): ${r.totalMismatch.length}${r.totalMismatch.length ? '\n  ' + r.totalMismatch.slice(0, 8).join('\n  ') : ''}${r.errors.length ? '\nErrors: ' + r.errors.length : ''}`);
   } catch (e) { alert('Backfill failed: ' + e.message); }
 }
 
