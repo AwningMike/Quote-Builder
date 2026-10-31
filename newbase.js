@@ -24,6 +24,7 @@ const NB = {
     matCost:'fldpZIOlWqBZK6kWt', target:'fldMyqqRr6oSuuxoE', basis:'fldxu6Ws12T8dhQTo', marginLabor:'fldlX1h4TWCSQXxPx',
     laborCost:'fldMIO6AU0hRlSZO3', travelCost:'fld4WllzlOrfOdjbq', laborBasis:'fldi4t4qNIJUz25b2',
     snapDate:'fldwXsoIYroXhKrUq', history:'fldGH8p0NN5iLX6M2', bidDueLk:'fldMuXZa9HX6N2UzV', addrLk:'fld1U7J97YY0KVcYc',
+    builtOut:'fld87IQul02q2WpyN',   // "Quote Built Out?" — checked = Quotes Waiting Approval page
   },
   r: {  // Quote Requests
     projName:'fldt6IkbytVXaoPlo', address:'fldYtcQCEJnsoTvfY', city:'fldii344bPuQWXduV', state:'fldT1HtAR8jzyaIlc',
@@ -329,7 +330,7 @@ async function pushToAirtable(opts){
     const svc = serviceFromQuote(); if (svc.length) qf[Q.service] = [...new Set([...(cf[Q.service] || []), ...svc])];
     if (!cf[Q.company]) qf[Q.company] = _atHdr('hdr-company') || 'SA';
     const st = cf[Q.bidStatus] || '';
-    if (opts.markSent && NB.closedStatuses.indexOf(st) < 0) { qf[Q.bidStatus] = 'Quote Sent'; qf[Q.quoteSent] = today; }
+    if (opts.markSent && NB.closedStatuses.indexOf(st) < 0) { qf[Q.bidStatus] = 'Quote Sent'; qf[Q.quoteSent] = today; qf[Q.builtOut] = true; }   // builtOut moves it to Quotes Waiting Approval
     else if (!st || st === 'Estimating' || st === 'Scrubbing / Scaling') qf[Q.bidStatus] = 'Ready to Quote';
     const m = nbMarginSnapshot();
     let mLine = `${today} · Quote Builder · sell $${Math.round(s.total || 0).toLocaleString()}`;
