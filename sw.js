@@ -8,7 +8,7 @@ const ASSETS = [
   './price_watch.html',
   './job_costing.html',
   './quote_dashboard.html',
-  './newbase.js?v=1',
+  './newbase.js?v=2',
   './manifest.json',
   './manifest_fabric.json',
   './icon-192.png',
