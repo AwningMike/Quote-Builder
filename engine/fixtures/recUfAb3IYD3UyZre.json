@@ -1,0 +1,90 @@
+{
+  "recordId": "recUfAb3IYD3UyZre",
+  "name": "Discount Tire - Estero, FL",
+  "salePrice": 25900,
+  "createdTime": "2026-08-05T17:24:05.000Z",
+  "state": {
+    "v": 1,
+    "savedAt": "2026-08-05T17:24:03.113Z",
+    "items": [
+      {
+        "id": 39,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 7.0ft width · qty 5",
+        "amount": 6825,
+        "labor": 1575,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 5,
+          "widthStr": "7'",
+          "projStr": "2'-9\"",
+          "heightStr": "2'",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      },
+      {
+        "id": 40,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 16.4ft width · qty 2",
+        "amount": 6403,
+        "labor": 1478,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 2,
+          "widthStr": "16'-5\"",
+          "projStr": "2'-9\"",
+          "heightStr": "2'",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      },
+      {
+        "id": 41,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 18.0ft width",
+        "amount": 3510,
+        "labor": 810,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 1,
+          "widthStr": "18'",
+          "projStr": "2'-9\"",
+          "heightStr": "2'",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      }
+    ],
+    "hdr": {
+      "hdr-shipname": "Discount Tire",
+      "hdr-address1": "10411 Corkscrew Commons Dr",
+      "hdr-address2": "Estero, FL 33928",
+      "hdr-projno": "",
+      "hdr-projname": "Discount Tire",
+      "hdr-gc": "",
+      "hdr-to": "CBI General Contractors ",
+      "hdr-terms": "30% Down, Balance per Contract",
+      "hdr-company": "SA",
+      "hdr-date": "8/5/2026"
+    },
+    "extraVals": {
+      "extra-miles": "1129",
+      "extra-lift": "",
+      "extra-color": "",
+      "extra-ohio-county": "",
+      "extra-survey": "500.00",
+      "extra-stamped": "1250"
+    },
+    "extraChecks": {
+      "extra-survey-on": true,
+      "extra-stamped-on": false,
+      "extra-tax": false,
+      "extra-scupper": false,
+      "extra-individual-items": false
+    }
+  }
+}

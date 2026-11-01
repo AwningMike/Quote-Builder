@@ -1,0 +1,100 @@
+{
+  "recordId": "recmrY9tFj1iuE43S",
+  "name": "Ironwood Apartments - Greensburg, IN",
+  "salePrice": 44140,
+  "createdTime": "2026-09-16T15:49:36.000Z",
+  "state": {
+    "v": 1,
+    "savedAt": "2026-10-06T18:37:43.940Z",
+    "items": [
+      {
+        "id": 42,
+        "title": "12\" Face Canopy",
+        "sub": "12\" Face · >5' Proj / <10' Width · 5.4ft × 7.8ft",
+        "amount": 5726,
+        "paintCost": 378,
+        "labor": 353,
+        "downspoutCost": 0,
+        "downspoutQty": 0,
+        "lightsCost": 0,
+        "lightsQty": 0,
+        "postsCost": 0,
+        "postsQty": 0,
+        "bd": {
+          "sqft": 41.97916666666667,
+          "mfg": 4407.812500000001,
+          "cchannelCost": 0,
+          "cchannelFt": 0,
+          "outriggerCost": 0,
+          "outriggerFt": 0,
+          "miterCost": 0,
+          "miterQty": 0,
+          "fasciaCost": 0,
+          "paintCost": 377.81250000000006,
+          "labor": 352.08333333333337,
+          "laborFt": 5.416666666666667
+        },
+        "faceInches": 12,
+        "group": "Metal-Tech Canopy - Fully welded construction",
+        "lineGroup": null,
+        "ownLine": false,
+        "type": "canopy",
+        "spec": {
+          "qty": 1,
+          "widthStr": "5'-5\"",
+          "projStr": "7'-9\"",
+          "widthFt": 5.416666666666667,
+          "projFt": 7.75,
+          "tapered": false,
+          "proj1Ft": null,
+          "proj2Ft": null,
+          "projMaxFt": 7.75,
+          "taperDesc": null,
+          "face": 12,
+          "mitered": false,
+          "legCount": 1,
+          "legs": null,
+          "widthSegments": null,
+          "widthSegIn": null,
+          "downspoutPerUnit": 0,
+          "lightsPerUnit": 0,
+          "postsPerUnit": 0,
+          "cchannelPerUnit": 0,
+          "attach": "tierod",
+          "paint": "",
+          "blocking": "wood",
+          "armHeightIn": 65,
+          "arms": 0
+        }
+      }
+    ],
+    "hdr": {
+      "hdr-shipname": "Ironwood",
+      "hdr-address1": "",
+      "hdr-address2": "Greensburg, IN",
+      "hdr-projno": "",
+      "hdr-projname": "Ironwood",
+      "hdr-gc": "",
+      "hdr-to": "Alex Blake - Iron Men",
+      "hdr-terms": "30% Down, Balance per Contract",
+      "hdr-company": "SA",
+      "hdr-date": "10/6/2026"
+    },
+    "extraVals": {
+      "extra-miles": "102",
+      "extra-lift": "",
+      "extra-color": "",
+      "extra-ohio-county": "0",
+      "extra-survey": "500.00",
+      "extra-stamped": "1250"
+    },
+    "extraChecks": {
+      "extra-survey-on": true,
+      "extra-stamped-on": false,
+      "extra-tax": true,
+      "extra-scupper": false,
+      "extra-individual-items": false,
+      "extra-delivery-only": false
+    }
+  }
+}

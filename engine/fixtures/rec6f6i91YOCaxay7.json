@@ -1,0 +1,73 @@
+{
+  "recordId": "rec6f6i91YOCaxay7",
+  "name": "Self Storage Facility - Munster, IN",
+  "salePrice": 25251,
+  "createdTime": "2026-08-04T14:50:36.000Z",
+  "state": {
+    "v": 1,
+    "savedAt": "2026-08-04T14:53:00.261Z",
+    "items": [
+      {
+        "id": 1,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 6.0ft width · qty 6",
+        "amount": 7020,
+        "labor": 1620,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 6,
+          "widthStr": "6'",
+          "projStr": "3'-10\"",
+          "heightStr": "2'-5\"",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 27.0ft width · qty 2",
+        "amount": 10530,
+        "labor": 2430,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 2,
+          "widthStr": "27'",
+          "projStr": "3'-10\"",
+          "heightStr": "2'-5\"",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      }
+    ],
+    "hdr": {
+      "hdr-shipname": "Self Storage Facility",
+      "hdr-address1": "9749 Fran-Lin Parkway",
+      "hdr-address2": "Munster, IN 46321",
+      "hdr-projno": "",
+      "hdr-projname": "Self Storage Facility",
+      "hdr-gc": "",
+      "hdr-to": "Wimco Corp - Eric Vick",
+      "hdr-terms": "30% Down, Balance per Contract",
+      "hdr-company": "SA",
+      "hdr-date": "8/4/2026"
+    },
+    "extraVals": {
+      "extra-miles": "158",
+      "extra-lift": "1250",
+      "extra-color": "TBD",
+      "extra-ohio-county": "0",
+      "extra-survey": "500.00",
+      "extra-stamped": "1250"
+    },
+    "extraChecks": {
+      "extra-survey-on": true,
+      "extra-stamped-on": false,
+      "extra-tax": true,
+      "extra-scupper": true,
+      "extra-individual-items": false
+    }
+  }
+}
