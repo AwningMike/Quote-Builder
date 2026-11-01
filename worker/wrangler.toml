@@ -1,0 +1,21 @@
+name = "apmg-quote-service"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Non-secret settings. Change here (or in the Cloudflare dashboard) — no code change needed.
+[vars]
+# Default "Set to N×" margin multiplier applied to canopy lines (per Mike, 11/01/26).
+# Overridable per request with options.margin.
+DEFAULT_MARGIN = "3.25"
+# Standing job-level defaults (Mike's rules): lift charge, survey on, survey $, stamped engineering $.
+DEFAULT_LIFT = "1500"
+DEFAULT_SURVEY = "500.00"
+DEFAULT_STAMPED = "1250"
+# Browser origin allowed to call the service (the GitHub Pages Quote Builder).
+ALLOWED_ORIGIN = "https://awningmike.github.io"
+# Flow Digital Migration Base (live). Table/field IDs live in src/airtable.js (copied from newbase.js).
+AIRTABLE_BASE_ID = "appgkGZ1G6YeHOVAi"
+
+# Secrets (never in this file — set with `npx wrangler secret put <NAME>` or in the dashboard):
+#   AIRTABLE_TOKEN  — personal access token with data.records:read + data.records:write on the base above
+#   QUOTE_API_KEY   — bearer token callers must send in `Authorization: Bearer <key>`
