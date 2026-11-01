@@ -409,9 +409,9 @@
           <button class="btn secondary" style="margin-top:8px;font-size:12px;padding:6px 10px;width:100%" onclick="openCostSheet()" title="See every material, stick count, and price behind the margin">🧾 Show cut sheet (how the margin is priced)</button>
         </div>
         <button class="btn copy-summary" id="copy-airtable-btn" onclick="copyForAirtable()">Copy for Airtable Log</button>
-        <button class="btn" style="background:#1a7f37" onclick="pushToCurrentBase()" title="Upload this bid to your current APMG Projects base now">⬆ Upload Bid to Current Base (Projects)</button>
+        <button class="btn" style="background:#1a7f37" onclick="pushToAirtable()" title="Upload this quote to the live Flow Digital Migration Base (job record, line items, price, PDF)">⬆ Send to New Base</button>
         <button class="btn secondary" onclick="previewAirtablePayload()" title="Validate the new-base mapping now — nothing is sent">🔎 Preview Airtable Payload (new base)</button>
-        <button class="btn secondary" onclick="pushToAirtable()" title="Send this quote into the new base (enabled at go-live)">⬆ Send to New Base</button>
+        <button class="btn ghost" style="font-size:11px;padding:3px 8px;color:#8a94a6" onclick="if(confirm('The old APMG base is retired for bids. Upload there anyway?')) pushToCurrentBase()" title="Old APMG Projects base, retired for bids 10/30/26">Old base upload (retired)</button>
         <button class="btn ghost" style="font-size:12px;padding:4px 10px" onclick="openAirtableSettings()">⚙ Airtable connection</button>
         <button class="btn secondary" onclick="printFormalQuote()">Print / Export Quote (Estimate PDF)</button>
         <button class="btn secondary" onclick="showAllDrawingsModal()">📐 Full Drawing Set (all canopies)</button>
@@ -5593,6 +5593,6 @@ if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.p
   });
 }
 </script>
-<script src="newbase.js?v=4"></script>
+<script src="newbase.js?v=5"></script>
 </body>
 </html>
