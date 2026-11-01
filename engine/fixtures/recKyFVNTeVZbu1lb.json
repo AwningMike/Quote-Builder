@@ -1,0 +1,90 @@
+{
+  "recordId": "recKyFVNTeVZbu1lb",
+  "name": "Valvoline - Winston Salem, NC",
+  "salePrice": 14207,
+  "createdTime": "2026-07-28T18:03:26.000Z",
+  "state": {
+    "v": 1,
+    "savedAt": "2026-07-28T18:03:24.310Z",
+    "items": [
+      {
+        "id": 1,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 10.6ft width · qty 3",
+        "amount": 6192,
+        "labor": 1429,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 3,
+          "widthStr": "10'-7\"",
+          "projStr": "3'",
+          "heightStr": "3'-6\"",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 8.5ft width",
+        "amount": 1658,
+        "labor": 383,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 1,
+          "widthStr": "8'-6\"",
+          "projStr": "3'",
+          "heightStr": "3'-6\"",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Standing Seam",
+        "sub": "Standing Seam · 7.5ft width",
+        "amount": 1463,
+        "labor": 338,
+        "group": "Standing Seam Awning - Fully welded construction",
+        "type": "standingSeam",
+        "spec": {
+          "qty": 1,
+          "widthStr": "7'-6\"",
+          "projStr": "3'",
+          "heightStr": "3'-6\"",
+          "ends": 0,
+          "valanceIn": 0
+        }
+      }
+    ],
+    "hdr": {
+      "hdr-shipname": "Valvoline",
+      "hdr-address1": "698 Hanes Mall Blvd",
+      "hdr-address2": "Winston Salem, NC 27103",
+      "hdr-projno": "",
+      "hdr-projname": "Valvoline",
+      "hdr-gc": "",
+      "hdr-to": "Jorge Robledo - HUTTER & ASSOCIATES, LLC",
+      "hdr-terms": "30% Down, Balance per Contract",
+      "hdr-company": "SA",
+      "hdr-date": "7/28/2026"
+    },
+    "extraVals": {
+      "extra-miles": "528",
+      "extra-lift": "",
+      "extra-color": "TBD",
+      "extra-ohio-county": "0",
+      "extra-survey": "500.00",
+      "extra-stamped": "1250"
+    },
+    "extraChecks": {
+      "extra-survey-on": true,
+      "extra-stamped-on": false,
+      "extra-tax": false,
+      "extra-scupper": true,
+      "extra-individual-items": false
+    }
+  }
+}

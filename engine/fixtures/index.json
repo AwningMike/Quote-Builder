@@ -1,0 +1,93 @@
+[
+  {
+    "recordId": "recKyFVNTeVZbu1lb",
+    "name": "Valvoline - Winston Salem, NC",
+    "salePrice": 14207,
+    "items": 3,
+    "savedAt": "2026-07-28T18:03:24.310Z"
+  },
+  {
+    "recordId": "recRIbxobSRWOsvoU",
+    "name": "Chatham Hills Carwash - Westfield, IN",
+    "salePrice": 39439,
+    "items": 3,
+    "savedAt": "2026-08-06T16:24:44.514Z"
+  },
+  {
+    "recordId": "rec6f6i91YOCaxay7",
+    "name": "Self Storage Facility - Munster, IN",
+    "salePrice": 25251,
+    "items": 2,
+    "savedAt": "2026-08-04T14:53:00.261Z"
+  },
+  {
+    "recordId": "recZrFEJdEJrvx4vd",
+    "name": "Riverwalk - South Bend, IN",
+    "salePrice": 60926,
+    "items": 10,
+    "savedAt": "2026-08-17T18:13:34.606Z"
+  },
+  {
+    "recordId": "recUJElazgmmRxcWx",
+    "name": "Chipotle (Shell) - Dry Ridge, KY",
+    "salePrice": 9734,
+    "items": 2,
+    "savedAt": "2026-10-16T16:24:12.705Z"
+  },
+  {
+    "recordId": "recYgtPET6h7YS9CN",
+    "name": "Valvoline - Tiffin, OH",
+    "salePrice": 5519,
+    "items": 1,
+    "savedAt": "2026-08-31T19:31:19.030Z"
+  },
+  {
+    "recordId": "recUfAb3IYD3UyZre",
+    "name": "Discount Tire - Estero, FL",
+    "salePrice": 25900,
+    "items": 3,
+    "savedAt": "2026-08-05T17:24:03.113Z"
+  },
+  {
+    "recordId": "recuPHUrIemtxcFIb",
+    "name": "Sprouts Retail - Missouri City, TX",
+    "salePrice": 15055,
+    "items": 3,
+    "savedAt": "2026-08-13T14:11:42.845Z"
+  },
+  {
+    "recordId": "recmrY9tFj1iuE43S",
+    "name": "Ironwood Apartments - Greensburg, IN",
+    "salePrice": 44140,
+    "items": 1,
+    "savedAt": "2026-10-06T18:37:43.940Z"
+  },
+  {
+    "recordId": "recBjWix6vsPu69Tq",
+    "name": "Mixed Use Building - State College, PA",
+    "salePrice": 103753,
+    "items": 9,
+    "savedAt": "2026-08-27T13:45:21.903Z"
+  },
+  {
+    "recordId": "recQulkj0KwjU6nP5",
+    "name": "El Car Wash - Lake in the Hills, IL",
+    "salePrice": 19691,
+    "items": 3,
+    "savedAt": "2026-08-06T18:31:28.998Z"
+  },
+  {
+    "recordId": "rec8QnCXXc5V8VOJB",
+    "name": "Fresh Market at The Farm - Zionsville, IN",
+    "salePrice": 111115.69,
+    "items": 2,
+    "savedAt": "2026-09-08T14:24:19.398Z"
+  },
+  {
+    "recordId": "recEVjPg2aCrKP6fs",
+    "name": "The Lincoln - New Haven, IN",
+    "salePrice": 56489,
+    "items": 3,
+    "savedAt": "2026-09-22T14:33:57.969Z"
+  }
+]

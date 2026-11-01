@@ -432,6 +432,7 @@
 
 <div id="print-quote-doc"></div>
 
+<script src="engine/quote-engine.js?v=1"></script>
 <script>
 /* ---------------- RATE MODEL ---------------- */
 /* Confirmed with shop: install labor is $65/ft for both 8" and 12" face.
@@ -439,51 +440,10 @@
    12" Face Tier 2 & 4 MFG = $115/sqft (label wins over formula — all 4 tiers now $115/sqft).
    Recover fabric $/yd rates: using the formula values, not the header text, per shop confirmation. */
 
-let RATES = {
-  jobLevel: {
-    deliveryRate: 4.25,  // $/mile (ONE-WAY miles, per Mike 09/24/26) — applies only beyond the flat zone
-    flatDeliveryUnderMi: 70,   // one-way miles — under this, delivery is a flat charge
-    flatDeliveryPrice: 250,    // the flat delivery charge inside the zone
-  },
-  canopy8: {
-    laborPerFt: 65,
-    tiers: [
-      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500, post:650 },
-      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:500, post:650 },
-      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500, post:650 },
-      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:95, lights:275, downspout:650, cchannel:30, outrigger:30, miter:2500, post:650 },
-    ]
-  },
-  canopy12: {
-    laborPerFt: 65,
-    tiers: [
-      { key:'t1', name:"Tier 1 · <5' Proj / <10' Width",  mfg:105, lights:400, downspout:650, cchannel:30, outrigger:30,  miter:500, post:650 },
-      { key:'t2', name:"Tier 2 · <5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:30,  miter:500, post:650 },
-      { key:'t3', name:"Tier 3 · >5' Proj / <10' Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:45,  miter:500, post:650 },
-      { key:'t4', name:"Tier 4 · >5' Proj / 10'+ Width",  mfg:105, lights:275, downspout:650, cchannel:30, outrigger:150, miter:500, post:650 },
-    ]
-  },
-  standingSeam: { mfgPerFt:195, endsRate:150, valancePerFt:15, laborPerFt:45 },
-  fabric:        { mfgPerFt:75, laborPerFt:45, mfgPerSqft:35 },   // $75 per lineal ft of WIDTH (confirmed 07/2026); optional $35/sqft mode (per Mike 10/01/26)
-  sunshade:      { mfgPerSqft:95, laborPerFt:65 },
-  recover: {
-    fabrics: {
-      sunbrella: { yd:33, label:'Sunbrella 60"' },
-      ferrari:   { yd:38, label:'Ferrari 74"' },
-      majestic:  { yd:30, label:'Majestic 80" (translucent)' },
-      cooley:    { yd:55, label:'Cooley 70"' },
-    },
-    markup: 2.5,
-    graphic1: 150,
-    graphic2: 250,
-    retrofitRate: 15,   // $/ft of width, additional, when selected (09/26)
-    skinRate: 10,       // $/ft; covered ends add projection x 2 ft (09/26)
-    takedownRate: 20,   // $/ft of width - take down / rehang (09/26)
-    surveyDefault: 450, // recover survey default (09/26)
-    dropExtraFt: 0.5,   // +6" of fabric width per pass for the drop - pricing only
-    deliveryRate: 3.75,
-  }
-};
+/* The rate card now lives in engine/quote-engine.js (ONE source of truth for the page and
+   the headless API). RATES is the engine's own object — the Rate Settings panel edits it in
+   place, so every engine call prices from the edited numbers, exactly as before. */
+let RATES = QuoteEngine.RATES;
 
 let quoteItems = [];
 
@@ -492,26 +452,7 @@ let quoteItems = [];
 // levies (marked ~) use the typical/most-common combined rate for that county's populated
 // area rather than the bare county-only rate — for an exact address-level rate, verify with
 // Ohio's "The Finder" tool (thefinder.tax.ohio.gov).
-const OHIO_COUNTY_RATES = [
-  ["Adams",7.25],["Allen",6.75],["Ashland",7.00],["Ashtabula",6.75],["Athens",7.25],
-  ["Auglaize",7.25],["Belmont",7.25],["Brown",7.25],["Butler",6.50],["Carroll",6.75],
-  ["Champaign",7.25],["Clark",7.25],["Clermont",6.75],["Clinton",7.25],["Columbiana",7.25],
-  ["Coshocton",7.75],["Crawford",7.25],["Cuyahoga",8.00],["Darke",7.25],["Defiance",6.75],
-  ["Delaware",7.00],["Erie",6.75],["Fairfield",6.75],["Fayette",7.25],["Franklin",8.00],
-  ["Fulton",7.25],["Gallia",7.25],["Geauga",6.75],["Greene",6.75],["Guernsey",7.25],
-  ["Hamilton",7.80],["Hancock",6.75],["Hardin",7.25],["Harrison",7.25],["Henry",7.25],
-  ["Highland",7.25],["Hocking",7.25],["Holmes",7.00],["Huron",7.25],["Jackson",7.25],
-  ["Jefferson",7.25],["Knox",7.25],["Lake",6.50],["Lawrence",7.25],["Licking",7.25],
-  ["Logan",7.25],["Lorain",6.50],["Lucas",7.75],["Madison",7.00],["Mahoning",7.50],
-  ["Marion",7.25],["Medina",6.75],["Meigs",7.25],["Mercer",7.25],["Miami",7.00],
-  ["Monroe",7.25],["Montgomery",7.50],["Morgan",7.25],["Morrow",7.25],["Muskingum",7.25],
-  ["Noble",7.25],["Ottawa",7.00],["Paulding",7.25],["Perry",7.25],["Pickaway",7.25],
-  ["Pike",7.25],["Portage",6.75],["Preble",7.25],["Putnam",7.00],["Richland",7.00],
-  ["Ross",7.25],["Sandusky",7.25],["Scioto",7.25],["Seneca",7.25],["Shelby",7.25],
-  ["Stark",6.50],["Summit",6.25],["Trumbull",6.75],["Tuscarawas",6.75],["Union",7.00],
-  ["Van Wert",7.25],["Vinton",7.25],["Warren",6.75],["Washington",7.25],["Wayne",6.50],
-  ["Williams",7.25],["Wood",6.75],["Wyandot",7.25]
-];
+const OHIO_COUNTY_RATES = QuoteEngine.OHIO_COUNTY_RATES;
 
 let itemSeq = 1;
 
@@ -604,14 +545,7 @@ function buildTabs(){
 }
 
 /* ---------------- TIER AUTO-DETECT ---------------- */
-function pickTier(tiers, widthFt, projFt){
-  const wideEnough = widthFt >= 10;
-  const projEnough = projFt >= 5;
-  if(!projEnough && !wideEnough) return tiers[0];
-  if(!projEnough && wideEnough) return tiers[1];
-  if(projEnough && !wideEnough) return tiers[2];
-  return tiers[3];
-}
+function pickTier(tiers, widthFt, projFt){ return QuoteEngine.pickTier(tiers, widthFt, projFt); }
 
 /* ---------------- CANOPY CALC (shared 8"/12") ---------------- */
 function decFeetLabel(feetDecimal){
@@ -802,85 +736,58 @@ function renderCanopySection(sectionKey, faceLabel){
 }
 
 function computeCanopy(sectionKey){
+  // DOM -> spec -> QuoteEngine.priceCanopy() (all the math lives in engine/quote-engine.js)
   const cfg = RATES[sectionKey];
   const mtEl = document.getElementById('c-mitered-toggle');
   const mitered = mtEl ? mtEl.checked : false;
   const qty = Math.max(1, parseFloat(document.getElementById('c-qty').value)||1);
-
-  // legs: each has its own width + projection (mitered = 2..5 legs; single = 1 leg)
   const legCount = mitered ? Math.min(5, Math.max(2, parseInt((document.getElementById('c-legcount')||{}).value)||2)) : 1;
-  let legs = [];
+  const spec = { section: sectionKey, qty, mitered, legCount };
   if(mitered){
     // per-leg taper (per Mike 10/02/26): Projection = depth at the leg's FREE end,
-    // "Tapers to" = depth at the corner end. Leg prices on its AVERAGE (exact for a
-    // straight taper); the deepest point anywhere sets the tier.
+    // "Tapers to" = depth at the corner end. Leg prices on its AVERAGE; deepest point sets the tier.
+    spec.legs = [];
     for(let i=1;i<=legCount;i++){
       const p1 = getFtInInches('c-legP'+i)/12;
       const p2 = getFtInInches('c-legP2'+i)/12;
       const lt = p2 > 0 && Math.abs(p2 - p1) > 0.001;
-      legs.push({ wFt:getFtInInches('c-legW'+i)/12, pFt: lt ? (p1+p2)/2 : p1, p1Ft:p1, p2Ft: lt ? p2 : null, taper: lt });
+      spec.legs.push({ wFt:getFtInInches('c-legW'+i)/12, pFt: lt ? (p1+p2)/2 : p1, p1Ft:p1, p2Ft: lt ? p2 : null, taper: lt });
     }
   } else {
-    legs = [{ wFt:getFtInInches('c-width')/12, pFt:getFtInInches('c-proj')/12, p1Ft:getFtInInches('c-proj')/12, p2Ft:null, taper:false }];
+    spec.widthFt = getFtInInches('c-width')/12;
+    spec.projFt = getFtInInches('c-proj')/12;
+    // TAPERED PROJECTION (single-run only, per Mike 10/02/26): priced on the AVERAGE depth
+    const tpEl = document.getElementById('c-taper-toggle');
+    const proj2Ft = (tpEl && tpEl.checked) ? getFtInInches('c-proj2')/12 : 0;
+    if(proj2Ft > 0 && Math.abs(proj2Ft - spec.projFt) > 0.001){ spec.tapered = true; spec.proj1Ft = spec.projFt; spec.proj2Ft = proj2Ft; }
   }
-  const miterTapered = mitered && legs.some(l=>l.taper);
-  // TAPERED PROJECTION (single-run only, per Mike 10/02/26): depth differs end to end.
-  // Priced on the AVERAGE depth — exact for a straight taper (area = W×avg; fascia ends
-  // sum to p1+p2 = 2×avg; tie-rod footage averages out). Deepest end picks the tier.
-  const tpEl = document.getElementById('c-taper-toggle');
-  const proj1Ft = legs[0] ? legs[0].pFt : 0;
-  const proj2Ft = (!mitered && tpEl && tpEl.checked) ? getFtInInches('c-proj2')/12 : 0;
-  const tapered = !mitered && proj2Ft > 0 && Math.abs(proj2Ft - proj1Ft) > 0.001;
-  const projAvgFt = tapered ? (proj1Ft + proj2Ft)/2 : proj1Ft;
-  if(tapered) legs[0] = { wFt: legs[0].wFt, pFt: projAvgFt };   // area/perimeter/engine price on the average
-  const widthFt = legs.reduce((a,l)=>a+l.wFt, 0);           // total running width
-  const projFt  = tapered ? Math.max(proj1Ft, proj2Ft)
-                : mitered ? legs.reduce((m,l)=>Math.max(m, l.p1Ft||l.pFt, l.p2Ft||0), 0) // deepest point incl. tapered corner ends
-                          : legs.reduce((m,l)=>Math.max(m,l.pFt), 0); // deepest projection (for tier/perimeter)
-  const sqft    = legs.reduce((a,l)=>a + l.wFt*l.pFt, 0);   // Σ each leg's own area
-  const widthIn = widthFt*12, projIn = projFt*12;
-
-  const lights = parseFloat(document.getElementById('c-lights').value)||0;
-  const downspout = parseFloat(document.getElementById('c-downspout').value)||0;
-  const posts = parseFloat(document.getElementById('c-posts').value)||0;
-  const outrigger = parseFloat(document.getElementById('c-outrigger').value)||0;
-  const fascia = parseFloat(document.getElementById('c-fascia').value)||0;
-
-  // open perimeter (fascia / C-Channel run): single = W + 2×P (tapered: W + p1 + p2 = W + 2×avg);
-  // mitered = ΣW + the two FREE-end projections (first + last legs' entered Projection)
-  const perimFt = mitered ? (widthFt + (legs[0].p1Ft||legs[0].pFt) + (legs[legs.length-1].p1Ft||legs[legs.length-1].pFt))
-                : tapered ? (widthFt + proj1Ft + proj2Ft)
-                : (widthFt + 2*projFt);
+  spec.lightsPerUnit = parseFloat(document.getElementById('c-lights').value)||0;
+  spec.downspoutPerUnit = parseFloat(document.getElementById('c-downspout').value)||0;
+  spec.postsPerUnit = parseFloat(document.getElementById('c-posts').value)||0;
+  spec.outriggerPerUnit = parseFloat(document.getElementById('c-outrigger').value)||0;
+  spec.fasciaAdd = parseFloat(document.getElementById('c-fascia').value)||0;
   const ccPerimEl = document.getElementById('c-cchannel-perimeter');
-  const cchannelPerim = ccPerimEl ? ccPerimEl.checked : false;
-  const cchannel = cchannelPerim ? perimFt : (parseFloat(document.getElementById('c-cchannel').value)||0);
-  if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
-  const tier = pickTier(cfg.tiers, widthFt, projFt);
+  spec.cchannelPerimeter = ccPerimEl ? ccPerimEl.checked : false;
+  spec.cchannelPerUnit = parseFloat(document.getElementById('c-cchannel').value)||0;
   // custom / large fascia — priced like C-Channel: perimeter × $30/ft
   const cfOn = (document.getElementById('c-customface-toggle')||{}).checked;
   const cfIn = parseFloat((document.getElementById('c-customface-in')||{}).value)||0;
-  const customFasciaFt = perimFt;
-  const customFasciaCost = (cfOn && cfIn>0) ? customFasciaFt * tier.cchannel * qty : 0;
+  spec.customFasciaIn = (cfOn && cfIn>0) ? cfIn : 0;
+  spec.face = sectionKey==='canopy8' ? 8 : 12;
+  // PAINT ADDER — $9.00/sqft averaged paint cost (per Mike 09/16/26). Baked into the canopy
+  // price (never its own quote line) and HELD OUT of the margin check + margin log math.
+  spec.paintOn = !!((document.getElementById('c-paint9')||{checked:true}).checked);
+
+  const r = QuoteEngine.priceCanopy(spec, { rates: RATES });
+  const { materialsTotal, labor, paintCost, downspoutCost, lightsCost, postsCost, cchannelPerUnit: cchannel, cchannelPerim, tier,
+          widthFt, projFt, sqft, legs, tapered, proj1Ft, proj2Ft, projAvgFt, miterTapered,
+          mfgBase, cchannelCost, outriggerCost, fasciaManual, customFasciaFt, customFasciaCost } = r;
+  if(cchannelPerim){ const cf = document.getElementById('c-cchannel'); if(cf) cf.value = cchannel.toFixed(1); }
+  const posts = spec.postsPerUnit;
   const legDesc = mitered ? legs.map(l=>`${l.wFt.toFixed(1)}×${l.taper ? l.p1Ft.toFixed(1)+'→'+l.p2Ft.toFixed(1) : l.pFt.toFixed(1)}`).join(' + ') : '';
   document.getElementById('tier-out').innerHTML = (cfOn && cfIn>0)
     ? `<b>${tier.name}</b> — MFG $${tier.mfg}/sqft · Custom fascia <b>${cfIn}″</b>: ${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} = $${Math.round(customFasciaCost)}${mitered?` · MITER ${legCount} legs`:''}${qty>1 ? ` · × ${qty}` : ''}`
     : `Auto-selected: <b>${tier.name}</b> — MFG $${tier.mfg}/sqft${mitered ? ` · MITER ${legCount} legs (${legDesc}) = ${sqft.toFixed(1)} sqft` : ''}${tapered ? ` · TAPERED ${proj1Ft.toFixed(2)}′→${proj2Ft.toFixed(2)}′ (avg ${projAvgFt.toFixed(2)}′, tier on ${projFt.toFixed(2)}′)` : ''}${miterTapered ? ` · TAPERED legs (avg-priced, tier on ${projFt.toFixed(2)}′)` : ''}${qty>1 ? ` · × ${qty} units` : ''}`;
-
-  const mfgBase = sqft*tier.mfg*qty;
-  const lightsCost = lights*tier.lights*qty;
-  const downspoutCost = downspout*tier.downspout*qty;
-  const postsCost = posts*(tier.post||650)*qty;
-  const cchannelCost = cchannel*tier.cchannel*qty;
-  const outriggerCost = outrigger*tier.outrigger*qty;
-  const fasciaCost = fascia*qty + customFasciaCost;   // manual add + custom-fascia (perimeter × $30)
-  // PAINT ADDER — $9.00/sqft averaged paint cost (per Mike 09/16/26). Baked into the canopy
-  // price (never its own quote line) and HELD OUT of the margin check + margin log math.
-  const paintOn = !!((document.getElementById('c-paint9')||{checked:true}).checked);
-  const paintCost = paintOn ? sqft*9*qty : 0;
-  // Canopy body only — downspouts & lights are broken out as their own line items on the quote
-  const materialsTotal = mfgBase + cchannelCost + outriggerCost + fasciaCost + paintCost;
-
-  const labor = widthFt*cfg.laborPerFt*qty;   // labor on total running width
 
   const sqftLabel = mitered
     ? `SQ FT per unit — Σ legs (${legs.map(l=>`${l.wFt.toFixed(1)}×${l.pFt.toFixed(1)}`).join(' + ')})`
@@ -893,7 +800,7 @@ function computeCanopy(sectionKey){
     <div class="row"><span>C-Channel (${cchannel.toFixed(1)} ft × $${tier.cchannel} × ${qty}${cchannelPerim?(mitered?' · auto perimeter ΣW + end projections':' · auto W + 2×Proj (perimeter)'):''})</span>${fmtCopy(cchannelCost)}</div>
     <div class="row"><span>Outriggers</span>${fmtCopy(outriggerCost)}</div>
     ${(cfOn && cfIn>0) ? `<div class="row"><span>Custom Fascia ${cfIn}″ (${customFasciaFt.toFixed(1)}ft × $${tier.cchannel} × ${qty})</span>${fmtCopy(customFasciaCost)}</div>` : ''}
-    <div class="row"><span>Added Fascia — manual (× ${qty})</span>${fmtCopy(fascia*qty)}</div>
+    <div class="row"><span>Added Fascia — manual (× ${qty})</span>${fmtCopy(fasciaManual)}</div>
     ${paintCost>0 ? `<div class="row"><span>Paint ($9/sqft × ${sqft.toFixed(1)} × ${qty}) — baked in, not on margin check</span>${fmtCopy(paintCost)}</div>` : ''}
     <div class="row total"><span>Canopy Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row" style="margin-top:8px;"><span>Lights (× ${qty}) — separate line item</span>${fmtCopy(lightsCost)}</div>
@@ -901,10 +808,7 @@ function computeCanopy(sectionKey){
     <div class="row"><span>Posts (${posts*qty} × $${tier.post||650}) — separate line item</span>${fmtCopy(postsCost)}</div>
     <div class="row"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, paintCost, downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout, lightsCost, lightsQty: lights*qty, lightsPerUnit: lights, postsCost, postsQty: posts*qty, postsPerUnit: posts, cchannelPerUnit: cchannel, tier, widthFt, projFt, qty, mitered, legs, legCount,
-    tapered, proj1Ft, proj2Ft, projAvgFt, miterTapered,
-    // component breakdown (exact $ per category) for the Airtable line-item push
-    bd: { sqft: sqft*qty, mfg: mfgBase, cchannelCost, cchannelFt: cchannel*qty, outriggerCost, outriggerFt: outrigger*qty, miterCost:0, miterQty:0, fasciaCost, paintCost, labor, laborFt: widthFt*qty } };
+  return r;
 }
 
 function addCanopyToQuote(sectionKey, faceLabel, faceInches){
@@ -970,6 +874,12 @@ function addCanopyToQuote(sectionKey, faceLabel, faceInches){
       lightsPerUnit: r.lightsPerUnit,
       postsPerUnit: r.postsPerUnit,
       cchannelPerUnit: r.cchannelPerUnit,
+      // engine inputs (so QuoteEngine.priceCanopy(spec) reproduces this line headlessly)
+      section: sectionKey,
+      outriggerPerUnit: r.outrigger,
+      fasciaAdd: r.fasciaManual / r.qty,
+      paintOn: r.paintOn,
+      customFasciaIn: r.customFasciaIn,
       attach: (document.getElementById('c-attach')||{}).value || 'tierod',
       paint: ((document.getElementById('c-paint')||{}).value || '').trim(),
       blocking: (document.getElementById('c-blocking')||{}).value || 'wood',
@@ -1061,14 +971,13 @@ function computePatio(){
   const mfg = parseFloat((document.getElementById('p-mfg')||{}).value)||0;
   const install = parseFloat((document.getElementById('p-install')||{}).value)||0;
   if(patioProduct==='canopy'){
-    const widthFt = getFtInInches('p-width')/12, projFt = getFtInInches('p-proj')/12;
-    const sqft = widthFt*projFt;
-    const lights = parseFloat(document.getElementById('p-lights').value)||0;
-    const downspout = parseFloat(document.getElementById('p-downspout').value)||0;
-    const posts = parseFloat(document.getElementById('p-posts').value)||0;
-    const lightsCost = lights*275*qty, downspoutCost = downspout*650*qty, postsCost = posts*650*qty;
-    const materialsTotal = mfg*qty, labor = install*qty;
-    const perSqft = sqft>0 ? (mfg/sqft) : 0;
+    const r = QuoteEngine.pricePatio({ product:'canopy', qty, mfgPerUnit:mfg, installPerUnit:install,
+      widthFt: getFtInInches('p-width')/12, projFt: getFtInInches('p-proj')/12,
+      lightsPerUnit: parseFloat(document.getElementById('p-lights').value)||0,
+      downspoutPerUnit: parseFloat(document.getElementById('p-downspout').value)||0,
+      postsPerUnit: parseFloat(document.getElementById('p-posts').value)||0 }, { rates: RATES });
+    const { widthFt, projFt, sqft, lightsCost, downspoutCost, postsCost, materialsTotal, labor, perSqft } = r;
+    const posts = r.postsPerUnit;
     bd.innerHTML = `
       <div class="row"><span>SQ FT per unit (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
       <div class="row"><span>MFG — your price ($${mfg.toLocaleString()} × ${qty})${perSqft>0?` · ≈ $${perSqft.toFixed(0)}/sqft`:''}</span>${fmtCopy(materialsTotal)}</div>
@@ -1078,22 +987,18 @@ function computePatio(){
       <div class="row"><span>Posts (${posts*qty} × $650) — separate line item</span>${fmtCopy(postsCost)}</div>
       <div class="row"><span>Install — your price ($${install.toLocaleString()} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
     `;
-    return { widthFt, projFt, sqft, qty, materialsTotal, labor,
-      lightsCost, lightsQty: lights*qty, lightsPerUnit: lights,
-      downspoutCost, downspoutQty: downspout*qty, downspoutPerUnit: downspout,
-      postsCost, postsQty: posts*qty, postsPerUnit: posts };
+    return r;
   } else {
-    const lenFt = getFtInInches('p-len')/12;
-    const heightIn = parseFloat(document.getElementById('p-height').value)||36;
-    const materialsTotal = mfg*qty, labor = install*qty;
-    const perFt = lenFt>0 ? (mfg/lenFt) : 0;
+    const r = QuoteEngine.pricePatio({ product:'railing', qty, mfgPerUnit:mfg, installPerUnit:install,
+      lenFt: getFtInInches('p-len')/12, heightIn: parseFloat(document.getElementById('p-height').value)||36 }, { rates: RATES });
+    const { lenFt, heightIn, materialsTotal, labor, perFt } = r;
     bd.innerHTML = `
       <div class="row"><span>Run per unit</span><span class="num">${lenFt.toFixed(2)} ft · ${heightIn}&quot; high</span></div>
       <div class="row"><span>MFG — your price ($${mfg.toLocaleString()} × ${qty})${perFt>0?` · ≈ $${perFt.toFixed(0)}/lin ft`:''}</span>${fmtCopy(materialsTotal)}</div>
       <div class="row total"><span>Railing Total (${qty} run${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
       <div class="row" style="margin-top:8px;"><span>Install — your price ($${install.toLocaleString()} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
     `;
-    return { lenFt, heightIn, qty, materialsTotal, labor };
+    return r;
   }
 }
 
@@ -1113,7 +1018,8 @@ function addPatioCanopyToQuote(){
     postsCost: Math.ceil(r.postsCost), postsQty: r.postsQty,
     group: group,
     type: 'patiocanopy',
-    spec: { qty:r.qty, widthStr:widthStr, projStr:projStr, widthFt:r.widthFt, projFt:r.projFt,
+    spec: { product:'canopy', qty:r.qty, widthStr:widthStr, projStr:projStr, widthFt:r.widthFt, projFt:r.projFt,
+      mfgPerUnit:r.mfg, installPerUnit:r.install,
       lightsPerUnit:r.lightsPerUnit, downspoutPerUnit:r.downspoutPerUnit, postsPerUnit:r.postsPerUnit }
   });
   renderQuote();
@@ -1132,7 +1038,7 @@ function addPatioRailingToQuote(){
     labor: Math.ceil(r.labor),
     group: group,
     type: 'patiorailing',
-    spec: { qty:r.qty, lengthStr:lengthStr, lenFt:r.lenFt, heightIn:r.heightIn }
+    spec: { product:'railing', qty:r.qty, lengthStr:lengthStr, lenFt:r.lenFt, heightIn:r.heightIn, mfgPerUnit:r.mfg, installPerUnit:r.install }
   });
   renderQuote();
 }
@@ -2762,19 +2668,13 @@ function renderStandingSeam(){
   computeStandingSeam();
 }
 function computeStandingSeam(){
-  const cfg = RATES.standingSeam;
-  const widthIn = getFtInInches('ss-width');
-  const ends = parseFloat(document.getElementById('ss-ends').value)||0;
-  const valanceIn = getFtInInches('ss-valance');
-  const qty = Math.max(1, parseFloat(document.getElementById('ss-qty').value)||1);
-
-  const widthFt = widthIn/12;
-  const mfgBase = widthFt*cfg.mfgPerFt*qty;
-  const endsCost = ends*cfg.endsRate*qty;
-  const valanceCost = (valanceIn/12)*cfg.valancePerFt*qty;
-  const materialsTotal = mfgBase + endsCost + valanceCost;
-  const labor = widthFt*cfg.laborPerFt*qty; // standing seam labor $45/ft
-
+  const r = QuoteEngine.priceStandingSeam({
+    widthIn: getFtInInches('ss-width'),
+    ends: parseFloat(document.getElementById('ss-ends').value)||0,
+    valanceIn: getFtInInches('ss-valance'),
+    qty: Math.max(1, parseFloat(document.getElementById('ss-qty').value)||1)
+  }, { rates: RATES });
+  const { materialsTotal, labor, widthFt, ends, qty, mfgBase, endsCost, valanceCost } = r;
   document.getElementById('ss-breakdown').innerHTML = `
     <div class="row"><span>MFG base (${widthFt.toFixed(2)}ft × $195 × ${qty})</span>${fmtCopy(mfgBase)}</div>
     <div class="row"><span>Ends (${ends} × $150 × ${qty})</span>${fmtCopy(endsCost)}</div>
@@ -2782,7 +2682,7 @@ function computeStandingSeam(){
     <div class="row total"><span>Materials Total (${qty} unit${qty>1?'s':''})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row" style="margin-top:8px;"><span>Labor (${widthFt.toFixed(2)}ft × $45 × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, widthFt, ends, valanceIn, qty };
+  return r;
 }
 function addStandingSeamToQuote(){
   const r = computeStandingSeam();
@@ -2844,19 +2744,19 @@ function renderFabricAwning(){
 }
 function computeFabric(){
   const cfg = RATES.fabric;
-  const widthIn = getFtInInches('fb-width');
-  const widthFt = widthIn/12;
-  const projFt = getFtInInches('fb-proj')/12;
   const mode = (document.getElementById('fb-pricemode')||{value:'perft'}).value; // 'perft' (default) or 'sqft'
-  const sqftMode = mode==='sqft';
-  const sqft = widthFt*projFt;
-  const qty = Math.max(1, parseFloat(document.getElementById('fb-qty').value)||1);
   const postsOn = document.getElementById('fb-posts-on').checked;
   document.getElementById('fb-posts-wrap').style.display = postsOn ? 'block' : 'none';
-  const posts = postsOn ? (parseFloat(document.getElementById('fb-posts').value)||0) : 0;
-  const postsCost = posts*650;
-  const materialsTotal = sqftMode ? sqft*cfg.mfgPerSqft*qty : widthFt*cfg.mfgPerFt*qty;
-  const labor = widthFt*cfg.laborPerFt*qty; // fabric labor $45/ft of width (both pricing modes)
+  const r = QuoteEngine.priceFabric({
+    widthIn: getFtInInches('fb-width'),
+    projIn: getFtInInches('fb-proj'),
+    priceMode: mode,
+    qty: Math.max(1, parseFloat(document.getElementById('fb-qty').value)||1),
+    postsPerUnit: postsOn ? (parseFloat(document.getElementById('fb-posts').value)||0) : 0
+  }, { rates: RATES });
+  const { materialsTotal, labor, widthFt, projFt, qty, postsCost, sqft } = r;
+  const sqftMode = r.priceMode==='sqft';
+  const posts = r.postsQty;
   const subEl = document.getElementById('fb-sub');
   if(subEl) subEl.textContent = sqftMode
     ? `MFG = width(ft) × projection(ft) × $${cfg.mfgPerSqft}/sqft. Labor = width(ft) × $${cfg.laborPerFt}. Height is spec-only. Delivery mileage is entered once per job in the Quote panel.`
@@ -2870,7 +2770,7 @@ function computeFabric(){
     ${posts>0 ? `<div class="row"><span>Posts (${posts} × $650) — separate line item</span>${fmtCopy(postsCost)}</div>` : ''}
     <div class="row" style="margin-top:8px;"><span>Labor (${widthFt.toFixed(2)}ft × $${cfg.laborPerFt} × ${qty}) — rolls into job Installation</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, widthFt, qty, postsCost, postsQty: posts, priceMode: mode, sqft };
+  return r;
 }
 function addFabricToQuote(){
   const r = computeFabric();
@@ -2912,22 +2812,18 @@ function renderSunshade(){
   computeSunshade();
 }
 function computeSunshade(){
-  const cfg = RATES.sunshade;
-  const widthIn = getFtInInches('sh-width');
-  const projIn = getFtInInches('sh-proj');
-  const isPatio = document.getElementById('sh-patio').checked;
-  const widthFt = widthIn/12, projFt = projIn/12;
-  const sqft = widthFt*projFt;
-  const rate = isPatio ? 35 : cfg.mfgPerSqft;
-  const materialsTotal = sqft*rate;
-  const labor = projFt*cfg.laborPerFt;
+  const r = QuoteEngine.priceSunshade({
+    widthIn: getFtInInches('sh-width'), projIn: getFtInInches('sh-proj'),
+    patio: document.getElementById('sh-patio').checked
+  }, { rates: RATES });
+  const { materialsTotal, labor, sqft, rate, projFt } = r;
   document.getElementById('sh-breakdown').innerHTML = `
     <div class="row"><span>SQ FT</span><span class="num">${sqft.toFixed(2)}</span></div>
     <div class="row"><span>MFG (sqft × $${rate})</span>${fmtCopy(materialsTotal)}</div>
     <div class="row total"><span>Materials Total</span>${fmtCopy(materialsTotal)}</div>
     <div class="row" style="margin-top:8px;"><span>Labor (${projFt.toFixed(2)}ft × $65) — rolls into job Labor &amp; Delivery</span>${fmtCopy(labor)}</div>
   `;
-  return { materialsTotal, labor, sqft };
+  return r;
 }
 function addSunshadeToQuote(){
   const r = computeSunshade();
@@ -2936,7 +2832,7 @@ function addSunshadeToQuote(){
     id:itemSeq++, title:name, sub:`Sunshade · ${r.sqft.toFixed(1)} sqft`,
     amount:Math.ceil(r.materialsTotal), labor:Math.ceil(r.labor), group:document.getElementById('sh-group').value,
     type: 'sunshade',
-    spec: { qty: 1, widthStr: ftInLabel('sh-width'), projStr: ftInLabel('sh-proj') }
+    spec: { qty: 1, widthStr: ftInLabel('sh-width'), projStr: ftInLabel('sh-proj'), patio: r.patio }
   });
   renderQuote();
 }
@@ -2990,41 +2886,25 @@ function renderRecover(){
   computeRecover();
 }
 function computeRecover(){
-  const cfg = RATES.recover;
-  const patio = document.getElementById('rc-patio').checked;
-  const widthFt = getFtInInches('rc-width')/12;
-  const projFt = getFtInInches('rc-proj')/12;
-  const passes = parseFloat(document.getElementById('rc-passes').value)||0;
-  const ends = parseFloat(document.getElementById('rc-ends').value)||0;
-  const fabricKey = document.getElementById('rc-fabric').value;
-  const g1 = parseFloat(document.getElementById('rc-g1').value)||0;
-  const g2 = parseFloat(document.getElementById('rc-g2').value)||0;
-  const retrofitOn = document.getElementById('rc-retrofit-on').checked;
-  const skinOn = document.getElementById('rc-skin-on').checked;
-  const skinEnds = document.getElementById('rc-skin-ends').checked;
-  const takedownOn = document.getElementById('rc-takedown-on').checked;
-  const delivery = parseFloat(document.getElementById('rc-delivery').value)||0;
-  const survey = parseFloat(document.getElementById('rc-survey').value)||0;
-  const qty = Math.max(1, parseInt(document.getElementById('rc-qty').value)||1);
-
-  const yardage = ((widthFt + cfg.dropExtraFt)*passes + ends*2)/3; // +6" of fabric width per pass for the drop (pricing only)
-  const sqft = widthFt*projFt;
-  const fabricRate = cfg.fabrics[fabricKey].yd;
-  const graphicCost = g1*cfg.graphic1 + g2*cfg.graphic2;
-  // Patio Canopy: material = sqft × $35 (flat). Otherwise: yardage-based fabric cost.
-  const materialCost = patio ? (sqft*35) : ((yardage*fabricRate)*cfg.markup);
-  const mfgTotal = materialCost + graphicCost;
-
-  const retrofitCost = retrofitOn ? widthFt*cfg.retrofitRate : 0;
-  const skinFt = widthFt + (skinEnds ? projFt*2 : 0);
-  const skinCost = skinOn ? skinFt*cfg.skinRate : 0;
-  const takedownCost = takedownOn ? widthFt*cfg.takedownRate : 0;
-  const deliveryCost = delivery*cfg.deliveryRate;
-  const installTotal = retrofitCost + skinCost + takedownCost;
-
-  const unitTotal = survey + mfgTotal + deliveryCost + installTotal;
-  const grandTotal = unitTotal*qty;   // all inputs above are per unit; qty = identical units
-
+  const spec = {
+    patio: document.getElementById('rc-patio').checked,
+    widthIn: getFtInInches('rc-width'),
+    projIn: getFtInInches('rc-proj'),
+    passes: parseFloat(document.getElementById('rc-passes').value)||0,
+    ends: parseFloat(document.getElementById('rc-ends').value)||0,
+    fabric: document.getElementById('rc-fabric').value,
+    graphic1: parseFloat(document.getElementById('rc-g1').value)||0,
+    graphic2: parseFloat(document.getElementById('rc-g2').value)||0,
+    retrofit: document.getElementById('rc-retrofit-on').checked,
+    skin: document.getElementById('rc-skin-on').checked,
+    skinEnds: document.getElementById('rc-skin-ends').checked,
+    takedown: document.getElementById('rc-takedown-on').checked,
+    delivery: parseFloat(document.getElementById('rc-delivery').value)||0,
+    survey: parseFloat(document.getElementById('rc-survey').value)||0,
+    qty: Math.max(1, parseInt(document.getElementById('rc-qty').value)||1)
+  };
+  const r = QuoteEngine.priceRecover(spec, { rates: RATES });
+  const { grandTotal, unitTotal, yardage, sqft, patio, qty, widthFt, projFt, fabricRate, materialCost, graphicCost, skinFt, installTotal, deliveryCost, survey } = r;
   const matRow = patio
     ? `<div class="row"><span>SQ FT (${widthFt.toFixed(2)}ft × ${projFt.toFixed(2)}ft)</span><span class="num">${sqft.toFixed(2)}</span></div>
        <div class="row"><span>Patio Canopy (sqft × $35)</span>${fmtCopy(materialCost)}</div>`
@@ -3033,13 +2913,14 @@ function computeRecover(){
   document.getElementById('rc-breakdown').innerHTML = `
     ${matRow}
     <div class="row"><span>Graphics</span>${fmtCopy(graphicCost)}</div>
-    <div class="row"><span>Take down/Rehang${takedownOn ? ` (${widthFt.toFixed(1)}ft × $20)` : ''} / Skin${skinOn ? ` (${skinFt.toFixed(1)}ft × $10)` : ''} / Retro${retrofitOn ? ` (${widthFt.toFixed(1)}ft × $15)` : ''}</span>${fmtCopy(installTotal)}</div>
+    <div class="row"><span>Take down/Rehang${spec.takedown ? ` (${widthFt.toFixed(1)}ft × $20)` : ''} / Skin${spec.skin ? ` (${skinFt.toFixed(1)}ft × $10)` : ''} / Retro${spec.retrofit ? ` (${widthFt.toFixed(1)}ft × $15)` : ''}</span>${fmtCopy(installTotal)}</div>
     <div class="row"><span>Delivery</span>${fmtCopy(deliveryCost)}</div>
     <div class="row"><span>Survey</span>${fmtCopy(survey)}</div>
     ${qty>1 ? `<div class="row"><span>Per Unit Total</span>${fmtCopy(unitTotal)}</div>` : ''}
     <div class="row total"><span>Item Total${qty>1 ? ` (${qty} units)` : ''}</span>${fmtCopy(grandTotal)}</div>
   `;
-  return { grandTotal, yardage, sqft, patio, qty };
+  r.inputs = spec;
+  return r;
 }
 function addRecoverToQuote(){
   const r = computeRecover();
@@ -3048,7 +2929,7 @@ function addRecoverToQuote(){
   quoteItems.push({
     id:itemSeq++, title:name, sub, amount:Math.ceil(r.grandTotal), group:document.getElementById('rc-group').value,
     type:'recover',
-    spec:{ qty:r.qty, widthStr:ftInLabel('rc-width'), heightStr:ftInLabel('rc-height'), projStr:ftInLabel('rc-proj'), patio:r.patio }
+    spec: Object.assign({}, r.inputs, { qty:r.qty, widthStr:ftInLabel('rc-width'), heightStr:ftInLabel('rc-height'), projStr:ftInLabel('rc-proj'), patio:r.patio })
   });
   renderQuote();
 }
@@ -4139,43 +4020,22 @@ function renderQuote(){
     });
     list.innerHTML = html;
   }
-  const canopyMaterials = quoteItems.reduce((s,i)=>s+i.amount,0);
-  const downspoutsTotal = quoteItems.reduce((s,i)=>s+(i.downspoutCost||0),0);
-  const downspoutsQty = quoteItems.reduce((s,i)=>s+(i.downspoutQty||0),0);
-  const lightsTotal = quoteItems.reduce((s,i)=>s+(i.lightsCost||0),0);
-  const lightsQty = quoteItems.reduce((s,i)=>s+(i.lightsQty||0),0);
-  const postsTotal = quoteItems.reduce((s,i)=>s+(i.postsCost||0),0);
-  const postsQty = quoteItems.reduce((s,i)=>s+(i.postsQty||0),0);
-  const taxableMaterials = canopyMaterials + downspoutsTotal + lightsTotal + postsTotal;
-
-  const deliveryOnly = !!(document.getElementById('extra-delivery-only')||{}).checked;
-  const laborSubtotal = deliveryOnly ? 0 : quoteItems.reduce((s,i)=>s+(i.labor||0),0);
-  const miles = parseFloat(document.getElementById('extra-miles').value)||0;
-  // Delivery: under the flat zone (one-way = round-trip/2 < 70 mi) it's a flat $250;
-  // beyond that it's ONE-WAY miles × $/mile (per Mike 09/24/26 — was round-trip). 0 miles = no charge.
-  const oneWayMi = miles/2;
-  const deliveryFlat = miles>0 && oneWayMi < RATES.jobLevel.flatDeliveryUnderMi;
-  const deliveryCost = miles<=0 ? 0 : (deliveryFlat ? RATES.jobLevel.flatDeliveryPrice : Math.ceil(oneWayMi*RATES.jobLevel.deliveryRate));
+  // Job-level math (materials split, delivery, survey, lift, engineering, tax, total) lives
+  // in QuoteEngine.computeTotals() — the same function the headless API uses.
+  const gv = id => { const el=document.getElementById(id); return el ? el.value : ''; };
+  const gc = id => { const el=document.getElementById(id); return el ? !!el.checked : false; };
+  const extraVals={}, extraChecks={};
+  QB_EXTRA_VALS.forEach(id=>extraVals[id]=gv(id));
+  QB_EXTRA_CHECKS.forEach(id=>extraChecks[id]=gc(id));
+  const T = QuoteEngine.computeTotals(quoteItems, { extraVals, extraChecks }, { rates: RATES });
+  const { canopyMaterials, downspoutsTotal, downspoutsQty, lightsTotal, lightsQty, postsTotal, postsQty,
+          deliveryOnly, laborSubtotal, miles, deliveryFlat, deliveryCost, installation,
+          surveyOn, survey, lift, stampedOn, stamped, taxOn, taxRatePercent, taxAllLines, tax, total } = T;
   qbUpdateMilesStatus(miles, deliveryFlat, deliveryCost);
-  const installation = laborSubtotal + deliveryCost; // labor + mileage combined, one line — not taxed (delivery-only: labor already zeroed)
   const instLabelEl = document.getElementById('q-labor-delivery-label');
   if(instLabelEl) instLabelEl.textContent = deliveryOnly ? 'Delivery (no installation)' : 'Installation';
-
-  const surveyOn = document.getElementById('extra-survey-on').checked;
   document.getElementById('extra-survey-wrap').style.display = surveyOn ? 'block' : 'none';
-  const survey = surveyOn ? Math.ceil(parseFloat(document.getElementById('extra-survey').value)||0) : 0; // not taxed
-  const lift = Math.ceil(parseFloat(document.getElementById('extra-lift').value)||0); // not taxed
-  const stampedOn = document.getElementById('extra-stamped-on').checked;
   document.getElementById('extra-stamped-wrap').style.display = stampedOn ? 'block' : 'none';
-  const stamped = stampedOn ? Math.ceil(parseFloat(document.getElementById('extra-stamped').value)||0) : 0; // not taxed
-
-  const ohioRate = parseFloat(document.getElementById('extra-ohio-county').value)||0;
-  const taxOn = document.getElementById('extra-tax').checked || ohioRate>0;
-  const taxRatePercent = ohioRate>0 ? ohioRate : 7;
-  const taxAllLines = ohioRate>0; // OHIO: sales tax applies to EVERY line item (materials, install, survey, lift, engineering). Indiana: materials only.
-  const taxBase = taxAllLines ? (taxableMaterials + installation + survey + lift + stamped) : taxableMaterials;
-  const tax = taxOn ? Math.ceil(taxBase*(taxRatePercent/100)) : 0;
-  const total = taxableMaterials + installation + survey + lift + stamped + tax; // sum of already-rounded parts — always reconciles
 
   document.getElementById('q-downspouts-row').style.display = downspoutsTotal>0 ? 'flex' : 'none';
   document.getElementById('q-lights-row').style.display = lightsTotal>0 ? 'flex' : 'none';
