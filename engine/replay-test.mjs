@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { priceItem, computeTotals, priceCanopy, CONST } from './quote-engine.js';
+import { priceItem, computeTotals, priceCanopy, CONST, canopyTrueCost, applyMargin } from './quote-engine.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(here, 'fixtures');
@@ -77,7 +77,36 @@ for(const f of files){
   });
 }
 
-if(asJson){ console.log(JSON.stringify({ rows, detail }, null, 2)); process.exit(0); }
+// ---- Margin replay: which "Set to N×" did Mike press, and does applyMargin reproduce the saved $ per line? ----
+// Rebuild the pre-press amounts from the rate card (priceItem on the spec; for quotes saved before the
+// 09/16/26 paint adder the rate-card amount had no paint), then press N× headlessly and compare per line.
+const marginRows = [];
+for(const f of files){
+  const fx = JSON.parse(fs.readFileSync(path.join(FIX,f),'utf8'));
+  const st = fx.state;
+  const cans = st.items.filter(i=>i.type==='canopy');
+  if(!cans.length) continue;
+  const prePaint = cans.every(i=>i.paintCost === undefined);
+  const items0 = st.items.map(i=>{
+    if(i.type!=='canopy') return i;
+    const p = priceItem(i);
+    return Object.assign({}, i, { amount: prePaint ? p.amount - p.paintCost : p.amount, paintCost: prePaint ? 0 : p.paintCost, downspoutCost: p.downspoutCost });
+  });
+  let mat=0, base=0, ds=0; cans.forEach(i=>{ mat+=canopyTrueCost(i.spec).material; base+=i.amount-(i.paintCost||0); ds+=i.downspoutCost||0; });
+  const impliedN = (base+ds)/mat;
+  const cands=[2,2.5,2.75,3,3.25,3.5,3.75,4,4.5,5];
+  const N = cands.map(n=>({n, d:Math.abs(Math.round(mat*n-ds)-base)})).sort((a,b)=>a.d-b.d)[0].n;
+  const r = applyMargin(items0, N);
+  const per = r.ok ? r.items.filter(i=>i.type==='canopy').map((i,k)=>({ id:i.id, engine:i.amount, saved:cans[k].amount, diff:i.amount-cans[k].amount })) : [];
+  const maxLine = per.reduce((m,x)=>Math.max(m,Math.abs(x.diff)),0);
+  const totDiff = per.reduce((s,x)=>s+x.diff,0);
+  marginRows.push({ job: fx.name, saved: st.savedAt.slice(0,10), canopies: cans.length, 'true material': +mat.toFixed(2), 'sell ex-paint+ds': base+ds,
+    'implied N': +impliedN.toFixed(4), 'N pressed': N, 'lines exact': per.filter(x=>x.diff===0).length+'/'+per.length, 'max line $diff': maxLine, 'total $diff': totDiff,
+    note: prePaint ? 'pre-09/16 (no paint) · pre-10/02 EMS book' : (st.savedAt < '2026-10-02' ? 'pre-10/02 EMS book' : 'current EMS book') });
+  if(maxLine) per.filter(x=>x.diff).forEach(x=>detail.push({ job: fx.name, item:'#'+x.id, type:'margin '+N+'×', saved:x.saved, engine:x.engine, diff:x.diff, why:'applyMargin('+N+') vs saved (see margin table note)' }));
+}
+
+if(asJson){ console.log(JSON.stringify({ rows, detail, marginRows }, null, 2)); process.exit(0); }
 
 console.log('\nREPLAY — engine vs saved Quote Builder State (13 quotes)\n');
 console.table(rows.map(r=>({ job: r.job, saved: r.savedAt, 'items ok': r.items, 'max item $diff': r.maxItemDiff,
@@ -87,6 +116,8 @@ if(detail.length){
   console.log('\nItem mismatches (engine re-priced from spec vs $ saved on the line):\n');
   console.table(detail);
 }
+console.log('\nMARGIN REPLAY — which "Set to N×" was pressed, and applyMargin(items, N) vs the saved line amounts:\n');
+console.table(marginRows);
 const exact = rows.filter(r=>r.maxItemDiff===0).length;
 console.log(`\n${exact}/${rows.length} quotes: every line item re-priced to the exact saved amount.`);
 console.log(`${bdChecks.ok}/${bdChecks.total} canopy lines: engine rate-card breakdown (mfg, c-channel, outriggers, fascia, sqft, labor) == saved bd exactly.`);

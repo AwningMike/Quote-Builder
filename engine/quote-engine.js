@@ -686,7 +686,347 @@ function importTakeoff(data, opts){
   return { items, hdr, extraVals, extraChecks, added, skipped, warnings: Array.isArray(data.warnings)?data.warnings:[], info };
 }
 
+/* ---------------- TRUE COST (margin check) — ported verbatim from the page ----------------
+   Material from the canopy framing recipe (BOM, costed by proportional lineal feet + 5% waste
+   from the Eastern Metal Supply price book) + shop labor + paint material + freight.
+   The page's Margin Check, cut sheet, shop BOM sheet, drawings and the "Set to N×" button all
+   read from THIS copy (window.QuoteEngine), so the material number can never drift. */
+const EMS_QUOTE = { no:'584313', date:'10/02/26', supplier:'Eastern Metal Supply of MO' };  // monthly re-send 10/02/26 (order date 09/01/26, expires 10/02/26)
+const EMS = {
+ "60-00-200":{d:"MP-1 (.125\" WALL) X 24' (WHITE",ppf:2.8,len:24.0},
+ "60-00-205":{d:"MP-1A (.100\" WALL) X 24'",ppf:2.35,len:24.0},
+ "60-00-206":{d:"MP-1C (.063\" WALL) X 24'",ppf:1.8,len:24.0},
+ "60-00-225":{d:"MP-3 (1\" X 2\") X 24'",ppf:2.74,len:24.0},
+ "60-00-235":{d:"MP-3S(1\"X2\") X 24'",ppf:3.1,len:24.0},
+ "60-00-255":{d:"MP-3H (1\" X 2\") X 24'",ppf:4.65,len:24.0},
+ "60-00-221":{d:"MP-2 X 2 X 24'",ppf:6.1,len:24.0},
+ "60-00-215":{d:"MP-2A (1\" FLANGE) X 24'",ppf:2.6,len:24.0},
+ "60-00-220":{d:"MP-2B X 24'",ppf:2.45,len:24.0},
+ "60-00-226":{d:"MP-3A(1\" X 2\") X 24'",ppf:4.35,len:24.0},
+ "40-63-010":{d:"1\" SQ W/DOUBLE FLANGE X 24'",ppf:2.1,len:24.0},
+ "60-00-240":{d:"MP-4 (1\" X 4\") X 24'",ppf:7.6,len:24.0},
+ "56-63-015":{d:"3 X 6 X .065 X 24'",ppf:5.85,len:24.0},
+ "56-63-033":{d:"4 X 6 X .093 X 24'",ppf:10.15,len:24.0},
+ "56-63-016":{d:"4 X 8 X .125 X 24'",ppf:15.5,len:24.0},
+ "56-63-039":{d:"4 X 8 X 3 X .125 X 24'",ppf:14.65,len:24.0},
+ "56-63-043":{d:"4 X 10 X 4 X .140 X 24'",ppf:19.6,len:24.0},
+ "56-63-045":{d:"4 X 10 X 4 X .125 X 30'",ppf:19,len:30.0},
+ "56-63-042":{d:"4 X 12 X 5 X .160 X 24'",ppf:24.75,len:24.0},
+ "56-63-046":{d:"2 X 8 X 24'",ppf:7.25,len:24.0},
+ "19-63-345":{d:"1 X .093 X 24'",ppf:2,len:24.0},
+ "19-63-170":{d:"1-1/2\" SQ X 1/8\" X 24'",ppf:4.2,len:24.0},
+ "19-63-180":{d:"1 3/4 X .093 X 24'",ppf:3.75,len:24.0},
+ "19-61-205":{d:"2\" SQ X .093 X 26'(BLUE ENDS)",ppf:4.4,len:26.0},
+ "19-63-210":{d:"2\" SQ X 1/8\" X 24'",ppf:5.85,len:24.0},
+ "11-61-270":{d:"2 X 2 X 3/16 X 25'",ppf:4.5,len:25.0},
+ "19-61-212":{d:"2\" SQ X 1/4\" WALL X 24'",ppf:10.9,len:24.0},
+ "19-63-235":{d:"3\" SQ X 1/8\" WALL X 24'",ppf:8.8,len:24.0},
+ "11-63-335":{d:"3 X 3 X .250 X 20'",ppf:8.8,len:20.0},   /* 10/02/26 quote STILL lists this SKU twice (8.80 p4 / 8.55 p8) - keeping 8.80 per Mike 9/10/26; confirm w/ EMS */
+ "19-61-258":{d:"5 X 1/4 X 24'",ppf:29.0,len:24.0},
+ "19-61-260":{d:"6 X 1/4 X 24'",ppf:36.0,len:24.0},
+ "20-63-222":{d:"1 X 2 X .062 X 24' W/.125 RAD",ppf:2.25,len:24.0},
+ "20-63-227":{d:"1\" X 2\" X .093\" X 24'",ppf:3.2,len:24.0},
+ "20-63-225":{d:"1 X 2 X 1/8 X 24'",ppf:4.25,len:24.0},
+ "20-63-230":{d:"1 X 3 X 1/8 X 24'",ppf:5.8,len:24.0},
+ "20-63-235":{d:"1 X 4 X 1/8 X 24'",ppf:7.3,len:24.0},
+ "20-63-236":{d:"1 X 5 X 1/8 X 20'",ppf:8.76,len:20.0},
+ "20-63-237":{d:"1 X 6 X .125 X 24'",ppf:10.3,len:24.0},
+ "20-63-250":{d:"1 1/2 X 3 X 1/8 X 24'",ppf:6.4,len:24.0},
+ "20-63-272":{d:"2 X 3 X .093 X 24'",ppf:5.35,len:24.0},
+ "20-63-275":{d:"2 X 3 X 1/8 X 24'",ppf:7.15,len:24.0},
+ "52-61-194":{d:"2 X 3 X 1/4 X 24'",ppf:13.15,len:24.0},
+ "20-63-280":{d:"2 X 4 X 1/8 X 24'",ppf:8.8,len:24.0},
+ "20-61-281":{d:"2 X 4 X 1/4 X 24'",ppf:16.5,len:24.0},
+ "20-63-290":{d:"2 X 6 X 1/8 X 24'",ppf:11.75,len:24.0},
+ "20-63-285":{d:"2 X 5 X 1/8 X 24'",ppf:10.25,len:24.0},
+ "20-63-295":{d:"2 X 8 X 1/8 X 24'",ppf:15.0,len:24.0},
+ "20-63-400":{d:"2 X 10 X 1/8 X 24'",ppf:18.5,len:24.0},
+ "20-63-500":{d:"2 X 12 X .188 X 24'",ppf:33.0,len:24.0},
+ "20-63-300":{d:"3 X 4 X 1/8 X 24'",ppf:10.5,len:24.0},
+ "20-63-303":{d:"3 X 6 X 1/8 X 24'",ppf:13.2,len:24.0},
+ "20-63-499":{d:"4 X 10 X .188 X 24'",ppf:33.0,len:24.0},
+ "20-63-245":{d:"1 1/2 X 2 X 1/8 X 24'",ppf:4.95,len:24.0},
+ "20-63-240":{d:"1-1/4 X 2-1/2 X 1/8 X 24' (RED",ppf:5.5,len:24.0},
+ "10-61-215":{d:"1/8 X 1 X 12'",ppf:0.76,len:12.0},
+ "10-61-325":{d:"1/4 X 1 X 12'",ppf:1.55,len:12.0},
+ "10-61-340":{d:"1/4 X 2 X 12'",ppf:3.1,len:12.0},
+ "10-61-345":{d:"1/4\" X 2-1/2\" X 12'",ppf:3.85,len:12.0},
+ "10-61-350":{d:"1/4\" X 3\" X 12'",ppf:4.7,len:12.0},
+ "10-63-345":{d:"1/4 X 4 X 20'",ppf:6.0,len:20.0},
+ "10-61-360":{d:"1/4 X 5 X 12'",ppf:7.5,len:12.0},
+ "10-63-350":{d:"1/4 X 6 X 20'",ppf:9.4,len:20.0},
+ "10-63-280":{d:"3/16\" X 2\" X 20'",ppf:2.35,len:20.0},
+ "10-63-285":{d:"3/16\" X 3\" X 20'",ppf:3.65,len:20.0},
+ "10-61-370":{d:"1/4 X 8 X 12'",ppf:12.0,len:12.0},
+ "10-61-375":{d:"1/4\" X 10\" X 12'",ppf:15.0,len:12.0},
+ "33-61-100":{d:"1/4\" X 12\" X 12'",ppf:19.25,len:12.0},
+ "18-63-225":{d:"1\" SCH 40 X 20'",ppf:3.0,len:20.0},
+ "18-63-235":{d:"1-1/2\" SCH 40 X 20'",ppf:4.75,len:20.0},
+ "14-63-215":{d:"1/2\" DIA X 20'",ppf:1.2,len:20.0},
+ "11-63-269":{d:"1 X 1 1/2 X 1/8 X 20'",ppf:1.8,len:20.0},
+ "11-63-365":{d:"1 X 2 X 1/16 X 20'",ppf:1.1,len:20.0},
+ "11-63-370":{d:"1 X 2 X 1/8 X 20'",ppf:2.25,len:20.0},
+ "11-63-410":{d:"1 1/2 X 2 X 1/8 X 20'",ppf:2.65,len:20.0},
+ "11-63-375":{d:"1 X 3 X 1/8 X 20'",ppf:3.0,len:20.0},
+ "11-63-390":{d:"2 X 3 X 1/8 X 20'",ppf:3.9,len:20.0},
+ "11-63-395":{d:"2 X 4 X 1/8 X 20'",ppf:4.5,len:20.0},
+ "11-63-396":{d:"2 X 4 X 1/4 X 20'",ppf:8.8,len:20.0},
+ "11-63-405":{d:"2 X 5 X 1/8 X 20'",ppf:5.75,len:20.0},
+ "11-63-415":{d:"2\" X 7\" X 1/4\" X 20'",ppf:14.0,len:20.0},
+ "11-63-230":{d:"1 X 1 X 3/16 X 20'",ppf:2.2,len:20.0},
+ "11-63-320":{d:"2 X 2 X 3/16 X 20'",ppf:4.4,len:20.0},
+ "11-63-325":{d:"2 X 2 X 1/4 X 20'",ppf:5.65,len:20.0},
+ "11-63-330":{d:"3 X 3 X 1/8 X 20'",ppf:4.5,len:20.0},
+ "50-03-214":{d:".080 X 60 X 120",ppf:241,len:1.0},
+ "50-03-600":{d:".080 X 72 X 120",ppf:306.0,len:1.0},
+ "50-03-630":{d:".080 X 72 X 144",ppf:370.0,len:1.0},
+ "50-03-129":{d:".090 X 48 X 96",ppf:172,len:1.0},
+ "88-00-240":{d:".090 X 60 X 144",ppf:350.0,len:1.0},
+ "50-03-173":{d:".125 X 48\" X 96\"",ppf:236,len:1.0},
+ "50-03-300":{d:".250\" X 48\" X 96\"",ppf:490,len:1.0}
+};
+function emsStick(sku){ const m=EMS[sku]; return m ? m.ppf*m.len : 0; }   // $ per full stock length
+function emsLen(sku){ const m=EMS[sku]; return m ? m.len : 24; }          // stock length (ft)
+function emsDesc(sku){ const m=EMS[sku]; return m ? m.d : '(not in price book)'; }
+
+/* Canopy framing recipe — each member points at a real SKU in the price book above. */
+const CM = {
+ pan6:   { sku:'56-63-015', cover:0.5 },
+ pan8:   { sku:'56-63-046', cover:0.667 },
+ fascia6:{ sku:'56-63-033' }, fascia8:{ sku:'56-63-016' }, fascia10:{ sku:'56-63-043' }, fascia12:{ sku:'56-63-042' },
+ support14:{ sku:'20-63-235' },                         // 1x4 front/rear support — 10" & 12" face (per Mike, 07/2026)
+ support12:{ sku:'20-63-225' },                         // 1x2 front/rear support — 6" & 8" face (per Mike, 07/2026)
+ support16:{ sku:'20-63-237' },                         // 1x6x.125 REAR support — 12" face (per Mike, 08/2026)
+ tierod1:{ sku:'18-63-225' },
+ sleeve125:{ sku:'18-63-235' },                         // 1-1/2" Sch40 sleeve over the 1" tie-rod
+ plate:{ sku:'10-63-350', platesPerUnit:40 },           // 6x6x1/4 wall plates sheared from 1/4"x6"x20' bar (40/bar) — STANDARD all canopies (per Mike)
+ topplate56:{ sku:'10-63-350', platesPerUnit:48 },      // 5x6x1/4 canopy top plate (tie-rod) — 6" & 8" face (per Mike)
+ topplate25:{ sku:'10-61-360', platesPerUnit:72 },      // 2x5x1/4 canopy top plate (tie-rod) — 10" & 12" face (per Mike)
+ rodbar22:{ sku:'19-61-212' },                          // 2x2x1/4 tie-rod support bar across width — 12" face only, 8.5" from front to CL (per Mike)
+ angle33:{ sku:'11-63-330' },                           // 3x3x1/8 angle — scupper brackets, (3) 4"-long per downspout (per DXF corpus)
+ outrig22:{ sku:'11-63-320' },                          // 2x2x3/16 outrigger (optional / on request)
+ downspout22:{ sku:'19-63-210' },                       // 2x2x1/8 square tube — downspout (default)
+ downspout23:{ sku:'20-63-275' },                       // 2x3x1/8 tube — downspout on 10"+ fascia jobs
+ cchannel:{ sku:'50-03-300', yieldFt:96 }               // C-channel brake-formed from 1/4"x4'x8' plate (~96 lin ft/sheet)
+};
+const DS_DROP_FT = 8;   // feet of downspout tube per drop (typical straight downspout)
+// Framing material costing method:
+//   'stick' = buy whole sticks (charge full stock length even if part is drop) — real PO cost.
+//   'prop'  = proportional / lineal-foot: charge only the feet consumed (+ kerf) × waste allowance.
+const CM_COST_MODE = 'prop';    // proportional lineal-foot costing (per Mike, 07/2026)
+const CM_KERF_FT   = 1/12;      // saw kerf per cut (~1")
+const CM_WASTE     = 1.05;      // drop/waste multiplier for 'prop' mode — +5% (owner-confirmed, 07/2026)
+const CM_FAS = {6:'fascia6',8:'fascia8',10:'fascia10',12:'fascia12'};
+const CM_LABOR = { weldHrPerSqft:0.08, prepHrPerSqft:0.06, paintHrPerSqft:0.06, rate:65 };
+const CM_PAINTMAT = 4;   // $/sqft
+const CM_FREIGHT = 0.05; // % of material
+const CM_MISC_PCT = 0.03;   // fasteners / misc, +3% on framing
+// SKU -> role, for tagging which price-book items the canopy recipe actually uses.
+function recipeSkuRoles(){
+  const roles={
+    pan6:'Roof pan 6"', pan8:'Roof pan 8"', fascia6:'Fascia 6"', fascia8:'Fascia 8"',
+    fascia10:'Fascia 10"', fascia12:'Fascia 12"', support14:'1×4 support', support12:'1×2 support', support16:'1×6 rear support',
+    tierod1:'Tie-rod', sleeve125:'Tie-rod sleeve', plate:'Wall plate', outrig22:'Outrigger',
+    topplate56:'Top plate 5×6', topplate25:'Top plate 2×5', rodbar22:'Rod support bar', angle33:'Scupper angle'
+  };
+  const map={};
+  Object.keys(CM).forEach(k=>{ if(CM[k] && CM[k].sku) map[CM[k].sku]=roles[k]||k; });
+  return map;
+}
+// first-fit-decreasing nesting of piece lengths into stock sticks (1" kerf per cut)
+function cmFfd(pieces, stock){
+  pieces=[...pieces].sort((a,b)=>b-a); let bins=[];
+  for(const p of pieces){ let done=false;
+    for(let i=0;i<bins.length;i++){ if(bins[i]>=p+1/12){ bins[i]-=(p+1/12); done=true; break; } }
+    if(!done) bins.push(stock-p-1/12);
+  }
+  return bins.length;
+}
+// Per-leg tie-rod counts: auto = one per 4'-5' of width (+1); a manual override (spec.arms
+// 2–16, per Mike 08/05/26) is distributed across legs by width. Shared by the margin engine,
+// the shop BOM sheet, and the drawings so every count agrees.
+function rodPerLeg(legs, arms){
+  let per = legs.map(l=>Math.ceil(l.w/5)+1);
+  if(arms>0){
+    const totW = legs.reduce((a,l)=>a+l.w,0)||1;
+    per = legs.map(l=>Math.max(1, Math.floor(arms*l.w/totW)));
+    let rem = arms - per.reduce((a,b)=>a+b,0);
+    const order = legs.map((l,i)=>i).sort((a,b)=>legs[b].w-legs[a].w);
+    let g = 0;
+    while(rem>0){ per[order[g%order.length]]++; rem--; g++; }
+    while(rem<0 && g<64){ const j = order[order.length-1-(g%order.length)]; if(per[j]>1){ per[j]--; rem++; } g++; }
+  }
+  return per;
+}
+// True cost for one canopy line item (all qty). Also returns an itemized `lines` cut sheet
+// built from the SAME math, so the breakdown can never disagree with the margin number.
+function canopyTrueCost(spec, mode){
+  mode = mode || CM_COST_MODE;   // 'stick' = whole-stick purchasing · 'prop' = lineal-foot proportional
+  if(!spec) return {material:0,labor:0,finish:0,freight:0,cost:0,sqft:0,lines:[],qty:1,framingPU:0,miscPU:0,dsPU:0,ccPU:0};
+  const face = spec.face||8, qty = spec.qty||1;
+  const legs = (spec.mitered && spec.legs && spec.legs.length)
+    ? spec.legs.map(l=>({w:l.wFt||0,p:l.pFt||0}))
+    : [{w:spec.widthFt||0,p:spec.projFt||0}];
+  const N = legs.length;
+  const pan = CM[spec.panKey||'pan6'];
+  const fasc = CM[CM_FAS[face]||'fascia8'];
+  const lines = [];
+  const stick = (role, sku, pieces, note) => {
+    const per = emsStick(sku);
+    let c, qtyText;
+    if(mode==='prop'){
+      const lf = pieces.reduce((a,p)=>a+p+CM_KERF_FT,0) * CM_WASTE;   // feet used + kerf, padded for drop waste
+      const ppf = per / emsLen(sku);                                  // $/ft
+      c = lf*ppf;
+      qtyText = (lf*qty).toFixed(1)+' ft';
+      lines.push({ role, sku, desc:emsDesc(sku), note, qtyText, unitText:'$'+ppf.toFixed(2)+'/ft', costPU:c, cat:'framing' });
+      return c;
+    }
+    const s = cmFfd(pieces, emsLen(sku)); c = s*per; const js=s*qty;
+    lines.push({ role, sku, desc:emsDesc(sku), note, qtyText:js+' stick'+(js===1?'':'s'), unitText:'$'+per.toFixed(2)+'/stick', costPU:c, cat:'framing' });
+    return c;
+  };
+  let framingPU = 0;
+  // Pans (per Mike, 07/2026): W × P × 2 = total lineal ft of 6" pan (area ÷ pan cover),
+  // + the 5% drop rule, ÷ 24' stock for stick count. No per-piece kerf/roundup.
+  const panArea = legs.reduce((a,l)=>a+l.w*l.p,0);
+  const panLf0 = panArea/(pan.cover||0.5);
+  const panLf  = panLf0*CM_WASTE;
+  const panPpf = emsStick(pan.sku)/emsLen(pan.sku);
+  const panSticks = Math.ceil((panLf*qty)/emsLen(pan.sku));
+  const panCost = panLf*panPpf;
+  lines.push({ role:'Roof pans', sku:pan.sku, desc:emsDesc(pan.sku), note:`W×P×2 = ${(panLf0*qty).toFixed(1)} ft + 5% drop ÷ ${emsLen(pan.sku)}′ = ${panSticks} sticks`, qtyText:(panLf*qty).toFixed(1)+' ft', unitText:'$'+panPpf.toFixed(2)+'/ft', costPU:panCost, cat:'framing' });
+  framingPU += panCost;
+  // fascia wraps the FULL perimeter: front + rear runs on every leg, plus the two exposed ends
+  let fp=[]; legs.forEach(l=>{ fp.push(l.w); fp.push(l.w); }); fp.push(legs[0].p); fp.push(legs[N-1].p);
+  framingPU += stick(`Gutter fascia ${face}"`, fasc.sku, fp, `${fp.length*qty} pcs · full perimeter · mitred corners`);
+  // supports per Mike: 6"/8" face = 1×2 front & rear · 10" = 1×4 front & rear · 12" = 1×4 FRONT + 1×6 REAR
+  if(face>=12){
+    let spF=[]; legs.forEach(l=>spF.push(l.w));
+    framingPU += stick('1×4 front support', CM.support14.sku, spF, `${spF.length*qty} pcs`);
+    let spR=[]; legs.forEach(l=>spR.push(l.w));
+    framingPU += stick('1×6 rear support', CM.support16.sku, spR, `${spR.length*qty} pcs`);
+  } else {
+    const sup = (face<=8) ? CM.support12 : CM.support14;
+    let sp=[]; legs.forEach(l=>{ sp.push(l.w); sp.push(l.w); });
+    framingPU += stick((face<=8?'1×2':'1×4')+' front/rear support', sup.sku, sp, `${sp.length*qty} pcs`);
+  }
+  let pts=0; legs.forEach(l=>pts+=Math.ceil(l.w/2)+1);
+  if((spec.attach||'')==='tierod'){
+    const rodPer = rodPerLeg(legs, spec.arms||0);
+    let tp=[], rbAll=[]; legs.forEach((l,li)=>{ const n=rodPer[li]; for(let k=0;k<n;k++){ tp.push(l.p+3); rbAll.push(l.p); } });
+    framingPU += stick('Tie-rods (1" Sch40)', CM.tierod1.sku, tp, `${tp.length*qty} rods @ ${(legs[0].p+3).toFixed(1)}′`);
+    framingPU += stick('Tie-rod sleeves (2′ ea)', CM.sleeve125.sku, tp.map(()=>2), `${tp.length*qty} sleeves × 2′`);
+    // canopy top plates — one per rod (per Mike): 5×6×¼ on 6"/8" face · 2×5×¼ on 10"/12"
+    const tpM = (face<=8) ? CM.topplate56 : CM.topplate25;
+    const tpSz = (face<=8) ? '5×6×¼' : '2×5×¼';
+    const tpPer = emsStick(tpM.sku)/tpM.platesPerUnit;
+    const tpCost = tp.length*tpPer;
+    lines.push({ role:`Canopy top plates (${tpSz})`, sku:tpM.sku, desc:emsDesc(tpM.sku), note:`${tp.length*qty} plates (1/rod) · ${tpM.platesPerUnit}/bar`, qtyText:(tp.length*qty)+' plates', unitText:'$'+tpPer.toFixed(2)+'/plate', costPU:tpCost, cat:'framing' });
+    framingPU += tpCost;
+    // 12" canopies: 2×2×¼ bars run FRONT TO BACK — ONE PER TIE ROD (per Mike, 08/2026)
+    if(face>=12){
+      framingPU += stick('2×2×¼ rod support bars', CM.rodbar22.sku, rbAll, `${rbAll.length*qty} bars @ ${legs[0].p.toFixed(1)}′ · 1/rod · front-to-back`);
+    }
+  }
+  // Wall plates: 6x6x1/4 standard — tie-rod jobs ONE PER ROD; all-thread jobs anchor into blocking (none).
+  const platesPerBar = CM.plate.platesPerUnit;
+  const platePer = emsStick(CM.plate.sku)/platesPerBar;
+  const plateN = (spec.attach||'')==='tierod' ? rodPerLeg(legs, spec.arms||0).reduce((a,b)=>a+b,0) : 0;
+  if(plateN>0){
+    const plateCost = plateN*platePer;
+    lines.push({ role:'Wall plates (6×6×¼)', sku:CM.plate.sku, desc:emsDesc(CM.plate.sku), note:`${plateN*qty} plates (1/rod) · ${platesPerBar}/bar`, qtyText:(plateN*qty)+' plates', unitText:'$'+platePer.toFixed(2)+'/plate', costPU:plateCost, cat:'framing' });
+    framingPU += plateCost;
+  }
+  // Anchors/hardware EXCLUDED from margin for now (no real pricing yet — Mike to supply).
+  lines.push({ role:'Anchors / hardware', sku:'—', desc:'1/2" all-thread + nuts/lags — NOT COSTED yet', note:`${pts*qty} anchor points · excluded from margin`, qtyText:(pts*qty)+' pts', unitText:'—', costPU:0, cat:'framing' });
+  if(spec.outrig){ let op=[]; legs.forEach(l=>{ const n=Math.ceil(l.w/(spec.outsp||7))+1; for(let k=0;k<n;k++) op.push(l.p); }); framingPU += stick('Outriggers', CM.outrig22.sku, op, `${op.length*qty} pcs`); }
+  const miscPU = framingPU*CM_MISC_PCT;
+  // Downspouts & C-channel — material only, sized from real SKUs in the price book.
+  const dsSku = (face>=10) ? CM.downspout23.sku : CM.downspout22.sku;
+  const dsN = (spec.downspoutPerUnit||0);
+  const dsPpf = EMS[dsSku] ? EMS[dsSku].ppf : 0;
+  let dsPU = dsN * (dsPpf * DS_DROP_FT);
+  if(dsN>0){
+    lines.push({ role:'Downspouts', sku:dsSku, desc:emsDesc(dsSku), note:`${dsN*qty} drops × ${DS_DROP_FT}′`, qtyText:(dsN*DS_DROP_FT*qty).toFixed(0)+' ft', unitText:'$'+dsPpf.toFixed(2)+'/ft', costPU:dsPU, cat:'acc' });
+    // scupper brackets: (3) 4"-long 3×3×⅛ angle per downspout = 1 ft/drop
+    const angPpf = emsStick(CM.angle33.sku)/emsLen(CM.angle33.sku);
+    const angPU = dsN * 1 * angPpf;
+    lines.push({ role:'Downspout collector brackets', sku:CM.angle33.sku, desc:emsDesc(CM.angle33.sku), note:`${dsN*3*qty} pcs @ 4″ (3/drop) · per drawings`, qtyText:(dsN*qty).toFixed(0)+' ft', unitText:'$'+angPpf.toFixed(2)+'/ft', costPU:angPU, cat:'acc' });
+    dsPU += angPU;
+  }
+  const ccFt = (spec.cchannelPerUnit||0);
+  const ccPerFt = emsStick(CM.cchannel.sku)/CM.cchannel.yieldFt;
+  const ccPU = ccFt*ccPerFt;
+  if(ccFt>0) lines.push({ role:'C-channel (LED)', sku:CM.cchannel.sku, desc:emsDesc(CM.cchannel.sku), note:`${(ccFt*qty).toFixed(1)} ft · ¼×4×8 sheet ÷ ${CM.cchannel.yieldFt}ft`, qtyText:(ccFt*qty).toFixed(1)+' ft', unitText:'$'+ccPerFt.toFixed(2)+'/ft', costPU:ccPU, cat:'acc' });
+
+  const materialPU = framingPU + miscPU + dsPU + ccPU;
+  const mat = materialPU*qty;
+  const sqft = legs.reduce((a,l)=>a+l.w*l.p,0)*qty;
+  const labor = sqft*(CM_LABOR.weldHrPerSqft+CM_LABOR.prepHrPerSqft+CM_LABOR.paintHrPerSqft)*CM_LABOR.rate;
+  const finish = sqft*CM_PAINTMAT;
+  const freight = mat*CM_FREIGHT;
+  return {material:mat, labor, finish, freight, cost:mat+labor+finish+freight, sqft,
+          downspoutMat: dsPU*qty, cchannelMat: ccPU*qty,
+          lines, qty, framingPU, miscPU, dsPU, ccPU, materialPU};
+}
+
+/* Margin check numbers for a quote (material-only, as the page shows them):
+   sell = Σ canopy (amount + downspouts − paint adder), mat = Σ true material. */
+function marginSummary(items, target){
+  const cans = (items||[]).filter(i=>i.type==='canopy');
+  let sell=0, mat=0, sqft=0;
+  cans.forEach(i=>{ const c=canopyTrueCost(i.spec); sell+=i.amount+(i.downspoutCost||0)-(i.paintCost||0); mat+=c.material; sqft+=c.sqft; });
+  const t = (target === undefined || target === null) ? 0.425 : target;
+  const margin = sell>0 ? (sell-mat)/sell : 0;
+  return { canopies: cans.length, sell, mat, sqft, margin, target: t, reqSell: mat/(1-t), ok: margin>=t, mult: mat>0 ? sell/mat : 0 };
+}
+
+/* ---- Price adjuster ("Set to N×" button): snap the canopy sell to material × N ----
+   Scales every canopy line's amount proportionally so total canopy sell (incl. the downspout
+   lines, EXCLUDING the $9/sqft paint adder which rides on top unchanged) lands exactly on
+   material × m. Non-canopy items, lights, posts and labor are untouched. The last canopy
+   absorbs rounding so the ex-paint total is exact. Pure: returns new item objects. */
+function applyMargin(items, m){
+  items = Array.isArray(items) ? items : [];
+  const cans = items.filter(i=>i.type==='canopy');
+  if(!cans.length) return { ok:false, reason:'Add a canopy first.', items };
+  let mat=0, amtNow=0, dsNow=0, paintNow=0;
+  cans.forEach(i=>{ mat+=canopyTrueCost(i.spec).material; amtNow+=(i.amount||0); dsNow+=(i.downspoutCost||0); paintNow+=(i.paintCost||0); });
+  const baseNow = amtNow - paintNow;
+  const sellNow = baseNow + dsNow;
+  const target = mat*m;
+  const newBaseTotal = target - dsNow;
+  const info = { m, mat, amtNow, dsNow, paintNow, baseNow, sellNow, target, newBaseTotal, multBefore: mat>0 ? sellNow/mat : 0 };
+  if(newBaseTotal <= 0 || baseNow <= 0) return Object.assign({ ok:false, reason:'Material × '+m+' is less than the downspout lines alone — cannot set.', items }, info);
+  const factor = newBaseTotal/baseNow;
+  let running=0;
+  const amounts = new Map();
+  cans.forEach((i,idx)=>{
+    const p = i.paintCost||0;
+    let amount;
+    if(idx===cans.length-1){ amount = Math.round(newBaseTotal-running) + p; }
+    else { const nb = Math.round(((i.amount||0)-p)*factor); amount = nb + p; running += nb; }
+    amounts.set(i, amount);
+  });
+  const out = items.map(i => amounts.has(i) ? Object.assign({}, i, { amount: amounts.get(i) }) : i);
+  return Object.assign({ ok:true, factor, items: out }, info);
+}
+
 /* ---------------- exports ---------------- */
+exports.EMS_QUOTE = EMS_QUOTE;
+exports.EMS = EMS;
+exports.CM = CM;
+exports.CM_CONST = { DS_DROP_FT, CM_COST_MODE, CM_KERF_FT, CM_WASTE, CM_FAS, CM_LABOR, CM_PAINTMAT, CM_FREIGHT, CM_MISC_PCT };
+exports.emsStick = emsStick;
+exports.emsLen = emsLen;
+exports.emsDesc = emsDesc;
+exports.recipeSkuRoles = recipeSkuRoles;
+exports.cmFfd = cmFfd;
+exports.rodPerLeg = rodPerLeg;
+exports.canopyTrueCost = canopyTrueCost;
+exports.marginSummary = marginSummary;
+exports.applyMargin = applyMargin;
 exports.RATES = RATES;
 exports.CONST = CONST;
 exports.OHIO_COUNTY_RATES = OHIO_COUNTY_RATES;

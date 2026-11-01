@@ -112,11 +112,19 @@ const TAKEOFF = {
     res.quotePanel = document.getElementById('quote-list').innerText;
     res.items = JSON.parse(JSON.stringify(quoteItems));
     res.state = captureQuoteState();
+    // 10) margin check + "Set to 3x" (confirm is stubbed to true) + cut sheet
+    res.marginCheckBefore = document.getElementById('mc-body').innerText;
+    setPriceToMultiple(3);
+    res.itemsAfter3x = JSON.parse(JSON.stringify(quoteItems)).map(i=>({id:i.id, type:i.type, amount:i.amount, paintCost:i.paintCost}));
+    res.totalsAfter3x = JSON.parse(JSON.stringify(lastQuoteSummary, (k,v)=>k==='groups'?undefined:v));
+    res.marginCheckAfter = document.getElementById('mc-body').innerText;
+    openCostSheet(); res.costSheet = document.getElementById('cs-body').innerText;
+    openPriceBook(); res.priceBook = document.getElementById('pb-body').innerText;
     return res;
   }, TAKEOFF);
   out.pageErrors = errors;
   await browser.close(); srv.kill();
   const outFile = process.argv[3];
   if(outFile) fs.writeFileSync(outFile, JSON.stringify(out, null, 2));
-  console.log(`${pageFile}: ${out.items.length} items, totalFar=${out.totalsFar.total} totalNear=${out.totalsNear.total} totalIN=${out.totalsIN.total} deliveryOnly=${out.totalsDeliveryOnly.total} errors=${errors.length}`);
+  console.log(`${pageFile}: ${out.items.length} items, totalFar=${out.totalsFar.total} totalNear=${out.totalsNear.total} totalIN=${out.totalsIN.total} deliveryOnly=${out.totalsDeliveryOnly.total} after3x=${out.totalsAfter3x.total} errors=${errors.length}`);
 })().catch(e=>{ console.error(e); process.exit(1); });

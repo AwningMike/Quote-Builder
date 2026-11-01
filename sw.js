@@ -9,7 +9,7 @@ const ASSETS = [
   './job_costing.html',
   './quote_dashboard.html',
   './newbase.js?v=5',
-  './engine/quote-engine.js?v=1',
+  './engine/quote-engine.js?v=2',
   './manifest.json',
   './manifest_fabric.json',
   './icon-192.png',

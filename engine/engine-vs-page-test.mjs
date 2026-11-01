@@ -5,7 +5,7 @@
 // 2) importTakeoff(TAKEOFF) must produce the same lines (title, sub, group, $, spec) as the page's import
 // 3) computeTotals(state) must equal the page's lastQuoteSummary for the captured extras
 import fs from 'node:fs';
-import { priceItem, importTakeoff, computeTotals } from './quote-engine.js';
+import { priceItem, importTakeoff, computeTotals, applyMargin, marginSummary } from './quote-engine.js';
 
 const run = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 let fails = 0;
@@ -50,4 +50,14 @@ const s = run.totalsDeliveryOnly;
 let f3 = 0;
 for(const k of Object.keys(s)) if(k !== 'hasNonCanopy' && T[k] !== s[k]){ f3++; console.log('TOTALS', k, 'page', s[k], 'engine', T[k]); }
 console.log(`3) computeTotals vs page lastQuoteSummary: ${f3} mismatches (total ${T.total} vs ${s.total})`);
-process.exit(fails + f2 + f3 ? 1 : 0);
+// 4) "Set to 3x": engine applyMargin(items, 3) vs the page's setPriceToMultiple(3)
+let f4 = 0;
+if(run.itemsAfter3x){
+  const r = applyMargin(run.items, 3);
+  r.items.forEach((e, i) => { const pg = run.itemsAfter3x[i]; if(e.amount !== pg.amount){ f4++; console.log('3x', e.title, 'page', pg.amount, 'engine', e.amount); } });
+  const T3 = computeTotals(r.items, { extraVals: st.extraVals, extraChecks: st.extraChecks });
+  if(T3.total !== run.totalsAfter3x.total){ f4++; console.log('3x total page', run.totalsAfter3x.total, 'engine', T3.total); }
+  const ms = marginSummary(r.items);
+  console.log(`4) applyMargin(items, 3) vs page Set-to-3x: ${r.items.filter(i=>i.type==='canopy').length} canopy lines — ${f4} mismatches (material $${ms.mat.toFixed(2)}, sell ex-paint $${ms.sell}, multiple ${ms.mult.toFixed(4)}x, total ${T3.total})`);
+}
+process.exit(fails + f2 + f3 + f4 ? 1 : 0);
