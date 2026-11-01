@@ -118,7 +118,7 @@ function _nbInitUi(){
     _nbRenderBadge();
   }
   const oldBtn = [...document.querySelectorAll('button')].find(b => (b.getAttribute('onclick') || '').indexOf('pushToCurrentBase()') >= 0);
-  if (oldBtn) { oldBtn.textContent = '⬆ Upload to OLD base (APMG Projects)'; oldBtn.style.background = '#6b7280'; }
+  if (oldBtn) { oldBtn.textContent = 'Old base upload (retired 10/30/26)'; oldBtn.title = 'APMG Projects base — retired for bids. Asks before uploading.'; }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _nbInitUi); else _nbInitUi();
 
@@ -685,5 +685,33 @@ if (typeof openAirtableSettings === 'function') {
       const b = document.createElement('button'); b.className = 'dm-download'; b.id = 'nb-backfill'; b.textContent = 'Backfill line items & blanks'; b.onclick = () => nbBackfillUi();
       ref.parentNode.insertBefore(b, ref.nextSibling); ref.parentNode.insertBefore(a, ref.nextSibling);
     }
+  };
+}
+
+/* =========================================================================
+   v5 — CLOUD SAVE  (💾 Save also writes the editable state to the linked job)
+   Device saves stay instant and local. If the quote is linked to a job in the
+   new base, the same save ALSO writes "Quote Builder State" on that job, so the
+   quote can be reopened from any computer (Quotes → From Airtable → Open).
+   State only: no line items, no price, no status change — Upload still does that.
+   ========================================================================= */
+async function nbCloudSaveState(){
+  const quoteId = nbLinkedId(); const token = _atToken();
+  if (!quoteId || !token) return false;
+  const f = {}; f[NB.q.state] = JSON.stringify(captureQuoteState());
+  await _nbJson(await fetch(_nbApi(NB.t.quotes, '/' + quoteId), { method: 'PATCH', headers: _nbH(token), body: JSON.stringify({ fields: f }) }));
+  return true;
+}
+if (typeof saveQuoteToDevice === 'function') {
+  const _nbOrigSave = saveQuoteToDevice;
+  window.saveQuoteToDevice = function(){
+    const before = (_lsQuotes() || []).length, beforeStr = JSON.stringify(_lsQuotes() || []);
+    _nbOrigSave();
+    if (JSON.stringify(_lsQuotes() || []) === beforeStr) return;   // user cancelled, nothing saved
+    nbCloudSaveState().then(ok => {
+      if (!ok) return;
+      const b = document.getElementById('save-quote-btn');
+      if (b) { const t = b.textContent; b.textContent = 'Saved ✓ + cloud'; setTimeout(() => b.textContent = t, 1600); }
+    }).catch(e => alert('Saved on this device, but the cloud copy failed: ' + e.message));
   };
 }
