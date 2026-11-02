@@ -30,6 +30,10 @@ function routes(opts) {
     { method: 'GET', match: BASE + NB.t.reqs + '/recREQ', respond: { id: 'recREQ', fields: { [R.address]: '77 Blackburn Lane' } } },
     { method: 'PATCH', match: BASE + NB.t.reqs, respond: { records: [] } },
     { method: 'POST', match: BASE + NB.t.reqs, respond: { records: [{ id: 'recREQ00000000002' }] } },
+    { method: 'GET', match: BASE + NB.t.contacts, respond: opts.contactHit ? { records: [{ id: 'recCONTACT000001', fields: {} }] } : { records: [] } },
+    { method: 'POST', match: BASE + NB.t.contacts, respond: { records: [{ id: 'recCONTACTNEW001' }] } },
+    { method: 'GET', match: BASE + NB.t.companies, respond: opts.companyHit ? { records: [{ id: 'recCOMPANY000001', fields: {} }] } : { records: [] } },
+    { method: 'POST', match: BASE + NB.t.companies, respond: { records: [{ id: 'recCOMPANYNEW001' }] } },
   ];
 }
 
@@ -49,6 +53,11 @@ test('push to a linked record: GET quote → GET inventory → DELETE old lines 
     'PATCH ' + NB.t.quotes,
     'GET ' + NB.t.reqs + '/recREQ00000000001',
     'PATCH ' + NB.t.reqs,
+    'GET ' + NB.t.contacts,        // customer by email (bids@deohio.com) — not found
+    'GET ' + NB.t.companies,       // Derek, Inc. — not found
+    'POST ' + NB.t.companies,      // created
+    'POST ' + NB.t.contacts,       // created, linked to the company
+    'PATCH ' + NB.t.reqs,          // contact + company linked on the Quote Request
   ]);
   // every call carries the bearer token and nothing else leaks
   f.calls.forEach(c => assert.equal(c.headers.Authorization, 'Bearer pat.fake.token'));
@@ -175,4 +184,39 @@ test('serializeLines / scaleLines / projectNameForUpload / resolveInv behave lik
   assert.equal(resolveInv('C-Channel', 'cchannel', { cchannel: 'recLIVE' }), 'recLIVE');
   assert.equal(resolveInv('C-Channel', 'cchannel', {}), INV_SEED.cchannel);
   assert.equal(resolveInv('Nothing', 'nothing', {}), null);
+});
+
+test("contacts rule: customer found by email + company found -> only linked; nothing created", async () => {
+  const f = fakeFetch(routes({ contactHit: true, companyHit: true }));
+  const priced = await priceTakeoff(takeoff, { miles: 144 }, ENV, { now: NOW });
+  const r = await pushQuote(priced, { recordId: 'recUJElazgmmRxcWx', markSent: false }, ENV, { fetch: f, now: NOW });
+  const seq = f.calls.map(c => c.method + ' ' + c.url.replace(BASE, '').split('?')[0]);
+  assert.ok(!seq.includes('POST ' + NB.t.contacts) && !seq.includes('POST ' + NB.t.companies));
+  const emailQ = f.calls.find(c => c.url.includes(NB.t.contacts)).url;
+  assert.ok(decodeURIComponent(emailQ).includes("LOWER({Email})='bids@deohio.com'"));
+  const link = f.calls.filter(c => c.method === 'PATCH' && c.url.includes(NB.t.reqs)).pop().body.records[0];
+  assert.equal(link.id, 'recREQ00000000001');
+  assert.deepEqual(link.fields[R.contacts], ['recCONTACT000001']);
+  assert.deepEqual(link.fields[R.companies], ['recCOMPANY000001']);
+  assert.ok(r.steps.some(s => /contact .*found, company found, linked on the Quote Request/.test(s)), r.steps.join(' | '));
+});
+
+test('contacts rule: missing customer is created with email, phone, company link and a note; already-linked request is left alone', async () => {
+  const f = fakeFetch(routes({ companyHit: true }));
+  const priced = await priceTakeoff(takeoff, { miles: 144 }, ENV, { now: NOW });
+  await pushQuote(priced, { recordId: 'recUJElazgmmRxcWx', markSent: false }, ENV, { fetch: f, now: NOW });
+  const created = f.calls.find(c => c.method === 'POST' && c.url.includes(NB.t.contacts)).body;
+  assert.equal(created.typecast, true);
+  const cf = created.records[0].fields;
+  assert.equal(cf[NB.c.name], 'bids@deohio.com');       // takeoff has no person name -> email stands in
+  assert.equal(cf[NB.c.email], 'bids@deohio.com');
+  assert.equal(cf[NB.c.phone], '(513) 667-2351');
+  assert.deepEqual(cf[NB.c.companies], ['recCOMPANY000001']);
+  assert.ok(/Added by the quote service 2026-11-01/.test(cf[NB.c.notes]));
+  // request already linked to this contact + company -> no second PATCH
+  const f2 = fakeFetch(routes({ contactHit: true, companyHit: true }).map(r => r.match === BASE + NB.t.reqs + '/recREQ' ? Object.assign({}, r, { respond: { id: 'recREQ', fields: { [R.address]: '77 Blackburn Lane', [R.contacts]: ['recCONTACT000001'], [R.companies]: ['recCOMPANY000001'] } } }) : r));
+  const r2 = await pushQuote(priced, { recordId: 'recUJElazgmmRxcWx', markSent: false }, ENV, { fetch: f2, now: NOW });
+  const patches = f2.calls.filter(c => c.method === 'PATCH' && c.url.includes(NB.t.reqs));
+  assert.equal(patches.length, 1);   // only the blanks fill, no link patch
+  assert.ok(r2.steps.some(s => /already linked/.test(s)));
 });

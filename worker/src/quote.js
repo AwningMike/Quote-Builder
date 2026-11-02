@@ -155,7 +155,8 @@ export async function priceTakeoff(takeoff, options, env, deps) {
     items: JSON.parse(JSON.stringify(items)),
     hdr, extraVals: pick(extraVals, EXTRA_VALS), extraChecks: pick(extraChecks, EXTRA_CHECKS),
   };
-  return { items, totals, state, margin, marginInfo, warnings, steps, oneWayMiles: oneWay, imported: { added: imp.added, skipped: imp.skipped, info: imp.info } };
+  return { items, totals, state, margin, marginInfo, warnings, steps, oneWayMiles: oneWay, imported: { added: imp.added, skipped: imp.skipped, info: imp.info },
+    customer: Object.assign({}, job.customer || {}), gc: job.gc || '' };
 }
 function pick(o, keys) { const out = {}; keys.forEach(k => out[k] = o[k]); return out; }
 export { CONST };

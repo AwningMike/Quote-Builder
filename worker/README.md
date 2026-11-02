@@ -191,3 +191,10 @@ Replace `/quote` with `/price` to see the numbers without writing to Airtable.
   needs the page's Installer Pay feed; the worker writes the material-only snapshot and leaves
   Labor Cost / Travel Cost / Margin w/ Labor blank.
 - UI only: job picker, badges, confirm dialogs, cloud save on 💾, price sync, backfill.
+
+## Contacts rule (Mike, 11/2/26)
+Every `/quote` push makes sure the takeoff's customer exists in **Contacts** (matched by email, then exact
+name; created with email, phone, company link and a note if missing), that their company exists in
+**Companies** (existing spelling first, else created as a General Contractor), and that both are linked on
+the job's Quote Request. Links are only added, never removed. Failures here are reported in `steps` and
+never fail the push. The bid follow-up automations key off these links.
