@@ -9,7 +9,8 @@ import { todayISO } from './quote.js';
 
 export const NB = {
   baseId: 'appgkGZ1G6YeHOVAi',            // Flow Digital Migration Base (live)
-  t: { quotes: 'tbluonHEUpfEp64Ze', reqs: 'tblEVnvT3rVK50Xe6', lines: 'tbl6lzqYtBTDFR3KX', inv: 'tblfsAblcEvPFWbKK' },
+  t: { quotes: 'tbluonHEUpfEp64Ze', reqs: 'tblEVnvT3rVK50Xe6', lines: 'tbl6lzqYtBTDFR3KX', inv: 'tblfsAblcEvPFWbKK',
+       contacts: 'tblNtBzva0KpqxL8Y', companies: 'tblkiLjf8nRgJKF3c' },
   q: {  // Quotes/Work Orders
     name: 'fldFG9G78g04eHdxo', type: 'fldyuEW1nUiYWZkeB', reqLink: 'fldJ6M9OyUmH66kEn', lineLink: 'fldBjdHC0Y9HLiWgx',
     state: 'fldd7zyICqmX7xnxJ', sqft: 'fldxJJjfxP9n2uxWs', distance: 'fld54Ggr8d7MXu7AN', pdf: 'fldqoBvjSCGlbERe1',
@@ -23,8 +24,13 @@ export const NB = {
   r: {  // Quote Requests
     projName: 'fldt6IkbytVXaoPlo', address: 'fldYtcQCEJnsoTvfY', city: 'fldii344bPuQWXduV', state: 'fldT1HtAR8jzyaIlc',
     zip: 'fldQZJuNgpyryB0iv', details: 'fld5zK52jpWKcJEpc', bidDue: 'fldxd04HylKNmP3Rj', distance: 'fldzPdTK28j1aLXgN',
-    customer: 'fldJQm29Xtu2woqGK',
+    customer: 'fldJQm29Xtu2woqGK', contacts: 'fldwNANFYxAterebU', companies: 'fldPzg1t85Thwcp7C',
   },
+  c: {  // Contacts (field NAMES are needed for filterByFormula)
+    name: 'fldyhtzesrfamuYcr', email: 'fld9R3Dcul6sy9S8N', phone: 'fldbq1LQ9Y8PVwm0w', role: 'fld0tvsQHc3B3Z2vG',
+    notes: 'fldDRSzLbCb8iUHuC', companies: 'fldGwho29UhOxokLD', nameField: 'Name', emailField: 'Email',
+  },
+  co: { name: 'fldCleC7k1bZSHGeB', type: 'flduDNqweeRlSG7LT', nameField: 'Name' },
   li: { parent: 'fldtaiuuiYPmdAlHA', qty: 'fldRfSY9Wgh2K4h27', inv: 'fldEw0ChyiUpv6vgj', desc: 'fldRzlvWQmnrH0d97', total: 'fldq6hiF98nOSZVCy' },
   invName: 'fldfLIGLTdzyEQWop',             // Quote Inventory "Name" (NB_INV.qi.name)
   pmUser: 'usrbYftDso64IrJbg',              // Mike Sommer — PM on jobs the builder creates
@@ -216,6 +222,70 @@ export async function createJob(at, state, now) {
 }
 
 /* pushToAirtable() — returns { quoteId, name, created, steps } */
+/* Mike's rule: every customer on a quote must exist in Contacts (and their company in Companies)
+   and be linked on the Quote Request, so the bid follow-up automations have someone to write to.
+   Match by email first, then exact name; create what is missing; link; never unlink anything. */
+const fml = s => String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+export function customerFromTakeoff(customer, gc, hdr) {
+  const c = Object.assign({}, customer || {});
+  hdr = hdr || {};
+  if (!c.email && hdr['hdr-custemail']) c.email = hdr['hdr-custemail'];
+  if (!c.phone && hdr['hdr-custphone']) c.phone = hdr['hdr-custphone'];
+  if (!c.company && gc) c.company = gc;
+  ['name', 'company', 'email', 'phone'].forEach(k => { c[k] = String(c[k] || '').trim(); });
+  c.email = c.email.toLowerCase();
+  return c;
+}
+export async function ensureContact(at, reqId, reqFields, customer, jobName, now) {
+  const C = NB.c, CO = NB.co, R = NB.r;
+  const out = { contactId: null, companyId: null, createdContact: false, createdCompany: false, linked: false };
+  if (!customer || (!customer.email && !customer.name)) return out;
+  // 1) contact: by email, then by exact name
+  let rec = null;
+  if (customer.email) {
+    const j = await at.call(at.api(NB.t.contacts, `?maxRecords=1&returnFieldsByFieldId=true&filterByFormula=${encodeURIComponent(`LOWER({${C.emailField}})='${fml(customer.email)}'`)}`));
+    rec = (j.records || [])[0] || null;
+  }
+  if (!rec && customer.name) {
+    const j = await at.call(at.api(NB.t.contacts, `?maxRecords=1&returnFieldsByFieldId=true&filterByFormula=${encodeURIComponent(`LOWER({${C.nameField}})='${fml(customer.name.toLowerCase())}'`)}`));
+    rec = (j.records || [])[0] || null;
+  }
+  // 2) company: existing spelling first, else create
+  if (customer.company) {
+    const j = await at.call(at.api(NB.t.companies, `?maxRecords=1&filterByFormula=${encodeURIComponent(`LOWER({${CO.nameField}})='${fml(customer.company.toLowerCase())}'`)}`));
+    const co = (j.records || [])[0];
+    if (co) out.companyId = co.id;
+    else {
+      const cf = {}; cf[CO.name] = customer.company; cf[CO.type] = ['General Contractor'];
+      const cr = await at.call(at.api(NB.t.companies), { method: 'POST', body: JSON.stringify({ records: [{ fields: cf }], typecast: true }) });
+      out.companyId = cr.records[0].id; out.createdCompany = true;
+    }
+  }
+  // 3) create the contact if missing
+  if (rec) out.contactId = rec.id;
+  else {
+    const f = {}; f[C.name] = customer.name || customer.email;
+    if (customer.email) f[C.email] = customer.email;
+    if (customer.phone) f[C.phone] = customer.phone;
+    if (out.companyId) f[C.companies] = [out.companyId];
+    f[C.notes] = `Added by the quote service ${todayISO(now)} from the takeoff for ${jobName || 'a quote'}.`;
+    const cr = await at.call(at.api(NB.t.contacts), { method: 'POST', body: JSON.stringify({ records: [{ fields: f }], typecast: true }) });
+    out.contactId = cr.records[0].id; out.createdContact = true;
+  }
+  // 4) link on the Quote Request (add, never remove)
+  if (reqId) {
+    const rf = {};
+    const haveC = reqFields[R.contacts] || [], haveCo = reqFields[R.companies] || [];
+    if (out.contactId && haveC.indexOf(out.contactId) < 0) rf[R.contacts] = haveC.concat([out.contactId]);
+    if (out.companyId && haveCo.indexOf(out.companyId) < 0) rf[R.companies] = haveCo.concat([out.companyId]);
+    if (Object.keys(rf).length) {
+      await at.call(at.api(NB.t.reqs), { method: 'PATCH', body: JSON.stringify({ records: [{ id: reqId, fields: rf }] }) });
+      out.linked = true;
+    }
+  }
+  return out;
+}
+
 export async function pushQuote(priced, opts, env, deps) {
   deps = deps || {};
   const fetchImpl = deps.fetch || fetch;
@@ -285,6 +355,13 @@ export async function pushQuote(priced, opts, env, deps) {
       const rq = await at.call(at.api(NB.t.reqs, '/' + reqId + '?returnFieldsByFieldId=true'));
       const rf = reqFillFromHeader(state.hdr, rq.fields || {});
       if (Object.keys(rf).length) { await at.call(at.api(NB.t.reqs), { method: 'PATCH', body: JSON.stringify({ records: [{ id: reqId, fields: rf }] }) }); steps.push('filled blank ' + Object.keys(rf).length + ' field(s) on the Quote Request'); }
+      // Mike's rule: the customer must be in Contacts and linked on the request (bid follow-up automations)
+      try {
+        const cust = customerFromTakeoff(priced.customer, priced.gc, state.hdr);
+        const c = await ensureContact(at, reqId, rq.fields || {}, cust, name, now);
+        if (c.contactId) steps.push(`contact ${cust.name || cust.email}: ${c.createdContact ? 'created' : 'found'}${c.companyId ? (c.createdCompany ? ', company created' : ', company found') : ''}${c.linked ? ', linked on the Quote Request' : ', already linked'}`);
+        else steps.push('no customer on the takeoff — Contacts not updated');
+      } catch (e) { steps.push('contact not linked: ' + e.message); }
     }
   } catch (e) { steps.push('Quote Request blanks not filled: ' + e.message); }
   steps.push('price $' + Math.round(totals.total || 0).toLocaleString('en-US') + (qf[Q.bidStatus] ? ' · Bid Status → ' + qf[Q.bidStatus] : ''));
