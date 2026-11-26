@@ -1,7 +1,7 @@
 /* Pricing pipeline: APMG_TAKEOFF v1 -> Quote Builder State (+ totals) with no DOM.
    Every dollar comes from engine/quote-engine.js (the same file the page loads), so the
    worker and the Quote Builder can never disagree on a price. */
-import { importTakeoff, applyMargin, computeTotals, CONST, EMS_QUOTE } from '../../engine/quote-engine.js';
+import { importTakeoff, applyMargin, computeTotals, buildItem, CONST, EMS_QUOTE } from '../../engine/quote-engine.js';
 import { deliveryMiles } from './geo.js';
 
 export const ENGINE_DATE = EMS_QUOTE.date;
@@ -74,6 +74,14 @@ export function multipleGCs(takeoff) {
   return w.concat(extra).some(s => MULTI_GC.test(String(s)));
 }
 
+const itemMeta = it => ({ id: it.id, title: it.title, group: it.group, lineGroup: it.lineGroup, customFasciaSub: true, takeoffNote: it.takeoffNote });
+
+/* Chipotle job? (project / ship-to name, or the GC note) */
+export function isChipotle(takeoff) {
+  const j = (takeoff && takeoff.job) || {};
+  return /chipotle/i.test([j.projectName, j.shipName, j.to].filter(Boolean).join(' '));
+}
+
 /* ---- the pipeline ---- */
 export async function priceTakeoff(takeoff, options, env, deps) {
   deps = deps || {};
@@ -90,6 +98,14 @@ export async function priceTakeoff(takeoff, options, env, deps) {
   imp.skipped.forEach(s => warnings.push('Skipped: ' + s));
   (takeoff.warnings || []).forEach(w => warnings.push(String(w)));
 
+  // (1b) Chipotle canopies NEVER get C-channel attachment (Mike's rule): switched off with a warning.
+  const chip = isChipotle(takeoff);
+  imp.items = imp.items.map(it => {
+    if (!chip || it.type !== 'canopy' || !it.spec || it.spec.attach !== 'cchannel') return it;
+    warnings.push(`${it.title}: Chipotle canopies never get C-channel attachment — C-channel removed from this line.`);
+    return buildItem('canopy', Object.assign({}, it.spec, { attach: 'tierod', cchannelPerimeter: false, cchannelPerUnit: 0 }), itemMeta(it));
+  });
+
   // (2) margin on canopy lines
   const margin = resolveMargin(options, env, imp.items);
   let items = imp.items;
@@ -101,6 +117,17 @@ export async function priceTakeoff(takeoff, options, env, deps) {
     items = r.items; marginInfo = { m: margin, material: r.mat, factor: r.factor, sellBefore: r.sellNow, sellTarget: r.target };
     steps.push(`margin ${margin}× on ${cans.length} canopy line(s) (material $${Math.round(r.mat).toLocaleString()} → canopy sell $${Math.round(r.target).toLocaleString()})`);
   } else steps.push('no canopy lines — margin not applied (fabric/other lines price from the rate card)');
+
+  // (2b) C-channel: a canopy carried as attach "cchannel" gets full-perimeter C-channel (Width + 2 x Projection)
+  // at the rate card's $/ft, added AFTER the margin (the margin's material recipe has no C-channel, so adding
+  // it before would be wiped out by the re-snap). Same result as ticking "C-Channel auto - full perimeter".
+  items = items.map(it => {
+    if (it.type !== 'canopy' || !it.spec || it.spec.attach !== 'cchannel') return it;
+    const nb = buildItem('canopy', Object.assign({}, it.spec, { cchannelPerimeter: true }), itemMeta(it));
+    const add = Math.round((nb.bd && nb.bd.cchannelCost) || 0);
+    steps.push(`C-channel on ${it.title}: ${Math.round(nb.bd.cchannelFt)} lin ft (full perimeter) +$${add.toLocaleString()}`);
+    return Object.assign({}, it, { spec: nb.spec, bd: nb.bd, amount: (it.amount || 0) + add });
+  });
 
   // (3) miles: options.miles is ONE-WAY; extra-miles holds ROUND TRIP (page convention)
   const job = takeoff.job || {};

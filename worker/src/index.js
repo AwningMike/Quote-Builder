@@ -1,11 +1,11 @@
 /* apmg-quote-service — APMG_TAKEOFF JSON -> priced quote -> Airtable, no browser.
-   GET  /health          -> { ok, engine, version }
+   GET  /health          -> { ok, engine, version }   (?deep=1 adds an Airtable token check)
    POST /quote           -> price + push to Airtable (Authorization: Bearer QUOTE_API_KEY)
    POST /price           -> same, push forced off (pure pricing) */
 import { priceTakeoff, QuoteError, ENGINE_DATE } from './quote.js';
-import { pushQuote } from './airtable.js';
+import { pushQuote, airtableHealth } from './airtable.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 const DEFAULT_ORIGIN = 'https://awningmike.github.io';
 
 function corsHeaders(env, req) {
@@ -64,7 +64,11 @@ export default {
     const url = new URL(req.url);
     const cors = corsHeaders(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-    if (url.pathname === '/health' && req.method === 'GET') return json({ ok: true, engine: ENGINE_DATE, version: VERSION }, 200, cors);
+    if (url.pathname === '/health' && req.method === 'GET') {
+      // ?deep=1 also checks that the Airtable token can read the base (what /quote needs). No secrets returned.
+      if (url.searchParams.get('deep')) { const a = await airtableHealth(env); return json({ ok: a.ok, engine: ENGINE_DATE, version: VERSION, airtable: a }, 200, cors); }
+      return json({ ok: true, engine: ENGINE_DATE, version: VERSION }, 200, cors);
+    }
     if (url.pathname === '/quote' || url.pathname === '/price') {
       if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405, cors);
       if (!authorized(req, env)) return json({ ok: false, error: 'Unauthorized' }, 401, cors);
