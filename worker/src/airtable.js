@@ -178,7 +178,7 @@ function client(env, fetchImpl) {
   async function call(url, init) {
     const r = await fetchImpl(url, Object.assign({ headers: H }, init || {}));
     let b = {}; try { b = await r.json(); } catch (e) {}
-    if (!r.ok || b.error) { const msg = (b.error && (b.error.message || b.error.type)) || ('HTTP ' + r.status); throw Object.assign(new Error('Airtable: ' + msg), { status: 502 }); }
+    if (!r.ok || b.error) { const msg = (b.error && (b.error.message || b.error.type)) || ('HTTP ' + r.status); throw Object.assign(new Error('Airtable ' + r.status + ': ' + msg), { status: 502, atStatus: r.status }); }
     return b;
   }
   return { api, call, baseId };
@@ -298,7 +298,12 @@ export async function pushQuote(priced, opts, env, deps) {
   let quoteId = opts.recordId || state.hdr['hdr-nbquote'] || '', name = '', created = false, current;
   if (quoteId) {
     try { current = await at.call(at.api(NB.t.quotes, '/' + quoteId + '?returnFieldsByFieldId=true')); }
-    catch (e) { throw Object.assign(new Error('The linked job (' + quoteId + ') could not be opened: ' + e.message), { status: 404 }); }
+    catch (e) {
+      // Only a real "not found" is a 404. A token problem used to show up as 404 too, which hid the cause.
+      if (e.atStatus === 401 || e.atStatus === 403) throw Object.assign(new Error('Airtable refused the service token (' + e.message + '). Check the AIRTABLE_TOKEN secret in Cloudflare: it needs data.records:read + write on base ' + at.baseId + '.'), { status: 502 });
+      if (e.atStatus === 404) throw Object.assign(new Error('The linked job (' + quoteId + ') was not found in Quotes/Work Orders (' + NB.t.quotes + '). Is it a Quote Request ID instead of the Quote record ID? ' + e.message), { status: 404 });
+      throw Object.assign(new Error('The linked job (' + quoteId + ') could not be opened: ' + e.message), { status: 502 });
+    }
     name = (current.fields || {})[Q.name] || '';
   } else {
     const j = await createJob(at, state, now); quoteId = j.id; name = j.name; created = true;
@@ -367,4 +372,13 @@ export async function pushQuote(priced, opts, env, deps) {
   steps.push('price $' + Math.round(totals.total || 0).toLocaleString('en-US') + (qf[Q.bidStatus] ? ' · Bid Status → ' + qf[Q.bidStatus] : ''));
   if (m) steps.push(`margin ${m.marginPct.toFixed(1)}% material`);
   return { quoteId, name, created, steps, url: `https://airtable.com/${at.baseId}/${NB.t.quotes}/${quoteId}` };
+}
+
+/* Health check for the pipeline's preflight: can the service token read the Quotes table? */
+export async function airtableHealth(env, deps) {
+  try {
+    const at = client(env, (deps && deps.fetch) || fetch);
+    await at.call(at.api(NB.t.quotes, '?pageSize=1&fields%5B%5D=' + NB.q.name));
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message, status: e.atStatus || e.status || null }; }
 }

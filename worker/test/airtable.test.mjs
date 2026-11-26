@@ -151,7 +151,14 @@ test('no recordId: creates Quote Request + Quote like _nbCreateJob, then pushes'
 test('linked record that cannot be opened -> 404-style error, no writes', async () => {
   const f = fakeFetch([{ method: 'GET', match: 'recGONE', respond: { __status: 404, error: { type: 'NOT_FOUND' } } }]);
   const priced = await priceTakeoff(takeoff, { miles: 144 }, ENV, { now: NOW });
-  await assert.rejects(pushQuote(priced, { recordId: 'recGONE0000000000' }, ENV, { fetch: f, now: NOW }), /could not be opened/);
+  await assert.rejects(pushQuote(priced, { recordId: 'recGONE0000000000' }, ENV, { fetch: f, now: NOW }), (e) => /was not found in Quotes\/Work Orders/.test(e.message) && e.status === 404);
+  assert.equal(f.calls.length, 1);
+});
+
+test('token refused by Airtable -> clear 502 naming the AIRTABLE_TOKEN secret (not a misleading 404), no writes', async () => {
+  const f = fakeFetch([{ method: 'GET', match: 'recUJElazgmmRxcWx', respond: { __status: 403, error: { type: 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND' } } }]);
+  const priced = await priceTakeoff(takeoff, { miles: 144 }, ENV, { now: NOW });
+  await assert.rejects(pushQuote(priced, { recordId: 'recUJElazgmmRxcWx' }, ENV, { fetch: f, now: NOW }), (e) => /AIRTABLE_TOKEN/.test(e.message) && e.status === 502);
   assert.equal(f.calls.length, 1);
 });
 
